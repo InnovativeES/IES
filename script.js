@@ -460,8 +460,4 @@ function initPortfolioFilter() {
     });
 }
 
-// Initialize portfolio filters and contact form
-document.addEventListener('DOMContentLoaded', function () {
-    initPortfolioFilter();
-    initContactForm();
-});
+
