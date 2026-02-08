@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cleanup Internal Orders</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 2rem;
+            background: #fef2f2;
+            color: #991b1b;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            border: 1px solid #fee2e2;
+        }
+
+        button {
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background: #b91c1c;
+        }
+
+        #status {
+            margin-top: 1.5rem;
+            line-height: 1.6;
+            font-family: monospace;
+            color: #1e293b;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Cleanup Internal Orders</h1>
+        <p>This will delete ALL active "Internal Order" entries in the system.</p>
+        <button onclick="window.runCleanup()">Delete All Internal Orders</button>
+        <div id="status"></div>
+    </div>
+    <script type="module" src="assets/admin/js/cleanup_internal.js"></script>
+</body>
+
+</html>

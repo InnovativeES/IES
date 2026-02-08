@@ -1,0 +1,19 @@
+/* === COMPACT MODAL GRID === */
+.compact-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+    align-items: end;
+}
+
+@media (max-width: 640px) {
+    .compact-form-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Ensure modals fit in viewport */
+.modal-content {
+    max-height: 90vh;
+    overflow-y: auto;
+}

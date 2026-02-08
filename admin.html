@@ -1,0 +1,1249 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Innovative Engineering Solutions</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS (Utilities Only) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdfa', 100: '#ccfbf1', 200: '#99f6e4', 300: '#5eead4',
+                            400: '#2dd4bf', 500: '#14b8a6', 600: '#0d9488', 700: '#0f766e',
+                            800: '#115e59', 900: '#134e4a',
+                        },
+                        indigo: {
+                            50: '#f5f3ff', 100: '#ede9fe', 200: '#ddd6fe', 300: '#c4b5fd',
+                            400: '#a78bfa', 500: '#8b5cf6', 600: '#7c3aed', 700: '#6d28d9',
+                            800: '#5b21b6', 900: '#4c1d95'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- D3.js for Charts -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+
+    <!-- PDF Export Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js" type="module"></script>
+
+    <!-- Admin Styles -->
+    <link rel="stylesheet" href="assets/admin/css/admin.css?v=1">
+    <link rel="stylesheet" href="assets/admin/css/delivery-modal.css">
+</head>
+
+<body>
+
+    <!-- ============================================
+         AUTH CONTAINER (Login Page)
+         ============================================ -->
+    <div id="auth-container">
+        <div class="login-card">
+            <img src="assets/logo.png" alt="Logo" class="login-logo">
+            <h1 class="login-title">Admin Portal</h1>
+            <p class="login-subtitle">Sign in to access the dashboard</p>
+
+            <form id="login-form">
+                <div class="form-group">
+                    <label class="form-label" for="email-address">Email Address</label>
+                    <input type="email" id="email-address" name="email" class="form-input"
+                        placeholder="admin@company.com" required autocomplete="email">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="password">Password</label>
+                    <input type="password" id="password" name="password" class="form-input"
+                        placeholder="Enter your password" required autocomplete="current-password">
+                </div>
+                <div class="form-group" style="display: flex; align-items: center; gap: 0.5rem;">
+                    <input type="checkbox" id="remember-me" name="remember-me"
+                        style="width: 16px; height: 16px; accent-color: #10b981;">
+                    <label for="remember-me" style="font-size: 0.875rem; color: #475569;">Remember me</label>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 0.5rem;">
+                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                    </svg>
+                    Sign In
+                </button>
+                <div id="login-error" class="login-error hidden"></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ============================================
+         DASHBOARD CONTAINER
+         ============================================ -->
+    <div id="dashboard-container" class="hidden">
+
+        <!-- Sidebar -->
+        <aside id="sidebar">
+            <div class="sidebar-header">
+                <img src="assets/logo.png" alt="Logo" class="sidebar-logo">
+                <span class="brand-text">IES Groups Admin Panel</span>
+            </div>
+
+            <nav class="sidebar-nav">
+                <ul class="nav-list">
+                    <li class="nav-item">
+                        <a href="#" class="nav-link active" data-view="overview">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                            </svg>
+                            Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link" data-view="monitoring">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                            </svg>
+                            Internal Orders
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link" data-view="delivery_report">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            Delivery Report
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link" data-view="team_org">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                            </svg>
+                            Team &amp; Organization
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link" data-view="project_management">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                            </svg>
+                            Project Management
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <div class="user-avatar">A</div>
+                    <div class="user-details">
+                        <span class="user-label">Signed in as</span>
+                        <span class="user-email" id="user-email-display">admin@company.com</span>
+                    </div>
+                </div>
+                <button id="logout-btn">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                    Sign Out
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content Wrapper -->
+        <div class="main-wrapper">
+
+            <main id="main-content">
+
+                <!-- ============================================
+                     VIEW: Dashboard Overview
+                     ============================================ -->
+                <div id="view-overview" class="view-section">
+                    <div class="dashboard-header-row mb-6">
+                        <div class="dashboard-title">
+                            <h2 class="text-2xl font-bold text-slate-800">Executive Overview</h2>
+                            <p class="text-sm text-slate-500">Real-time production & revenue insights</p>
+                        </div>
+                        <div class="dashboard-controls flex items-center gap-3">
+                            <label for="dashboard-month-filter"
+                                class="text-sm font-medium text-slate-600">Period:</label>
+                            <select id="dashboard-month-filter" class="form-select text-sm rounded-lg border-slate-200">
+                                <option value="all">All Time</option>
+                                <option value="2026-02">February 2026</option>
+                                <option value="2026-01">January 2026</option>
+                                <option value="2025-12">December 2025</option>
+                                <option value="2025-11">November 2025</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="stats-grid">
+                        <!-- KPI Card 1: Revenue -->
+                        <div class="stat-card blue">
+                            <div class="stat-icon blue">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </div>
+                            <div class="stat-content">
+                                <h3>
+                                    Total Revenue
+                                    <!-- Inline Privacy Toggle -->
+                                    <button class="privacy-toggle" onclick="toggleRevenue()" title="Toggle Visibility">
+                                        <svg id="eye-icon" width="16" height="16" fill="none" stroke="currentColor"
+                                            viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                        </svg>
+                                        <svg id="eye-off-icon" class="hidden" width="16" height="16" fill="none"
+                                            stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                                        </svg>
+                                    </button>
+                                </h3>
+                                <p id="stat-revenue" class="revenue-hidden">₹ 4,55,453</p>
+                                <div class="stat-trend up">
+                                    <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path d="M5 15l7-7 7 7"></path>
+                                    </svg>
+                                    <span>Active Portfolio</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Inline Script for Privacy Toggle -->
+                        <script>
+                            function toggleRevenue() {
+                                const revEl = document.getElementById('stat-revenue');
+                                const eye = document.getElementById('eye-icon');
+                                const eyeOff = document.getElementById('eye-off-icon');
+
+                                if (revEl.classList.contains('revenue-hidden')) {
+                                    revEl.classList.remove('revenue-hidden');
+                                    revEl.classList.add('revenue-visible');
+                                    eye.classList.add('hidden');
+                                    eyeOff.classList.remove('hidden');
+                                } else {
+                                    revEl.classList.add('revenue-hidden');
+                                    revEl.classList.remove('revenue-visible');
+                                    eye.classList.remove('hidden');
+                                    eyeOff.classList.add('hidden');
+                                }
+                            }
+                        </script>
+
+                        <!-- KPI Card 2: Active Orders -->
+                        <div class="stat-card emerald">
+                            <div class="stat-icon emerald">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                                </svg>
+                            </div>
+                            <div class="stat-content">
+                                <h3>Active Orders</h3>
+                                <p id="stat-active-orders">0</p>
+                                <div class="stat-trend up">
+                                    <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path d="M5 15l7-7 7 7"></path>
+                                    </svg>
+                                    <span id="stat-pending-count">0 Pending</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- KPI Card 3: Priority -->
+                        <div class="stat-card amber">
+                            <div class="stat-icon amber">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </div>
+                            <div class="stat-content">
+                                <h3>Due this Week</h3>
+                                <p id="stat-weekly-due">0</p>
+                                <div class="stat-trend up">
+                                    <span>Production Focus</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- KPI Card 4: Team -->
+                        <div class="stat-card purple">
+                            <div class="stat-icon purple">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                </svg>
+                            </div>
+                            <div class="stat-content">
+                                <h3>Efficiency</h3>
+                                <p id="stat-efficiency">0%</p>
+                                <div class="stat-trend up">
+                                    <span id="stat-member-count">0 Staff Active</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dashboard Layout Row (3 Columns) -->
+                    <div class="dashboard-row three-col-grid">
+
+                        <!-- Column 1: Pending Orders List (Main) -->
+                        <div class="dashboard-table-card col-main">
+                            <div class="card-header">
+                                <div class="card-title-group">
+                                    <h3>Pending Production Orders</h3>
+                                    <span class="count-badge" id="pending-orders-badge">0 Items</span>
+                                </div>
+                                <button class="btn-text" onclick="window.adminApp.switchView('monitoring')">View
+                                    All</button>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="dashboard-table">
+                                    <thead>
+                                        <tr>
+                                            <th>IO No</th>
+                                            <th>Description</th>
+                                            <th>Customer</th>
+                                            <th>Delivery Date</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="dashboard-pending-body">
+                                        <tr>
+                                            <td colspan="5" class="text-center py-8 text-slate-400">Loading orders...
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Column 2: Activity & Alerts (Middle) -->
+                        <div class="flex flex-col gap-4 col-middle">
+                            <!-- Production Pipeline Chart (Fixed Height) -->
+                            <div class="card p-5">
+                                <div class="mb-4">
+                                    <h3 style="font-size: 1.125rem; font-weight: 600;">Production Pipeline</h3>
+                                    <p class="text-xs text-slate-500 mt-1">Status distribution of all active orders</p>
+                                </div>
+                                <div id="production-pipeline-chart" class="w-full">
+                                    <!-- Production Pipeline Logic -->
+                                    <div class="flex flex-col gap-3">
+                                        <div class="pipeline-item">
+                                            <div class="flex justify-between text-xs mb-1">
+                                                <span>In Progress</span>
+                                                <span id="pipeline-progress-pct">0%</span>
+                                            </div>
+                                            <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                                                <div id="pipeline-progress-bar" class="h-full bg-blue-500"
+                                                    style="width: 0%"></div>
+                                            </div>
+                                        </div>
+                                        <div class="pipeline-item">
+                                            <div class="flex justify-between text-xs mb-1">
+                                                <span>Pending</span>
+                                                <span id="pipeline-pending-pct">0%</span>
+                                            </div>
+                                            <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                                                <div id="pipeline-pending-bar" class="h-full bg-amber-500"
+                                                    style="width: 0%"></div>
+                                            </div>
+                                        </div>
+                                        <div class="pipeline-item">
+                                            <div class="flex justify-between text-xs mb-1">
+                                                <span>Delivered</span>
+                                                <span id="pipeline-delivered-pct">0%</span>
+                                            </div>
+                                            <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                                                <div id="pipeline-delivered-bar" class="h-full bg-emerald-500"
+                                                    style="width: 0%"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Recently Added (Flex Grow) -->
+                            <div class="card p-5 flex-1 flex flex-col min-h-0">
+                                <div class="mb-4">
+                                    <h3 style="font-size: 1rem; font-weight: 600;">Recently Added</h3>
+                                    <p class="text-xs text-slate-500 mt-1">Latest internal orders created</p>
+                                </div>
+                                <ul class="activity-feed flex-1 overflow-y-auto" id="dashboard-recent-feed">
+                                    <!-- Populated by JS -->
+                                    <li class="text-center py-4 text-xs text-slate-400">Loading recent items...</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- Column 3: In Progress Orders (New) -->
+                        <div class="flex flex-col gap-4 col-right">
+                            <div class="card p-5 flex-1 flex flex-col min-h-0">
+                                <div class="mb-4 flex justify-between items-center">
+                                    <div>
+                                        <h3 style="font-size: 1rem; font-weight: 600;">In Progress Orders</h3>
+                                        <p class="text-xs text-slate-500 mt-1">Currently on the floor</p>
+                                    </div>
+                                    <span
+                                        class="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded font-medium">Live</span>
+                                </div>
+                                <div id="dashboard-inprogress-list" class="flex-1 overflow-y-auto pr-1">
+                                    <!-- Populated by JS -->
+                                    <div class="text-xs text-slate-400 p-4 text-center">Loading...</div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- ============================================
+                     VIEW: Internal Orders (Monitoring)
+                     ============================================ -->
+                <div id="view-monitoring" class="view-section hidden">
+                    <!-- Month Header Card -->
+                    <div class="month-header-card">
+                        <div class="month-info">
+                            <span class="month-label">Filter Period</span>
+                            <div class="flex items-center gap-2">
+                                <input type="month" id="order-month-from" class="month-picker" title="From">
+                                <span class="text-slate-400">to</span>
+                                <input type="month" id="order-month-to" class="month-picker" title="To">
+                            </div>
+                        </div>
+                        <div class="header-divider"></div>
+                        <div class="search-box">
+                            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            <input type="text" id="order-search-filter" class="search-input"
+                                placeholder="Search by order no, customer, description...">
+                        </div>
+                        <div class="header-actions">
+                            <button id="trash-toggle-btn" class="btn btn-ghost"
+                                onclick="window.adminApp.toggleTrashMode()">
+                                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                <span>Trash</span>
+                            </button>
+                            <button id="empty-trash-btn" class="btn btn-danger hidden"
+                                onclick="window.adminApp.emptyTrash('internal')">
+                                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                Empty Trash
+                            </button>
+                            <button class="btn btn-primary btn-lg" onclick="window.adminApp.prepareAddOrder()">
+                                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 4v16m8-8H4" />
+                                </svg>
+                                Add Order
+                            </button>
+                            <button onclick="window.adminApp.exportToPDF()" class="btn btn-pdf btn-lg flex items-center"
+                                title="Export monthly report to PDF">
+                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z">
+                                    </path>
+                                </svg>
+                                Export PDF
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="table-container">
+                        <div class="table-wrapper">
+                            <table id="monitoring-table" class="excel-style-table">
+                                <thead>
+                                    <!-- Row 1: Groups -->
+                                    <tr class="header-group-row">
+                                        <th rowspan="2" width="50">S.No</th>
+                                        <th colspan="2" class="text-center group-order">Internal Order</th>
+                                        <th colspan="2" class="text-center group-item">Item Details</th>
+                                        <th colspan="4" class="text-center group-pricing">Pricing & Production</th>
+                                        <th colspan="6" class="text-center group-customer">Customer Data</th>
+                                        <th colspan="5" class="text-center group-delivery">Delivery date Actual</th>
+                                        <th rowspan="2" width="80" class="text-right">Actions</th>
+                                    </tr>
+                                    <!-- Row 2: Columns -->
+                                    <tr class="header-column-row">
+                                        <th class="sortable" onclick="window.adminApp.sort('internalOrderNo')">IO No
+                                        </th>
+                                        <th class="sortable" onclick="window.adminApp.sort('date')">Date</th>
+                                        <th>Item Code</th>
+                                        <th style="min-width: 150px;">Description</th>
+                                        <th class="text-right">Qty</th>
+                                        <th class="text-right">Sale Val</th>
+                                        <th class="text-right">Prod Val</th>
+                                        <th class="text-right sortable" onclick="window.adminApp.sort('total')">Total
+                                        </th>
+
+                                        <th class="sortable" onclick="window.adminApp.sort('customer')">Customer</th>
+                                        <th>PO No</th>
+                                        <th>PO Date</th>
+                                        <th title="Drawing Availability">Drg</th>
+                                        <th title="Raw Material Availability">Raw</th>
+                                        <th title="Finished Part Availability">Fin</th>
+
+                                        <th>Del. Date</th>
+                                        <th>DC No</th>
+                                        <th class="text-right">Del. Qty</th>
+                                        <th>Bill No</th>
+                                        <th class="text-center sortable" onclick="window.adminApp.sort('status')">Status
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody id="monitoring-table-body">
+                                    <!-- Populated by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Pagination (REMOVED) -->
+                        <div id="pagination-container" class="pagination-container hidden" style="display: none;">
+                            <!-- Kept hidden structure just in case JS references it, but content cleared -->
+                            <div class="pagination-info" id="pagination-info"
+                                style="padding: 1rem; color: #64748b; font-size: 0.875rem;"></div>
+                            <div class="pagination-controls" id="pagination-controls"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ============================================
+                     VIEW: Team & Organization
+                     ============================================ -->
+                <div id="view-team_org" class="view-section hidden">
+                    <div class="page-header">
+                        <div>
+                            <h2>Team &amp; Organization</h2>
+                            <div class="tabs" style="margin-top: 1rem; margin-bottom: 0;">
+                                <button id="tab-members" class="tab-btn active"
+                                    onclick="window.adminApp.switchTeamTab('members')">Members</button>
+                                <button id="tab-hierarchy" class="tab-btn"
+                                    onclick="window.adminApp.switchTeamTab('hierarchy')">Organization Tree</button>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" onclick="window.adminApp.openAddMemberModal()">
+                            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                            </svg>
+                            Add Member
+                        </button>
+                    </div>
+
+                    <!-- Sub-View: Member List -->
+                    <div id="subview-members" class="table-container">
+                        <div class="table-wrapper">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Role</th>
+                                        <th>Section</th>
+                                        <th>Status</th>
+                                        <th class="text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="member-list-body">
+                                    <!-- Populated by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Sub-View: Hierarchy Tree -->
+                    <div id="subview-hierarchy" class="hidden">
+                        <div class="card">
+                            <div class="card-body">
+                                <div id="hierarchy-container">
+                                    <!-- Org chart rendered by charts.js -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ============================================
+                     VIEW: Project Management
+                     ============================================ -->
+                <div id="view-project_management" class="view-section hidden">
+                    <!-- Coming Soon Page -->
+                    <div
+                        style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; text-align: center; padding: 2rem;">
+                        <div
+                            style="width: 120px; height: 120px; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); border-radius: 24px; display: flex; align-items: center; justify-content: center; margin-bottom: 2rem; box-shadow: 0 20px 40px rgba(99, 102, 241, 0.3);">
+                            <svg style="width: 56px; height: 56px; color: white;" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                    d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10">
+                                </path>
+                            </svg>
+                        </div>
+                        <h2 style="font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 0.75rem 0;">Project
+                            Management</h2>
+                        <p style="font-size: 1.125rem; color: #64748b; margin: 0 0 2rem 0; max-width: 400px;">
+                            We're building something amazing! This feature is currently under development.
+                        </p>
+                        <div
+                            style="display: flex; align-items: center; gap: 0.75rem; padding: 0.875rem 1.5rem; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 1px solid #86efac; border-radius: 12px;">
+                            <div
+                                style="width: 10px; height: 10px; background: #22c55e; border-radius: 50%; animation: pulse 2s infinite;">
+                            </div>
+                            <span style="font-size: 0.875rem; font-weight: 600; color: #166534;">Coming Soon</span>
+                        </div>
+                        <p style="font-size: 0.875rem; color: #94a3b8; margin-top: 2rem;">
+                            Expected features: Kanban Board, Task Assignment, Timeline View, Progress Tracking
+                        </p>
+                    </div>
+                    <style>
+                        @keyframes pulse {
+
+                            0%,
+                            100% {
+                                opacity: 1;
+                                transform: scale(1);
+                            }
+
+                            50% {
+                                opacity: 0.5;
+                                transform: scale(1.1);
+                            }
+                        }
+                    </style>
+                </div>
+
+                <!-- Hidden view for backward compatibility -->
+                <div id="view-workflow" class="view-section hidden"></div>
+
+                <!-- View: Delivery Report -->
+                <section id="view-delivery_report" class="view-section hidden">
+                    <!-- Control Row -->
+                    <div
+                        class="flex items-center justify-between w-full bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6">
+                        <div class="flex items-center gap-3">
+                            <div
+                                class="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                                <svg class="text-slate-400 w-5 h-5" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z">
+                                    </path>
+                                </svg>
+                                <input type="week" id="delivery-week-picker"
+                                    class="text-sm bg-transparent border-none focus:outline-none text-slate-700 font-medium">
+                            </div>
+                            <span id="delivery-week-range"
+                                class="text-sm text-slate-500 font-medium bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm hidden"></span>
+                            <button class="btn btn-secondary" id="delivery-trash-btn"
+                                onclick="window.adminApp.toggleDeliveryTrash()">
+                                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
+                                    </path>
+                                </svg>
+                                Trash
+                            </button>
+                            <button id="delivery-empty-trash-btn" class="btn btn-danger hidden"
+                                onclick="window.adminApp.emptyTrash('delivery')">
+                                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                Empty Trash
+                            </button>
+                        </div>
+
+                        <div class="flex items-center gap-3">
+                            <button class="btn btn-secondary" onclick="window.adminApp.printDeliveryReport()">
+                                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z">
+                                    </path>
+                                </svg>
+                                Print Report
+                            </button>
+                            <button class="btn btn-purple" onclick="window.adminApp.openAddDeliveryModal()">
+                                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 4v16m8-8H4" />
+                                </svg>
+                                Add Direct Entry
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Report Summary Cards -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+                        <div class="stats-card">
+                            <div class="stats-card-icon bg-purple-100 text-purple-600">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0">
+                                    </path>
+                                </svg>
+                            </div>
+                            <div>
+                                <p class="text-sm text-slate-500 font-medium">Delivered Items</p>
+                                <h3 class="text-2xl font-bold text-slate-800" id="report-total-items">0</h3>
+                            </div>
+                        </div>
+                        <div class="stats-card">
+                            <div class="stats-card-icon bg-purple-100 text-purple-600">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z">
+                                    </path>
+                                </svg>
+                            </div>
+                            <div>
+                                <p class="text-sm text-slate-500 font-medium">Total Value</p>
+                                <h3 class="text-2xl font-bold text-slate-800" id="report-total-value">₹0</h3>
+                            </div>
+                        </div>
+                        <div class="stats-card">
+                            <div class="stats-card-icon bg-purple-100 text-purple-600">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z">
+                                    </path>
+                                </svg>
+                            </div>
+                            <div>
+                                <p class="text-sm text-slate-500 font-medium">Labour Cost</p>
+                                <h3 class="text-2xl font-bold text-slate-800" id="report-total-labour">₹0</h3>
+                            </div>
+                        </div>
+                        <div class="stats-card">
+                            <div class="stats-card-icon bg-purple-100 text-purple-600">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z">
+                                    </path>
+                                </svg>
+                            </div>
+                            <div>
+                                <p class="text-sm text-slate-500 font-medium">Total Manpower</p>
+                                <h3 class="text-2xl font-bold text-slate-800" id="report-total-manpower">0</h3>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Delivery Report Table -->
+                    <div class="table-container">
+                        <div class="table-wrapper">
+                            <table id="delivery-report-table">
+                                <thead>
+                                    <tr>
+                                        <!-- Widths adjusted for report layout -->
+                                        <th style="width: 50px;" class="text-center">S.No</th>
+                                        <th style="width: 100px;">Date</th>
+                                        <th style="width: 150px;">Customer</th>
+                                        <th style="width: 200px;">Item</th>
+                                        <th style="width: 100px;">Department</th>
+                                        <th style="width: 80px;">DC.No</th>
+                                        <th style="width: 80px;">Quantity</th>
+                                        <th style="width: 100px;">Delivery Value</th>
+                                        <th style="width: 100px;">Labour</th>
+                                        <th style="width: 120px;">Daily Value</th>
+                                        <th style="width: 120px;">Manpower</th>
+                                        <th style="width: 80px;" class="text-center no-print">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="delivery-report-body">
+                                    <!-- Report rows will be injected here -->
+                                    <tr>
+                                        <td colspan="11" class="px-4 py-8 text-center text-slate-400">
+                                            Select a week to generate report
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- ============================================
+         MODAL: Add/Edit Order (Premium Single-View Design)
+         ============================================ -->
+    <div id="add-order-modal" class="modal hidden">
+        <div class="modal-backdrop" onclick="window.adminApp.closeModal('add-order-modal')"></div>
+        <div class="modal-content modal-wide">
+            <div class="modal-header">
+                <h3 class="modal-title">Internal Order</h3>
+                <button class="modal-close" onclick="window.adminApp.closeModal('add-order-modal')">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <form id="add-order-form">
+                <div class="modal-body compact">
+                    <input type="hidden" id="orderId-input" name="orderId">
+
+                    <!-- Section: Order Details -->
+                    <div class="inline-section-label">Order Details</div>
+                    <div class="compact-form-grid" style="grid-template-columns: 1fr 1fr 1.5fr 3fr;">
+                        <div class="form-group">
+                            <label class="form-label">Order No <span class="required-indicator">*</span></label>
+                            <input type="text" name="internalOrderNo" class="form-input" required
+                                placeholder="IO-2025-001">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Order Date <span class="required-indicator">*</span></label>
+                            <input type="date" name="date" class="form-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Item Code</label>
+                            <input type="text" name="itemCode" class="form-input" placeholder="Item/Serial No">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Description</label>
+                            <input type="text" name="description" class="form-input"
+                                placeholder="Enter order description...">
+                        </div>
+                    </div>
+
+                    <div class="inline-section-label" style="margin-top: 1.5rem;">Pricing & Production</div>
+                    <div class="compact-form-grid">
+                        <div class="form-group">
+                            <label class="form-label">Order Qty</label>
+                            <input type="number" name="qty" class="form-input" min="0" id="order-qty">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Sale Val (ea)</label>
+                            <input type="number" name="saleValueEa" class="form-input" min="0" step="0.01"
+                                id="order-value">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Prod Val (ea)</label>
+                            <input type="number" name="prodValueEa" class="form-input" min="0" step="0.01">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Total (Sale)</label>
+                            <input type="text" name="total" class="form-input computed" id="order-total" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Department</label>
+                            <select name="department" class="form-input">
+                                <option value="">Select Dept</option>
+                                <option value="Fab">Fab</option>
+                                <option value="CNC">CNC</option>
+                                <option value="VMC">VMC</option>
+                                <option value="Turning">Turning</option>
+                                <option value="Assembly">Assembly</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Labour Cost</label>
+                            <input type="number" name="labourCost" class="form-input" min="0" step="0.01">
+                        </div>
+                    </div>
+
+                    <div class="inline-section-label" style="margin-top: 1.5rem;">Customer & Checks</div>
+                    <div class="compact-form-grid" style="grid-template-columns: 2fr 1fr 1fr;">
+                        <div class="form-group">
+                            <label class="form-label">Customer</label>
+                            <input type="text" name="customer" class="form-input" placeholder="Customer Name">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">PO No</label>
+                            <input type="text" name="poNo" class="form-input" placeholder="PO #">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">PO Date</label>
+                            <input type="date" name="poDate" class="form-input">
+                        </div>
+                    </div>
+
+                    <div class="avail-checks"
+                        style="background: #f8fafc; padding: 1rem; border-radius: 8px; margin-top: 1rem; display: flex; gap: 2rem; border: 1px solid #e2e8f0;">
+                        <label class="check-item"
+                            style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" name="drgAvail" value="y"
+                                style="width: 18px; height: 18px; accent-color: #14b8a6;">
+                            <span style="font-size: 0.875rem; font-weight: 500; color: #475569;">Drg Available</span>
+                        </label>
+                        <label class="check-item"
+                            style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" name="rawAvail" value="y"
+                                style="width: 18px; height: 18px; accent-color: #14b8a6;">
+                            <span style="font-size: 0.875rem; font-weight: 500; color: #475569;">Raw Mat. Avail</span>
+                        </label>
+                        <label class="check-item"
+                            style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" name="finishAvail" value="y"
+                                style="width: 18px; height: 18px; accent-color: #14b8a6;">
+                            <span style="font-size: 0.875rem; font-weight: 500; color: #475569;">Finished Part
+                                Avail</span>
+                        </label>
+                    </div>
+
+                    <div class="inline-section-label" style="margin-top: 1rem;">Delivery & Billing</div>
+                    <div class="compact-form-grid" style="grid-template-columns: repeat(5, 1fr);">
+                        <div class="form-group">
+                            <label class="form-label">Del. Date</label>
+                            <input type="date" name="deliveryDateActual" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Del. Qty</label>
+                            <input type="number" name="deliveryQty" class="form-input" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">DC No</label>
+                            <input type="text" name="dcNo" class="form-input" placeholder="DC #">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Bill No</label>
+                            <input type="text" name="billNo" class="form-input" placeholder="Invoice #">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Status</label>
+                            <select name="status" class="form-input">
+                                <option value="Pending">🟡 Pending</option>
+                                <option value="In Progress">🔵 In Progress</option>
+                                <option value="Delivered">🟢 Delivered</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary"
+                        onclick="window.adminApp.closeModal('add-order-modal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Order</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ============================================
+         MODAL: Add Delivery Item (Simplified)
+         ============================================ -->
+    <div id="add-delivery-modal" class="modal hidden">
+        <div class="modal-backdrop" onclick="window.adminApp.closeModal('add-delivery-modal')"></div>
+        <div class="modal-content">
+            <div class="modal-header purple-theme">
+                <h3 class="modal-title">Add Delivered Item</h3>
+                <button class="modal-close" onclick="window.adminApp.closeModal('add-delivery-modal')">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <form id="add-delivery-form" onsubmit="event.preventDefault(); window.adminApp.submitDeliveryForm()">
+                <div class="modal-body compact">
+                    <input type="hidden" id="delivery-orderId-input" name="orderId">
+
+                    <!-- Section: Delivery Details -->
+                    <div class="inline-section-label purple-theme">Delivery Details</div>
+                    <div class="compact-form-grid">
+                        <div class="form-group">
+                            <label class="form-label">Date *</label>
+                            <input type="date" name="date" class="form-input" required>
+                        </div>
+                        <div class="form-group" style="grid-column: span 3;">
+                            <label class="form-label">Customer *</label>
+                            <input type="text" name="customer" class="form-input" required placeholder="Customer Name">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Item Code</label>
+                            <input type="text" name="itemCode" class="form-input" placeholder="Item/Serial No">
+                        </div>
+                        <div class="form-group" style="grid-column: span 3;">
+                            <label class="form-label">Description</label>
+                            <input type="text" name="description" class="form-input" placeholder="Description">
+                        </div>
+                    </div>
+
+                    <!-- Section: Values & Logistics -->
+                    <div class="inline-section-label purple-theme">Values & Logistics</div>
+                    <div class="compact-form-grid">
+                        <div class="form-group">
+                            <label class="form-label">Quantity</label>
+                            <input type="number" name="qty" class="form-input" min="0" id="del-qty">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Delivery Value</label>
+                            <input type="number" name="total" class="form-input" min="0" step="0.01" id="del-total"
+                                placeholder="Total Value">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Labour Cost</label>
+                            <input type="number" name="labourCost" class="form-input" min="0" placeholder="Cost">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">DC No</label>
+                            <input type="text" name="dcNo" class="form-input" placeholder="DC Number">
+                        </div>
+                    </div>
+
+                    <!-- Section: Department -->
+                    <div class="inline-section-label purple-theme">Department & Manpower</div>
+                    <div class="compact-form-grid">
+                        <div class="form-group">
+                            <label class="form-label">Department</label>
+                            <select name="department" class="form-input">
+                                <option value="">Select Dept</option>
+                                <option value="Fab">Fab</option>
+                                <option value="CNC">CNC</option>
+                                <option value="VMC">VMC</option>
+                                <option value="Turning">Turning</option>
+                                <option value="Assembly">Assembly</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Manpower</label>
+                            <input type="number" name="manpower" class="form-input" min="0"
+                                placeholder="Daily Value (₹)">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary"
+                        onclick="window.adminApp.closeModal('add-delivery-modal')">Cancel</button>
+                    <button type="submit" class="btn btn-purple">Add Delivery</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ============================================
+         MODAL: Add/Edit Member
+         ============================================ -->
+    <div id="add-member-modal" class="modal hidden">
+        <div class="modal-backdrop" onclick="window.adminApp.closeModal('add-member-modal')"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Add Team Member</h3>
+                <button class="modal-close" onclick="window.adminApp.closeModal('add-member-modal')">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <form id="add-member-form">
+                <div class="modal-body">
+                    <input type="hidden" id="memberId-input" name="memberId">
+
+                    <!-- 2-Column Grid Layout -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                        <!-- Left Column: Basic Info -->
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Full Name *</label>
+                                <input type="text" name="name" class="form-input" required
+                                    placeholder="Enter full name">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Employee ID</label>
+                                <input type="text" name="employeeId" class="form-input" placeholder="e.g. EMP001">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Roles/Designations *</label>
+                                <!-- Multi-Select Container -->
+                                <div class="multi-select-container" id="role-select-container">
+                                    <div class="select-display form-input"
+                                        onclick="window.adminApp.toggleRoleDropdown()">
+                                        <span id="role-display-text">Select Roles...</span>
+                                        <svg class="w-4 h-4 ml-auto opacity-50" fill="none" stroke="currentColor"
+                                            viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M19 9l-7 7-7-7"></path>
+                                        </svg>
+                                    </div>
+                                    <div id="role-dropdown-options" class="select-options hidden">
+                                        <!-- Options populated by JS -->
+                                    </div>
+                                    <input type="hidden" name="roles" id="roles-input">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right Column: Contact & Dept -->
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Email Address</label>
+                                <input type="email" name="email" class="form-input" placeholder="email@company.com">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Phone Number</label>
+                                <input type="tel" name="phone" class="form-input" placeholder="+91 98765 43210">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Departments *</label>
+                                <!-- Multi-Select Container for Departments -->
+                                <div class="multi-select-container" id="dept-select-container">
+                                    <div class="select-display form-input"
+                                        onclick="window.adminApp.toggleDeptDropdown()">
+                                        <span id="dept-display-text">Select Departments...</span>
+                                        <svg class="w-4 h-4 ml-auto opacity-50" fill="none" stroke="currentColor"
+                                            viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M19 9l-7 7-7-7"></path>
+                                        </svg>
+                                    </div>
+                                    <div id="dept-dropdown-options" class="select-options hidden">
+                                        <!-- Options populated by JS -->
+                                    </div>
+                                    <input type="hidden" name="departments" id="departments-input">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Full Width: Reporting & Status -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1rem;">
+                        <div class="form-group">
+                            <label class="form-label">Reporting Manager</label>
+                            <select name="reportingManager" id="manager-select" class="form-input">
+                                <option value="">Select Manager</option>
+                                <!-- Populated by JS -->
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Status</label>
+                            <select name="status" class="form-input">
+                                <option value="Active">Active</option>
+                                <option value="On Leave">On Leave</option>
+                                <option value="Inactive">Inactive</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-top: 1rem;">
+                        <label class="form-label">Joining Date</label>
+                        <input type="date" name="joiningDate" class="form-input">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary"
+                        onclick="window.adminApp.closeModal('add-member-modal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Member</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ============================================
+         MODAL: Add/Edit Project
+         ============================================ -->
+    <div id="add-project-modal" class="modal hidden">
+        <div class="modal-backdrop" onclick="window.adminApp.closeModal('add-project-modal')"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">New Project</h3>
+                <button class="modal-close" onclick="window.adminApp.closeModal('add-project-modal')">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <form id="add-project-form">
+                <div class="modal-body">
+                    <input type="hidden" id="projectId-input" name="projectId">
+                    <div class="form-group">
+                        <label class="form-label">Project Name *</label>
+                        <input type="text" name="name" class="form-input" required placeholder="Enter project name">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Client/Customer</label>
+                        <input type="text" name="client" class="form-input" placeholder="Client name">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Description</label>
+                        <textarea name="description" class="form-input" rows="3"
+                            placeholder="Project details..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Due Date</label>
+                        <input type="date" name="dueDate" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Priority</label>
+                        <select name="priority" class="form-input">
+                            <option value="Low">Low</option>
+                            <option value="Medium" selected>Medium</option>
+                            <option value="High">High</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary"
+                        onclick="window.adminApp.closeModal('add-project-modal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Project</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <!-- Confirmation Modal -->
+    <div id="confirm-modal" class="modal">
+        <div class="modal-overlay" onclick="window.adminApp.closeModal('confirm-modal')"></div>
+        <div class="modal-content" style="max-width: 400px; text-align: center; padding: 2rem;">
+            <div style="margin-bottom: 1rem; color: #ef4444;">
+                <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                    style="margin: 0 auto;">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z">
+                    </path>
+                </svg>
+            </div>
+            <h3 id="confirm-title" style="margin-bottom: 0.5rem; font-size: 1.25rem;">Are you sure?</h3>
+            <p id="confirm-message" style="color: #64748b; margin-bottom: 1.5rem;">This action cannot be undone.</p>
+            <div style="display: flex; gap: 1rem; justify-content: center;">
+                <button class="btn btn-secondary" onclick="window.adminApp.closeModal('confirm-modal')">Cancel</button>
+                <button id="confirm-yes-btn" class="btn btn-primary"
+                    style="background: #ef4444 !important; border-color: #ef4444;">Yes, Proceed</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Script -->
+
+    <script type="module" src="assets/admin/js/app.js?v=12"></script>
+
+</body>
+
+</html>

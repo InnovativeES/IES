@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cleanup Internal Orders (Standalone)</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 2rem;
+            background: #fef2f2;
+            color: #991b1b;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            border: 1px solid #fee2e2;
+        }
+
+        button {
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+
+        button:hover {
+            background: #b91c1c;
+        }
+
+        #status {
+            margin-top: 1.5rem;
+            line-height: 1.6;
+            font-family: monospace;
+            color: #1e293b;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Cleanup Internal Orders (Standalone)</h1>
+        <p>This will delete ALL active "Internal Order" entries and "Delivery Report" entries in the system.
+            <br><strong>Use with caution.</strong></p>
+        <button id="cleanupBtn">Delete All Data</button>
+        <div id="status"></div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, getDocs, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDA053MUUIG7vG17XLwJGsDqTKF_N-ND0Y",
+            authDomain: "ies-crm.firebaseapp.com",
+            projectId: "ies-crm",
+            storageBucket: "ies-crm.firebasestorage.app",
+            messagingSenderId: "37296676137",
+            appId: "1:37296676137:web:792fa3a9c01204e3e22b38"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        document.getElementById('cleanupBtn').addEventListener('click', async () => {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = "Starting cleanup...<br>";
+            document.getElementById('cleanupBtn').disabled = true;
+            document.getElementById('cleanupBtn').innerText = "Running...";
+
+            try {
+                // Delete everything in internal_orders collection
+                const snapshot = await getDocs(collection(db, "internal_orders"));
+                statusDiv.innerHTML += `Found ${snapshot.size} entries to delete.<br>`;
+
+                let deleted = 0;
+                // Deleting in batches of 10 to be safe/faster
+                const deletePromises = [];
+
+                for (const document of snapshot.docs) {
+                    deletePromises.push(deleteDoc(doc(db, "internal_orders", document.id)));
+                    deleted++;
+                    if (deleted % 10 === 0) {
+                        statusDiv.innerHTML += `.`;
+                    }
+                }
+
+                await Promise.all(deletePromises);
+
+                statusDiv.innerHTML += `<br><strong style="color: green;">Cleanup Done! Deleted ${deleted} entries.</strong><br>You can now run the Bulk Add.`;
+            } catch (error) {
+                console.error(error);
+                statusDiv.innerHTML += `<br><strong style="color: red;">Error: ${error.message}</strong>`;
+            } finally {
+                document.getElementById('cleanupBtn').disabled = false;
+                document.getElementById('cleanupBtn').innerText = "Delete All Data";
+            }
+        });
+    </script>
+</body>
+
+</html>

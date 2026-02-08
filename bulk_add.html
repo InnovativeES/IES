@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bulk Add Entries</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 2rem;
+            background: #f8fafc;
+            color: #1e293b;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        }
+
+        button {
+            background: #7c3aed;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background: #6d28d9;
+        }
+
+        #status {
+            margin-top: 1.5rem;
+            line-height: 1.6;
+            font-family: monospace;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Bulk Add Delivery Entries</h1>
+        <p>This will add 19 entries from the image provided.</p>
+        <button onclick="window.runBulkAdd()">Run Addition</button>
+        <div id="status"></div>
+    </div>
+    <script type="module" src="assets/admin/js/bulk_add.js"></script>
+</body>
+
+</html>
