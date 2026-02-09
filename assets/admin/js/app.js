@@ -83,18 +83,15 @@ function calculateDashboardStats(orders, selectedMonth = 'all') {
 
 // Helper: Refresh Dashboard UI
 function refreshDashboard() {
-    const overviewView = document.getElementById('view-overview');
-    if (overviewView && !overviewView.classList.contains('hidden')) {
-        const monthFilter = document.getElementById('dashboard-month-filter');
-        const selectedMonth = monthFilter ? monthFilter.value : 'all';
+    const monthFilter = document.getElementById('dashboard-month-filter');
+    const selectedMonth = monthFilter ? monthFilter.value : 'all';
 
-        const stats = calculateDashboardStats(currentOrders, selectedMonth);
-        UI.updateStats(stats);
-        UI.renderDashboardPendingOrders(stats.filteredOrders);
-        UI.renderDashboardRecentActivity(stats.filteredOrders);
-        if (UI.renderInProgressOrders) {
-            UI.renderInProgressOrders(stats.inProgressOrders);
-        }
+    const stats = calculateDashboardStats(currentOrders, selectedMonth);
+    UI.updateStats(stats);
+    UI.renderDashboardPendingOrders(stats.filteredOrders);
+    UI.renderDashboardRecentActivity(stats.filteredOrders);
+    if (UI.renderInProgressOrders) {
+        UI.renderInProgressOrders(stats.inProgressOrders);
     }
 }
 
@@ -180,7 +177,7 @@ window.adminApp = {
     // Definitions
     rolesList: [
         "Director", "Managing Director", "General Manager",
-        "Section Head", "Manager", "Assistant Manager",
+        "Business Development Manager", "Section Head", "Manager", "Assistant Manager",
         "Senior Engineer", "Design Engineer", "Quality Engineer", "Production Engineer",
         "Supervisor", "Foreman", "Technician", "Operator",
         "CNC Operator", "VMC Operator", "Welder", "Fitter", "Electrician",
@@ -895,6 +892,614 @@ window.adminApp = {
             if (res.error) console.error(res.error);
             else console.log('Manpower saved for', date);
         });
+    },
+
+    // ============================================
+    // PENDING ASSIGNMENT FUNCTIONS
+    // ============================================
+
+    renderPendingAssignment: () => {
+        const view = document.getElementById('view-pending_assignment');
+        if (!view || view.classList.contains('hidden')) return;
+
+        const tbody = document.getElementById('pending-assignment-body');
+        const countBadge = document.getElementById('pending-assignment-count');
+        if (!tbody) return;
+
+        // Get filters
+        const deptFilter = document.getElementById('pending-filter-department')?.value || '';
+        const assignedFilter = document.getElementById('pending-filter-assigned')?.value || '';
+        const priorityFilter = document.getElementById('pending-filter-priority')?.value || '';
+
+        // Filter pending orders
+        let pendingOrders = currentOrders.filter(o =>
+            o.status === 'Pending' && !o.deleted
+        );
+
+        // Apply department filter
+        if (deptFilter) {
+            pendingOrders = pendingOrders.filter(o => o.department === deptFilter);
+        }
+
+        // Apply assigned filter
+        if (assignedFilter === 'assigned') {
+            pendingOrders = pendingOrders.filter(o => o.assignedTo && o.assignedTo.length > 0);
+        } else if (assignedFilter === 'unassigned') {
+            pendingOrders = pendingOrders.filter(o => !o.assignedTo || o.assignedTo.length === 0);
+        }
+
+        // Apply priority filter
+        if (priorityFilter) {
+            pendingOrders = pendingOrders.filter(o => (o.priority || 'normal') === priorityFilter);
+        }
+
+        // Get sort option
+        const sortBy = document.getElementById('pending-sort-by')?.value || 'priority';
+
+        // Sort based on selection
+        pendingOrders.sort((a, b) => {
+            if (sortBy === 'priority') {
+                // Urgent first, then by due date
+                const priorityA = a.priority === 'urgent' ? 0 : 1;
+                const priorityB = b.priority === 'urgent' ? 0 : 1;
+                if (priorityA !== priorityB) return priorityA - priorityB;
+                // Then by due date
+                const dateA = new Date(a.estimatedCompletion || '2099-12-31');
+                const dateB = new Date(b.estimatedCompletion || '2099-12-31');
+                return dateA - dateB;
+            } else if (sortBy === 'dueDate') {
+                const dateA = new Date(a.estimatedCompletion || '2099-12-31');
+                const dateB = new Date(b.estimatedCompletion || '2099-12-31');
+                return dateA - dateB;
+            } else if (sortBy === 'orderId') {
+                const idA = a.internalOrderNo || a.id || '';
+                const idB = b.internalOrderNo || b.id || '';
+                return idA.localeCompare(idB);
+            }
+            return 0;
+        });
+
+        // Update count badge
+        if (countBadge) {
+            countBadge.textContent = `${pendingOrders.length} orders`;
+        }
+
+        // Build table rows
+        if (pendingOrders.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-slate-400">No pending orders found</td></tr>';
+            return;
+        }
+
+        // Build member dropdown options
+        const memberOptions = currentMembers.map(m =>
+            `<option value="${m.id}">${m.name}</option>`
+        ).join('');
+
+        tbody.innerHTML = pendingOrders.map(order => {
+            const isUrgent = order.priority === 'urgent';
+            const assignedList = (order.assignedTo || []).map(id => {
+                return {
+                    id: id,
+                    name: currentMembers.find(m => m.id === id)?.name || id
+                };
+            });
+
+            // Format due date for input (YYYY-MM-DD)
+            const dueDateValue = order.estimatedCompletion
+                ? new Date(order.estimatedCompletion).toISOString().split('T')[0]
+                : '';
+
+            const rowClass = isUrgent ? 'pending-row-urgent' : 'pending-row-normal';
+
+            return `
+                <tr class="pending-assignment-row ${rowClass}">
+                    <td style="text-align: center; vertical-align: middle;">
+                        <button onclick="window.adminApp.togglePriority('${order.id}')" 
+                                class="priority-toggle ${isUrgent ? 'is-urgent' : ''}"
+                                title="${isUrgent ? 'Mark as Normal' : 'Mark as Urgent'}">
+                            ${isUrgent ? '🔥' : '⚪'}
+                        </button>
+                    </td>
+                    <td><span class="order-id-badge">${order.internalOrderNo || order.id}</span></td>
+                    <td style="font-size: 0.75rem; color: var(--slate-600);">${order.description || '-'}</td>
+                    <td style="font-size: 0.75rem; font-weight: 500; color: var(--slate-700);">${order.customer || '-'}</td>
+                    <td>
+                        <input type="date" class="table-form-input" 
+                               value="${dueDateValue}"
+                               onchange="window.adminApp.updateDueDate('${order.id}', this.value)"
+                               title="Click to set/change due date">
+                    </td>
+                    <td>
+                        <select class="table-form-select" 
+                                onchange="window.adminApp.updateAssignment('${order.id}', this.value)"
+                                id="assign-${order.id}">
+                            <option value="">-- Assign Employee --</option>
+                            ${memberOptions}
+                        </select>
+                        <div class="assign-badge-container">
+                            ${assignedList.map(m => `
+                                <span class="assign-badge">
+                                    👤 ${m.name}
+                                    <button class="remove-assign-btn" 
+                                            onclick="window.adminApp.removeAssignment('${order.id}', '${m.id}')"
+                                            title="Remove Assignment">×</button>
+                                </span>
+                            `).join('')}
+                        </div>
+                    </td>
+                    <td>
+                        <input type="text" class="table-form-input"
+                               placeholder="Add remarks..."
+                               value="${order.remarks || ''}"
+                               onblur="window.adminApp.saveRemarks('${order.id}', this.value)"
+                               id="remarks-${order.id}">
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        // Set current assignments in dropdowns
+        pendingOrders.forEach(order => {
+            const select = document.getElementById(`assign-${order.id}`);
+            if (select && order.assignedTo && order.assignedTo.length > 0) {
+                select.value = order.assignedTo[order.assignedTo.length - 1]; // Show last assigned
+            }
+        });
+    },
+
+    updateAssignment: async (orderId, memberId) => {
+        if (!memberId) return;
+
+        const order = currentOrders.find(o => o.id === orderId);
+        if (!order) return;
+
+        const currentAssigned = order.assignedTo || [];
+        if (!currentAssigned.includes(memberId)) {
+            currentAssigned.push(memberId);
+        }
+
+        // Log history
+        const historyEntry = {
+            action: 'assigned',
+            memberId: memberId,
+            memberName: currentMembers.find(m => m.id === memberId)?.name || memberId,
+            timestamp: new Date().toISOString(),
+            assignedBy: 'admin' // TODO: Get current user
+        };
+
+        const assignmentHistory = order.assignmentHistory || [];
+        assignmentHistory.push(historyEntry);
+
+        // Update in Firestore
+        const result = await DB.updateOrder(orderId, {
+            assignedTo: currentAssigned,
+            assignmentHistory: assignmentHistory
+        });
+
+        if (!result.error) {
+            window.adminApp.renderPendingAssignment();
+        }
+    },
+
+    removeAssignment: async (orderId, memberId) => {
+        const order = currentOrders.find(o => o.id === orderId);
+        if (!order) return;
+
+        const currentAssigned = (order.assignedTo || []).filter(id => id !== memberId);
+        const memberName = currentMembers.find(m => m.id === memberId)?.name || memberId;
+
+        // Log history
+        const historyEntry = {
+            action: 'removed',
+            memberId: memberId,
+            memberName: memberName,
+            timestamp: new Date().toISOString(),
+            assignedBy: 'admin'
+        };
+
+        const assignmentHistory = order.assignmentHistory || [];
+        assignmentHistory.push(historyEntry);
+
+        // Update in Firestore
+        const result = await DB.updateOrder(orderId, {
+            assignedTo: currentAssigned,
+            assignmentHistory: assignmentHistory
+        });
+
+        if (!result.error) {
+            window.adminApp.renderPendingAssignment();
+        }
+    },
+
+    saveRemarks: async (orderId, remarks) => {
+        const result = await DB.updateOrder(orderId, {
+            remarks: remarks
+        });
+
+        if (result.error) {
+            console.error('Failed to save remarks:', result.error);
+        }
+    },
+
+    updateDueDate: async (orderId, dateValue) => {
+        const result = await DB.updateOrder(orderId, {
+            estimatedCompletion: dateValue
+        });
+
+        if (!result.error) {
+            // Refresh to re-sort if needed
+            window.adminApp.renderPendingAssignment();
+        } else {
+            console.error('Failed to save due date:', result.error);
+        }
+    },
+
+    togglePriority: async (orderId) => {
+        const order = currentOrders.find(o => o.id === orderId);
+        if (!order) return;
+
+        const newPriority = order.priority === 'urgent' ? 'normal' : 'urgent';
+
+        const result = await DB.updateOrder(orderId, {
+            priority: newPriority
+        });
+
+        if (!result.error) {
+            window.adminApp.renderPendingAssignment();
+        }
+    },
+
+
+    generatePendingReport: () => {
+        // Get currently displayed pending orders
+        const pendingOrders = currentOrders.filter(o => o.status === 'Pending' && !o.deleted);
+
+        if (pendingOrders.length === 0) {
+            alert('No pending orders to generate report.');
+            return;
+        }
+
+        // Calculate stats
+        const total = pendingOrders.length;
+        const urgent = pendingOrders.filter(o => o.priority === 'urgent').length;
+        const assigned = pendingOrders.filter(o => o.assignedTo && o.assignedTo.length > 0).length;
+        const unassigned = total - assigned;
+
+        // Employee workload
+        const workload = {};
+        pendingOrders.forEach(o => {
+            (o.assignedTo || []).forEach(id => {
+                const name = currentMembers.find(m => m.id === id)?.name || id;
+                workload[name] = (workload[name] || 0) + 1;
+            });
+        });
+
+        // Generate print content
+        const today = new Date().toLocaleDateString('en-IN', {
+            day: '2-digit', month: 'long', year: 'numeric'
+        });
+
+        const reportHTML = `
+            <html>
+            <head>
+                <title>Pending Orders Report - ${today}</title>
+                <style>
+                    body { font-family: Arial, sans-serif; padding: 20px; }
+                    h1 { text-align: center; color: #1e293b; }
+                    .summary { display: flex; gap: 20px; margin-bottom: 20px; }
+                    .stat-box { background: #f1f5f9; padding: 15px; border-radius: 8px; flex: 1; text-align: center; }
+                    .stat-box h3 { margin: 0; font-size: 24px; color: #0d9488; }
+                    .stat-box p { margin: 5px 0 0; color: #64748b; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                    th, td { border: 1px solid #e2e8f0; padding: 8px; text-align: left; font-size: 12px; }
+                    th { background: #1e293b; color: white; }
+                    .urgent { background: #fef2f2; }
+                    .workload { margin-top: 20px; }
+                    .workload-item { padding: 8px 0; border-bottom: 1px solid #e2e8f0; }
+                </style>
+            </head>
+            <body>
+                <h1>📋 IES Groups - Pending Orders Report</h1>
+                <p style="text-align: center; color: #64748b;">${today}</p>
+                
+                <div class="summary">
+                    <div class="stat-box"><h3>${total}</h3><p>Total Pending</p></div>
+                    <div class="stat-box"><h3 style="color: #ef4444;">${urgent}</h3><p>Urgent</p></div>
+                    <div class="stat-box"><h3 style="color: #22c55e;">${assigned}</h3><p>Assigned</p></div>
+                    <div class="stat-box"><h3 style="color: #f59e0b;">${unassigned}</h3><p>Unassigned</p></div>
+                </div>
+
+                <h2>Employee Workload</h2>
+                <div class="workload">
+                    ${Object.entries(workload).map(([name, count]) =>
+            `<div class="workload-item"><strong>${name}</strong>: ${count} orders</div>`
+        ).join('')}
+                    ${Object.keys(workload).length === 0 ? '<p>No assignments yet</p>' : ''}
+                </div>
+
+                <h2>Order Details</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Priority</th>
+                            <th>Order ID</th>
+                            <th>Description</th>
+                            <th>Customer</th>
+                            <th>Due Date</th>
+                            <th>Assigned To</th>
+                            <th>Remarks</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${pendingOrders.map(o => {
+            const assignedNames = (o.assignedTo || []).map(id =>
+                currentMembers.find(m => m.id === id)?.name || id
+            ).join(', ') || 'Unassigned';
+            const dueDate = o.estimatedCompletion
+                ? new Date(o.estimatedCompletion).toLocaleDateString('en-IN')
+                : '-';
+            return `
+                                <tr class="${o.priority === 'urgent' ? 'urgent' : ''}">
+                                    <td>${o.priority === 'urgent' ? '🔴 Urgent' : '⚪ Normal'}</td>
+                                    <td>${o.internalOrderNo || o.id}</td>
+                                    <td>${o.description || '-'}</td>
+                                    <td>${o.customer || '-'}</td>
+                                    <td>${dueDate}</td>
+                                    <td>${assignedNames}</td>
+                                    <td>${o.remarks || '-'}</td>
+                                </tr>
+                            `;
+        }).join('')}
+                    </tbody>
+                </table>
+
+                <script>window.print();</script>
+            </body>
+            </html>
+        `;
+
+        // Open print window
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(reportHTML);
+        printWindow.document.close();
+    },
+
+    // ============================================
+    // DAILY REPORTS FUNCTIONS
+    // ============================================
+
+    renderReports: async () => {
+        const tbody = document.getElementById('reports-body');
+        if (!tbody) return;
+
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-slate-400">Loading reports...</td></tr>';
+
+        const reports = await DB.getReports(30);
+
+        if (reports.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-slate-400">No reports yet. Click "Generate Today\'s Report" to create one.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = reports.map(report => {
+            const displayDate = new Date(report.date).toLocaleDateString('en-IN', {
+                weekday: 'short', day: '2-digit', month: 'short', year: 'numeric'
+            });
+
+            const generatedAt = report.createdAt?.toDate
+                ? report.createdAt.toDate().toLocaleString('en-IN')
+                : (report.updatedAt?.toDate ? report.updatedAt.toDate().toLocaleString('en-IN') : 'Unknown');
+
+            return `
+                <tr>
+                    <td style="font-weight: 600;">${displayDate}</td>
+                    <td style="text-align: center;">${report.totalOrders || 0}</td>
+                    <td style="text-align: center; color: #ef4444;">${report.urgent || 0}</td>
+                    <td style="text-align: center; color: #22c55e;">${report.assigned || 0}</td>
+                    <td style="text-align: center; color: #f59e0b;">${report.unassigned || 0}</td>
+                    <td style="font-size: 0.75rem; color: #64748b;">${generatedAt}</td>
+                    <td style="text-align: center;">
+                        <button class="btn btn-ghost btn-icon" 
+                                onclick="window.adminApp.printSavedReport('${report.date}')"
+                                title="Print Report">
+                            🖨️
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    },
+
+    generateAndSaveReport: async () => {
+        const pendingOrders = currentOrders.filter(o => o.status === 'Pending' && !o.deleted);
+
+        // Build report data
+        const today = new Date();
+        const dateStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
+
+        const totalOrders = pendingOrders.length || 0;
+        const urgent = pendingOrders.filter(o => (o.priority || '').toLowerCase() === 'urgent').length || 0;
+        const assigned = pendingOrders.filter(o => o.assignedTo && o.assignedTo.length > 0).length || 0;
+        const unassigned = totalOrders - assigned;
+
+        // Employee workload
+        const workload = {};
+        pendingOrders.forEach(o => {
+            (o.assignedTo || []).forEach(id => {
+                const name = currentMembers.find(m => m.id === id)?.name || id || 'Unknown';
+                workload[name] = (workload[name] || 0) + 1;
+            });
+        });
+
+        // Orders snapshot for detailed view - ensure NO undefined values
+        const ordersSnapshot = pendingOrders.map(o => {
+            const assignedNames = (o.assignedTo || []).map(id =>
+                currentMembers.find(m => m.id === id)?.name || id
+            ).join(', ') || 'Unassigned';
+
+            return {
+                id: o.id || '',
+                internalOrderNo: o.internalOrderNo || '',
+                description: o.description || '',
+                customer: o.customer || '',
+                priority: o.priority || 'normal',
+                assignedTo: o.assignedTo || [],
+                assignedNames: assignedNames,
+                remarks: o.remarks || '',
+                estimatedCompletion: o.estimatedCompletion || ''
+            };
+        });
+
+        const reportData = {
+            date: dateStr || '',
+            totalOrders: totalOrders || 0,
+            urgent: urgent || 0,
+            assigned: assigned || 0,
+            unassigned: unassigned || 0,
+            workload: workload || {},
+            ordersSnapshot: ordersSnapshot || [],
+            generatedAt: new Date().toISOString()
+        };
+
+        const result = await DB.saveReport(reportData);
+
+        if (result.success) {
+            alert(`Report for ${dateStr} saved successfully!`);
+            window.adminApp.renderReports();
+        } else {
+            alert('Failed to save report: ' + (result.error || 'Unknown error'));
+        }
+    },
+
+    printSavedReport: async (dateStr) => {
+        const report = await DB.checkTodayReport(dateStr);
+        if (!report) {
+            alert('Report not found.');
+            return;
+        }
+
+        const displayDate = new Date(dateStr).toLocaleDateString('en-IN', {
+            day: '2-digit', month: 'long', year: 'numeric'
+        });
+
+        const reportHTML = `
+            <html>
+            <head>
+                <title>Pending Orders Report - ${displayDate}</title>
+                <style>
+                    body { font-family: Arial, sans-serif; padding: 20px; }
+                    h1 { text-align: center; color: #1e293b; }
+                    .summary { display: flex; gap: 20px; margin-bottom: 20px; }
+                    .stat-box { background: #f1f5f9; padding: 15px; border-radius: 8px; flex: 1; text-align: center; }
+                    .stat-box h3 { margin: 0; font-size: 24px; color: #0d9488; }
+                    .stat-box p { margin: 5px 0 0; color: #64748b; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                    th, td { border: 1px solid #e2e8f0; padding: 8px; text-align: left; font-size: 12px; }
+                    th { background: #1e293b; color: white; }
+                    .urgent { background: #fef2f2; }
+                    .workload { margin-top: 20px; }
+                    .workload-item { padding: 8px 0; border-bottom: 1px solid #e2e8f0; }
+                </style>
+            </head>
+            <body>
+                <h1>📋 IES Groups - Pending Orders Report</h1>
+                <p style="text-align: center; color: #64748b;">${displayDate}</p>
+                
+                <div class="summary">
+                    <div class="stat-box"><h3>${report.totalOrders}</h3><p>Total Pending</p></div>
+                    <div class="stat-box"><h3 style="color: #ef4444;">${report.urgent}</h3><p>Urgent</p></div>
+                    <div class="stat-box"><h3 style="color: #22c55e;">${report.assigned}</h3><p>Assigned</p></div>
+                    <div class="stat-box"><h3 style="color: #f59e0b;">${report.unassigned}</h3><p>Unassigned</p></div>
+                </div>
+
+                <h2>Employee Workload</h2>
+                <div class="workload">
+                    ${Object.entries(report.workload || {}).map(([name, count]) =>
+            `<div class="workload-item"><strong>${name}</strong>: ${count} orders</div>`
+        ).join('')}
+                    ${Object.keys(report.workload || {}).length === 0 ? '<p>No assignments</p>' : ''}
+                </div>
+
+                <h2>Order Details</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Priority</th>
+                            <th>Order ID</th>
+                            <th>Description</th>
+                            <th>Customer</th>
+                            <th>Due Date</th>
+                            <th>Assigned To</th>
+                            <th>Remarks</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${(report.ordersSnapshot || []).map(o => {
+            const dueDate = o.estimatedCompletion
+                ? new Date(o.estimatedCompletion).toLocaleDateString('en-IN')
+                : '-';
+            return `
+                            <tr class="${o.priority === 'urgent' ? 'urgent' : ''}">
+                                <td>${o.priority === 'urgent' ? '🔴 Urgent' : '⚪ Normal'}</td>
+                                <td>${o.internalOrderNo || o.id}</td>
+                                <td>${o.description || '-'}</td>
+                                <td>${o.customer || '-'}</td>
+                                <td>${dueDate}</td>
+                                <td>${o.assignedNames || 'Unassigned'}</td>
+                                <td>${o.remarks || '-'}</td>
+                            </tr>
+                        `;
+        }).join('')}
+                    </tbody>
+                </table>
+
+                <script>window.print();</script>
+            </body>
+            </html>
+        `;
+
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(reportHTML);
+        printWindow.document.close();
+    },
+
+    checkAutoGenerateReport: async () => {
+        // Get current IST time using Intl.DateTimeFormat
+        const now = new Date();
+        const istFormatter = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Kolkata',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            hour12: false
+        });
+
+        const parts = istFormatter.formatToParts(now);
+        const getTimePart = (type) => parts.find(p => p.type === type).value;
+
+        const hours = parseInt(getTimePart('hour'));
+        const todayStr = `${getTimePart('year')}-${getTimePart('month')}-${getTimePart('day')}`;
+
+        // Check if it's past 7 PM IST (19:00)
+        if (hours >= 19) {
+            // Check if report for today already exists
+            const existingReport = await DB.checkTodayReport(todayStr);
+
+            if (!existingReport) {
+                console.log('Auto-generating report for', todayStr);
+
+                // Wait a bit for orders to be loaded if they aren't already
+                setTimeout(async () => {
+                    if (currentOrders && currentOrders.length > 0) {
+                        await window.adminApp.generateAndSaveReport();
+                        console.log('Auto-report generated successfully');
+                    }
+                }, 3000);
+            } else {
+                console.log('Report for today already exists');
+            }
+        }
     }
 };
 
@@ -903,6 +1508,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Setup UI Listeners
     UI.setupNavigation();
+
+    const monitoringView = document.getElementById('view-monitoring');
+    const deliveryView = document.getElementById('view-delivery_report');
 
     // Dashboard Filter Listener
     const dashMonthFilter = document.getElementById('dashboard-month-filter');
@@ -949,11 +1557,14 @@ document.addEventListener('DOMContentLoaded', () => {
             currentOrders = orders;
         }
 
-        const monitoringView = document.getElementById('view-monitoring');
-        const deliveryView = document.getElementById('view-delivery_report');
-
         if (monitoringView && !monitoringView.classList.contains('hidden')) {
             Monitoring.renderTable(currentOrders);
+        }
+
+        // --- ADDED: Live Update for Pending Assignment ---
+        const pendingView = document.getElementById('view-pending_assignment');
+        if (pendingView && !pendingView.classList.contains('hidden')) {
+            window.adminApp.renderPendingAssignment();
         }
 
         if (deliveryView && !deliveryView.classList.contains('hidden')) {
@@ -1044,13 +1655,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     if (emailSpan && result.user) emailSpan.textContent = result.user.email;
 
-                    // Update stats
-                    UI.updateStats({
-                        totalEmployees: currentMembers.length,
-                        activeTasks: 12,
-                        completedTasks: 84,
-                        departments: 4
-                    });
+                    // Refresh dashboard after login to use real data
+                    refreshDashboard();
                 }
             } catch (err) {
                 console.error(err);
@@ -1078,10 +1684,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (view === 'project_management') {
                     renderKanban(currentProjects);
                 } else if (view === 'overview') {
-                    const stats = calculateDashboardStats(currentOrders);
-                    UI.updateStats(stats);
-                    UI.renderDashboardPendingOrders(currentOrders);
-                    UI.renderDashboardRecentActivity(currentOrders);
+                    refreshDashboard();
                 } else if (view === 'monitoring') {
                     Monitoring.renderTable(currentOrders);
                 } else if (view === 'delivery_report') {
@@ -1104,6 +1707,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         // Re-render if already set (e.g. data updated)
                         Monitoring.renderDeliveryReport(weekPicker.value);
                     }
+                } else if (view === 'pending_assignment') {
+                    // Render pending assignment table
+                    window.adminApp.renderPendingAssignment();
+                } else if (view === 'reports') {
+                    // Render daily reports list
+                    window.adminApp.renderReports();
                 }
             }, 50);
         });
@@ -1116,6 +1725,17 @@ document.addEventListener('DOMContentLoaded', () => {
             Monitoring.renderDeliveryReport(e.target.value);
         });
     }
+
+    // Pending Assignment Filter Listeners
+    const pendingFilters = ['pending-filter-department', 'pending-filter-assigned', 'pending-filter-priority', 'pending-sort-by'];
+    pendingFilters.forEach(filterId => {
+        const filter = document.getElementById(filterId);
+        if (filter) {
+            filter.addEventListener('change', () => {
+                window.adminApp.renderPendingAssignment();
+            });
+        }
+    });
 
     // Auth State Observer
     Auth.subscribeToAuthChanges((user) => {
@@ -1131,11 +1751,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (emailSpan) emailSpan.textContent = user.email;
 
-            // Update stats
-            const stats = calculateDashboardStats(currentOrders);
-            UI.updateStats(stats);
-            UI.renderDashboardPendingOrders(currentOrders);
-            UI.renderDashboardRecentActivity(currentOrders);
+            // Ensure dashboard is ready immediately
+            refreshDashboard();
+
+            // Auto-generate report if past 7 PM IST
+            window.adminApp.checkAutoGenerateReport();
         } else {
             if (authDiv) authDiv.style.display = 'flex';
             if (dashDiv) dashDiv.style.display = 'none';

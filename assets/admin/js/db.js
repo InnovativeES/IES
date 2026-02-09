@@ -321,3 +321,68 @@ export const emptyTrash = async (type) => {
         return { error: error.message };
     }
 };
+
+// === DAILY REPORTS (Pending Orders Auto-Save) ===
+const REPORTS_COLLECTION = "daily_reports";
+
+export const saveReport = async (reportData) => {
+    try {
+        // Use date string as document ID for easy lookup
+        const dateId = reportData.date; // Format: YYYY-MM-DD
+        const docRef = doc(db, REPORTS_COLLECTION, dateId);
+
+        // Check if report exists for this date
+        const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
+        const existingDoc = await getDoc(docRef);
+
+        if (existingDoc.exists()) {
+            // Update existing
+            await updateDoc(docRef, {
+                ...reportData,
+                updatedAt: serverTimestamp()
+            });
+        } else {
+            // Create new
+            await setDoc(docRef, {
+                ...reportData,
+                createdAt: serverTimestamp()
+            });
+        }
+
+        return { success: true, id: dateId };
+    } catch (error) {
+        console.error("Error saving report:", error);
+        return { error: error.message };
+    }
+};
+
+export const getReports = async (limit = 30) => {
+    try {
+        const q = query(
+            collection(db, REPORTS_COLLECTION),
+            orderBy("date", "desc")
+        );
+        const snapshot = await getDocs(q);
+        const reports = [];
+        snapshot.forEach(doc => {
+            reports.push({ id: doc.id, ...doc.data() });
+        });
+        // Return most recent reports (limit)
+        return reports.slice(0, limit);
+    } catch (error) {
+        console.error("Error fetching reports:", error);
+        return [];
+    }
+};
+
+export const checkTodayReport = async (dateStr) => {
+    try {
+        const { getDoc } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
+        const docRef = doc(db, REPORTS_COLLECTION, dateStr);
+        const docSnap = await getDoc(docRef);
+        return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
+    } catch (error) {
+        console.error("Error checking today's report:", error);
+        return null;
+    }
+};

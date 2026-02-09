@@ -106,7 +106,16 @@ export const renderMemberList = (members) => {
 
     memberListBody.innerHTML = '';
 
-    members.forEach(member => {
+    // Sort members by Employee ID
+    const sortedMembers = [...members].sort((a, b) => {
+        const idA = (a.employeeId || '').toString().toLowerCase();
+        const idB = (b.employeeId || '').toString().toLowerCase();
+        if (idA < idB) return -1;
+        if (idA > idB) return 1;
+        return 0;
+    });
+
+    sortedMembers.forEach(member => {
         // Get role display
         const role = member.role || member.designation || '-';
         const section = member.section || member.department || '-';
@@ -125,13 +134,16 @@ export const renderMemberList = (members) => {
                         ${member.name.charAt(0).toUpperCase()}
                     </div>
                     <div>
-                        <div style="font-weight: 500; color: #1e293b;">${member.name}</div>
-                        <div style="font-size: 0.8125rem; color: #64748b;">${member.email || member.phone || ''}</div>
+                        <div style="font-weight: 600; color: #1e293b;">${member.name}</div>
+                        <div style="font-size: 0.8125rem; color: #64748b;">${member.email || ''}</div>
                     </div>
                 </div>
             </td>
-            <td>${role}</td>
+            <td><code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 0.8125rem;">${member.employeeId || '-'}</code></td>
+            <td style="font-weight: 500;">${role}</td>
             <td>${section}</td>
+            <td>${member.phone || '-'}</td>
+            <td>${member.joiningDate ? new Date(member.joiningDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}</td>
             <td><span class="badge ${badgeClass}">${status}</span></td>
             <td class="text-right">
                 <div class="action-btns">

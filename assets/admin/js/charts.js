@@ -9,22 +9,58 @@ export const renderHierarchy = (members, containerId) => {
 
     const displayMembers = members || [];
 
+    // Helper to get roles/depts robustly (case-insensitive)
+    const getRoles = (m) => {
+        let r = (m.orgRoles || []).map(role => role.toLowerCase().trim());
+        if (m.role) {
+            const lowRole = m.role.toLowerCase().trim();
+            if (!r.includes(lowRole)) r.push(lowRole);
+        }
+        if (m.designation) {
+            const lowDesig = m.designation.toLowerCase().trim();
+            if (!r.includes(lowDesig)) r.push(lowDesig);
+        }
+        return r;
+    };
+
+    const getDepts = (m) => {
+        let d = (m.departments || []).map(dept => dept.toLowerCase().trim());
+        if (m.department) {
+            const lowDept = m.department.toLowerCase().trim();
+            if (!d.includes(lowDept)) d.push(lowDept);
+        }
+        if (m.section) {
+            const lowSect = m.section.toLowerCase().trim();
+            if (!d.includes(lowSect)) d.push(lowSect);
+        }
+        return d;
+    };
+
     // Helper to find members (supports multi-department)
     const findMembers = (criteria) => {
         return displayMembers.filter(m => {
-            const roles = m.orgRoles || [];
-            const depts = m.departments || (m.department ? [m.department] : []);
+            const roles = getRoles(m);
+            const depts = getDepts(m);
 
-            if (criteria.role) return roles.includes(criteria.role);
-            if (criteria.employeeType) return m.employeeType === criteria.employeeType;
-            if (criteria.department) return depts.includes(criteria.department);
+            if (criteria.role) {
+                const target = criteria.role.toLowerCase().trim();
+                return roles.includes(target);
+            }
+            if (criteria.employeeType) {
+                const target = criteria.employeeType.toLowerCase().trim();
+                return (m.employeeType && m.employeeType.toLowerCase().trim() === target) || roles.includes(target);
+            }
+            if (criteria.department) {
+                const target = criteria.department.toLowerCase().trim();
+                return depts.includes(target);
+            }
             return false;
         });
     };
 
     // Find key people
-    const director = findMembers({ employeeType: 'Director' })[0] || findMembers({ role: 'Director' })[0];
-    const bdm = findMembers({ role: 'Business Development Manager' })[0];
+    const director = findMembers({ role: 'Director' })[0] || findMembers({ role: 'Managing Director' })[0];
+    const bdm = findMembers({ role: 'Business Development Manager' })[0] || findMembers({ role: 'Business Development' })[0];
 
     const fabTeam = findMembers({ department: 'Fabrication' });
     const cncTeam = findMembers({ department: 'CNC & VMC' });
@@ -35,16 +71,23 @@ export const renderHierarchy = (members, containerId) => {
     const createCard = (member, isHead = false) => {
         if (!member) return `<div class="org-empty">Not Assigned</div>`;
         const initials = member.name.split(' ').map(n => n[0]).join('').substring(0, 2);
-        const gradient = isHead ? 'from-slate-700 to-slate-900' : 'from-emerald-500 to-teal-600';
-        const textColor = isHead ? 'text-white' : '';
-        const bg = isHead ? 'bg-gradient-to-br from-slate-700 to-slate-900 text-white' : 'bg-white border border-slate-200';
+
+        const roles = getRoles(member);
+        const roleDisplay = member.designation || member.role || roles[0] || 'Team Member';
+
+        const cardStyle = isHead
+            ? 'background: linear-gradient(135deg, #334155 0%, #1e293b 100%); color: white; border: none;'
+            : 'background: white; border: 1px solid #e2e8f0; color: #1e293b;';
+        const avatarStyle = isHead
+            ? 'background: rgba(255,255,255,0.1); color: white;'
+            : 'background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;';
 
         return `
-            <div class="org-card ${bg} ${isHead ? 'org-head' : ''}" style="color: ${isHead ? '#fff' : '#1e293b'};">
-                <div class="org-avatar bg-gradient-to-br ${gradient}">${initials}</div>
+            <div class="org-card ${isHead ? 'org-head' : ''}" style="${cardStyle}">
+                <div class="org-avatar" style="${avatarStyle}">${initials}</div>
                 <div class="org-info">
-                    <div class="org-name">${member.name}</div>
-                    <div class="org-role">${member.designation || member.orgRoles?.[0] || 'Team Member'}</div>
+                    <div class="org-name" style="${isHead ? 'color: white;' : ''}">${member.name}</div>
+                    <div class="org-role" style="${isHead ? 'color: #94a3b8;' : ''}">${roleDisplay}</div>
                 </div>
             </div>
         `;
@@ -53,8 +96,9 @@ export const renderHierarchy = (members, containerId) => {
     // Section with head and team
     const createSection = (name, icon, color, members) => {
         const sectionHead = members.find(m => {
-            const roles = m.orgRoles || [];
-            return roles.includes('Section Head') || m.employeeType === 'Manager';
+            const roles = getRoles(m);
+            const depts = getDepts(m);
+            return (roles.includes('section head') || roles.includes('manager') || (m.employeeType && m.employeeType.toLowerCase() === 'manager')) && depts.includes(name.toLowerCase());
         });
         const teamMembers = members.filter(m => m !== sectionHead);
 
