@@ -12,7 +12,7 @@ let filterMonthTo = localStorage.getItem('filterMonthTo') || '';
 let searchTerm = '';
 let currentPage = 1;
 let itemsPerPage = 5000; // Very high default for infinite scroll feel
-let sortConfig = { key: 'date', direction: 'desc' };
+let sortConfig = { key: 'internalOrderNo', direction: 'desc' };
 
 export const setTrashMode = (startTrash) => {
     isTrashMode = startTrash;
@@ -156,7 +156,7 @@ export const renderTable = (orders) => {
     const paginatedOrders = processedOrders.slice(startIdx, endIdx);
 
     if (totalItems === 0) {
-        tbody.innerHTML = '<tr><td colspan="21" style="padding: 3rem; text-align: center; color: #64748b;">No orders found matching filters.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="23" style="padding: 3rem; text-align: center; color: #64748b;">No orders found matching filters.</td></tr>';
         if (paginationInfo) paginationInfo.textContent = 'Showing 0 to 0 of 0 entries';
         if (paginationControls) paginationControls.innerHTML = '';
         return;
@@ -169,7 +169,6 @@ export const renderTable = (orders) => {
 
         if (!isTrashMode) {
             if (status === 'DELIVERED') tr.className = 'row-delivered';
-            else if (status === 'IN PROGRESS') tr.className = 'row-inprogress';
             else if (status === 'PENDING') tr.className = 'row-pending';
         } else {
             tr.className = 'row-deleted';
@@ -181,22 +180,12 @@ export const renderTable = (orders) => {
         if (isTrashMode) {
             let badgeClass = 'badge-default';
             if (status === 'DELIVERED') badgeClass = 'badge-success';
-            else if (status === 'IN PROGRESS') badgeClass = 'badge-info';
             else if (status === 'PENDING') badgeClass = 'badge-warning';
             statusHtml = `<span class="badge ${badgeClass}">${status || '-'}</span>`;
         } else {
-            const statusLower = order.status ? order.status.toLowerCase().replace(/\s+/g, '') : 'pending';
-            const selectClass = statusLower === 'delivered' ? 'status-delivered' :
-                statusLower === 'inprogress' ? 'status-inprogress' : 'status-pending';
-            statusHtml = `
-                <select class="status-select ${selectClass}" 
-                        onchange="window.adminApp.changeOrderStatus('${order.id}', this.value)" 
-                        data-order-id="${order.id}">
-                    <option value="Pending" ${order.status === 'Pending' ? 'selected' : ''}>Pending</option>
-                    <option value="In Progress" ${order.status === 'In Progress' ? 'selected' : ''}>In Progress</option>
-                    <option value="Delivered" ${order.status === 'Delivered' ? 'selected' : ''}>Delivered</option>
-                </select>
-            `;
+            const statusVal = order.status || 'Pending';
+            const badgeClass = statusVal === 'Delivered' ? 'status-delivered' : 'status-pending';
+            statusHtml = `<span class="status-badge ${badgeClass}">${statusVal}</span>`;
         }
 
         let actionsHtml = '';
@@ -229,8 +218,10 @@ export const renderTable = (orders) => {
             <td class="font-medium">${t(order.internalOrderNo)}</td>
             <td>${formatDate(order.date)}</td>
             <td>${t(order.itemCode)}</td>
+            <td>${t(order.drawingNo)}</td>
             <td class="truncate" style="max-width: 150px;" title="${t(order.description)}">${t(order.description)}</td>
             <td class="text-right">${t(order.qty)}</td>
+            <td>${t(order.qtyUnit)}</td>
             <td class="text-right">${t(order.saleValueEa || order.value)}</td>
             <td class="text-right">${t(order.prodValueEa)}</td>
             <td class="text-right font-bold">${t(order.total)}</td>
@@ -276,6 +267,9 @@ export const handleAddOrder = () => {
         data.total = (parseFloat(data.qty) * parseFloat(data.saleValueEa)).toFixed(2);
     }
 
+    // Auto-determine status from DC No
+    data.status = (data.dcNo && data.dcNo.trim() !== '') ? 'Delivered' : 'Pending';
+
     const orderId = data.orderId;
     delete data.orderId;
 
@@ -309,6 +303,13 @@ export const populateForm = (order) => {
             el.value = order[el.name];
         }
     });
+
+    // Update the visible status display based on DC No
+    const statusDisplay = document.getElementById('order-status-display');
+    const statusHidden = form.querySelector('[name="status"]');
+    const hasDC = order.dcNo && order.dcNo.trim() !== '';
+    if (statusDisplay) statusDisplay.value = hasDC ? '🟢 Delivered' : '🟡 Pending';
+    if (statusHidden) statusHidden.value = hasDC ? 'Delivered' : 'Pending';
 
     window.adminApp.openAddOrderModal();
 };
@@ -379,15 +380,15 @@ export const exportToPDF = () => {
             [
                 { content: '#', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
                 { content: 'Internal Order', colSpan: 2, styles: { halign: 'center' } },
-                { content: 'Item Details', colSpan: 2, styles: { halign: 'center' } },
-                { content: 'Pricing & Production', colSpan: 4, styles: { halign: 'center' } },
+                { content: 'Item Details', colSpan: 3, styles: { halign: 'center' } },
+                { content: 'Pricing & Production', colSpan: 5, styles: { halign: 'center' } },
                 { content: 'Customer Data', colSpan: 6, styles: { halign: 'center' } },
                 { content: 'Delivery Actual', colSpan: 5, styles: { halign: 'center' } },
                 { content: 'Status', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } }
             ],
             [
-                'IO No', 'Date', 'Code', 'Description',
-                'Qty', 'Sale', 'Prod', 'Total',
+                'IO No', 'Date', 'Code', 'Drg No', 'Description',
+                'Qty', 'Unit', 'Sale', 'Prod', 'Total',
                 'Customer', 'PO No', 'PO Date', 'Drg', 'Raw', 'Fin',
                 'Del Date', 'DC No', 'Del Qty', 'Bill No', 'Stat'
             ]
@@ -398,8 +399,10 @@ export const exportToPDF = () => {
             o.internalOrderNo || '-',
             formatDate(o.date),
             o.itemCode || '-',
+            o.drawingNo || '-',
             o.description || '-',
             o.qty || 0,
+            o.qtyUnit || '-',
             o.saleValueEa || o.value || 0,
             o.prodValueEa || 0,
             o.total || 0,
@@ -424,30 +427,32 @@ export const exportToPDF = () => {
             headStyles: { fillColor: [20, 184, 166], textColor: 255, fontSize: 7, valign: 'middle', halign: 'center' },
             bodyStyles: { fontSize: 6, cellPadding: 1, valign: 'middle' },
             columnStyles: {
-                0: { cellWidth: 8 },  // #
+                0: { cellWidth: 7 },  // #
                 1: { cellWidth: 16 }, // IO No
-                2: { cellWidth: 14 }, // Date
-                3: { cellWidth: 14 }, // Code
-                4: { cellWidth: 25 }, // Desc
-                5: { cellWidth: 8 },  // Qty
-                6: { cellWidth: 11 }, // Sale
-                7: { cellWidth: 11 }, // Prod
-                8: { cellWidth: 13 }, // Total
-                9: { cellWidth: 18 }, // Cust
-                10: { cellWidth: 14 }, // PO
-                11: { cellWidth: 14 }, // PO Date
-                12: { cellWidth: 6 },  // Drg
-                13: { cellWidth: 6 },  // Raw
-                14: { cellWidth: 6 },  // Fin
-                15: { cellWidth: 14 }, // Del Date
-                16: { cellWidth: 10 }, // DC
-                17: { cellWidth: 8 },  // Del Qty
-                18: { cellWidth: 10 }, // Bill
-                19: { cellWidth: 15 }  // Status
+                2: { cellWidth: 13 }, // Date
+                3: { cellWidth: 12 }, // Code
+                4: { cellWidth: 12 }, // Drg No
+                5: { cellWidth: 22 }, // Desc
+                6: { cellWidth: 7 },  // Qty
+                7: { cellWidth: 8 },  // Unit
+                8: { cellWidth: 10 }, // Sale
+                9: { cellWidth: 10 }, // Prod
+                10: { cellWidth: 12 }, // Total
+                11: { cellWidth: 16 }, // Cust
+                12: { cellWidth: 12 }, // PO
+                13: { cellWidth: 13 }, // PO Date
+                14: { cellWidth: 6 },  // Drg
+                15: { cellWidth: 6 },  // Raw
+                16: { cellWidth: 6 },  // Fin
+                17: { cellWidth: 13 }, // Del Date
+                18: { cellWidth: 9 },  // DC
+                19: { cellWidth: 7 },  // Del Qty
+                20: { cellWidth: 9 },  // Bill
+                21: { cellWidth: 14 }  // Status
             },
             didParseCell: (data) => {
                 // Color coding for status
-                if (data.section === 'body' && data.column.index === 19) {
+                if (data.section === 'body' && data.column.index === 21) {
                     const status = data.cell.raw;
                     if (status === 'Delivered') data.cell.styles.textColor = [22, 163, 74];
                     else if (status === 'Pending') data.cell.styles.textColor = [202, 138, 4];
@@ -497,7 +502,7 @@ export const renderDeliveryReport = async (weekValue) => {
 
     const tbody = document.getElementById('delivery-report-body');
     if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="11" class="text-center py-8">Loading report data...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="14" class="text-center py-8">Loading report data...</td></tr>';
 
     // Fetch Daily Stats
     const startDateStr = startOfWeek.toISOString().slice(0, 10);
@@ -615,11 +620,13 @@ export const renderDeliveryReport = async (weekValue) => {
                 <td class="px-4 py-2 font-medium">${isFirst ? formatDate(date) : ''}</td> 
                 <td class="px-4 py-2">${order.customer || '-'}</td>
                 <td class="px-4 py-2 font-medium">${order.itemCode || order.description || '-'}</td>
+                <td class="px-4 py-2">${order.drawingNo || '-'}</td>
                 <td class="px-4 py-2 text-center">
                     <span class="px-2 py-1 rounded text-xs font-semibold bg-slate-100 text-slate-600">${order.department || '-'}</span>
                 </td>
                 <td class="px-4 py-2 text-center">${order.dcNo || '-'}</td> 
                 <td class="px-4 py-2 text-right font-bold">${order.deliveryQty || order.qty || 0}</td>
+                <td class="px-4 py-2">${order.qtyUnit || '-'}</td>
                 <td class="px-4 py-2 text-right">₹${(parseFloat(order.total) || 0).toLocaleString('en-IN')}</td>
                 <td class="px-4 py-2 text-right text-slate-500">₹${(parseFloat(order.labourCost) || 0).toLocaleString('en-IN')}</td>
                 <td class="px-4 py-2 text-right ${dailyClass}">${displayDailyValue}</td>
@@ -660,6 +667,6 @@ export const renderDeliveryReport = async (weekValue) => {
     }
 
     if (reportOrders.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="11" class="px-4 py-8 text-center text-slate-400">No delivered orders found for this week.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="14" class="px-4 py-8 text-center text-slate-400">No delivered orders found for this week.</td></tr>`;
     }
 };

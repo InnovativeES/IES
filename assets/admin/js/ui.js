@@ -210,7 +210,6 @@ export const updateStats = (stats) => {
         if (text) text.textContent = `${value}%`;
     };
 
-    setBar('pipeline-progress-bar', 'pipeline-progress-pct', stats.progressPct || 0);
     setBar('pipeline-pending-bar', 'pipeline-pending-pct', stats.pendingPct || 0);
     setBar('pipeline-delivered-bar', 'pipeline-delivered-pct', stats.deliveredPct || 0);
 };
@@ -231,8 +230,11 @@ export const renderDashboardPendingOrders = (orders) => {
     container.innerHTML = pending.map(order => `
         <tr>
             <td style="font-weight: 600; color: #1e293b;">${order.internalOrderNo || '-'}</td>
+            <td>${order.drawingNo || '-'}</td>
             <td class="truncate" style="max-width: 200px;" title="${order.description}">${order.description || '-'}</td>
             <td>${order.customer || '-'}</td>
+            <td>${order.qty || '-'}</td>
+            <td>${order.qtyUnit || '-'}</td>
             <td style="color: #64748b;">${order.date || order.deliveryDateActual || '-'}</td>
             <td><span class="badge" style="background: #fff7ed; color: #c2410c; border: 1px solid #ffedd5;">Pending</span></td>
         </tr>
@@ -270,35 +272,5 @@ export const renderDashboardRecentActivity = (orders) => {
                 <span class="activity-time">${order.date || 'Today'}</span>
             </div>
         </li>
-        </li>
-    `).join('');
-};
-
-export const renderInProgressOrders = (orders) => {
-    const container = document.getElementById('dashboard-inprogress-list');
-    if (!container) return;
-
-    if (!orders || orders.length === 0) {
-        container.innerHTML = '<div class="text-xs text-slate-400 p-4 text-center">No orders in progress.</div>';
-        return;
-    }
-
-    // Reuse similar style to Pending Orders but simpler for the side column
-    container.innerHTML = orders.map(order => `
-        <div class="flex items-center justify-between p-3 border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
-            <div class="min-w-0 flex-1 pr-4">
-                <div class="flex items-center gap-2 mb-0.5">
-                    <span class="font-semibold text-sm text-slate-700">#${order.internalOrderNo || '-'}</span>
-                    <span class="text-[0.65rem] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 font-medium">In Progress</span>
-                </div>
-                <div class="text-xs text-slate-500 truncate" title="${order.description}">${order.description || 'No Description'}</div>
-                <div class="text-[0.65rem] text-slate-400 mt-0.5">${order.customer || '-'} &bull; Due ${order.delDate || order.date || '-'}</div>
-            </div>
-            <div class="flex-shrink-0">
-                <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                </div>
-            </div>
-        </div>
     `).join('');
 };

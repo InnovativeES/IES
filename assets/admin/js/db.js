@@ -88,19 +88,9 @@ export const getStats = async () => {
 
 
 
+// Member management logic...
 export const assignTask = async (employeeId, description) => {
-    try {
-        await addDoc(collection(db, "tasks"), {
-            employeeId,
-            description,
-            status: "In Progress",
-            createdAt: serverTimestamp()
-        });
-        return { success: true };
-    } catch (e) {
-        console.error("Task assign error:", e);
-        return { error: e.message };
-    }
+    // This function is no longer used for Internal Orders as "tasks" is a separate concept
 };
 
 // Projects

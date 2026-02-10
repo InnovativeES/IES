@@ -17,7 +17,7 @@ function calculateDashboardStats(orders, selectedMonth = 'all') {
         ? orders
         : orders.filter(o => o.date && o.date.startsWith(selectedMonth));
 
-    const active = filteredOrders.filter(o => !o.isTrash && (o.status === 'Pending' || o.status === 'In Progress'));
+    const active = filteredOrders.filter(o => !o.isTrash && o.status === 'Pending');
     const delivered = filteredOrders.filter(o => !o.isTrash && o.status === 'Delivered');
 
     const parseTotal = (val) => {
@@ -44,7 +44,6 @@ function calculateDashboardStats(orders, selectedMonth = 'all') {
     const efficiency = totalCount > 0 ? Math.round((delivered.length / totalCount) * 100) : 0;
 
     // Pipeline percentages
-    const progressPct = totalCount > 0 ? Math.round((active.filter(o => o.status === 'In Progress').length / totalCount) * 100) : 0;
     const pendingPct = totalCount > 0 ? Math.round((pendingCount / totalCount) * 100) : 0;
     const deliveredPct = totalCount > 0 ? Math.round((delivered.length / totalCount) * 100) : 100;
 
@@ -58,10 +57,6 @@ function calculateDashboardStats(orders, selectedMonth = 'all') {
     if (overdue.length > 0) {
         alerts.push({ type: 'danger', message: `${overdue.length} Orders Overdue`, count: overdue.length });
     }
-    // --- NEW: In Progress Orders ---
-    const inProgressOrders = active
-        .filter(o => o.status === 'In Progress')
-        .sort((a, b) => new Date(a.delDate || a.date) - new Date(b.delDate || b.date));
 
     return {
         revenue,
@@ -73,11 +68,9 @@ function calculateDashboardStats(orders, selectedMonth = 'all') {
         activeTasks: active.length,
         completedTasks: delivered.length,
         departments: 4,
-        progressPct,
         pendingPct,
         deliveredPct,
-        filteredOrders,
-        inProgressOrders // Return this for the new column
+        filteredOrders
     };
 }
 
@@ -90,9 +83,6 @@ function refreshDashboard() {
     UI.updateStats(stats);
     UI.renderDashboardPendingOrders(stats.filteredOrders);
     UI.renderDashboardRecentActivity(stats.filteredOrders);
-    if (UI.renderInProgressOrders) {
-        UI.renderInProgressOrders(stats.inProgressOrders);
-    }
 }
 
 // Project Kanban Rendering
@@ -515,6 +505,27 @@ window.adminApp = {
             dateInput.value = new Date().toISOString().split('T')[0];
         }
 
+        // Auto-generate next Order ID (YYYYYY-NNN)
+        const now = new Date();
+        const yr = now.getFullYear();
+        const mo = now.getMonth(); // 0-indexed
+        // Financial year: April (month 3) to March
+        const fyStart = mo >= 3 ? yr : yr - 1;
+        const fyEnd = fyStart + 1;
+        // e.g. 2025-2026 → "202526-"
+        const prefix = `${fyStart}${String(fyEnd).slice(-2)}-`;
+        let maxNum = 0;
+        currentOrders.forEach(o => {
+            const io = o.internalOrderNo || '';
+            if (io.startsWith(prefix)) {
+                const num = parseInt(io.replace(prefix, ''), 10);
+                if (!isNaN(num) && num > maxNum) maxNum = num;
+            }
+        });
+        const nextNum = String(maxNum + 1).padStart(3, '0');
+        const orderNoInput = form.querySelector('[name="internalOrderNo"]');
+        if (orderNoInput) orderNoInput.value = `${prefix}${nextNum}`;
+
         // Setup auto-calculation for Total
         const qtyInput = document.getElementById('order-qty');
         const valueInput = document.getElementById('order-value');
@@ -774,12 +785,10 @@ window.adminApp = {
     changeOrderStatus: async (id, newStatus) => {
         try {
             await DB.updateOrder(id, { status: newStatus });
-            // Update the dropdown styling immediately
             const select = document.querySelector(`select[data-order-id="${id}"]`);
             if (select) {
                 select.className = 'status-select ' +
-                    (newStatus === 'Delivered' ? 'status-delivered' :
-                        newStatus === 'In Progress' ? 'status-inprogress' : 'status-pending');
+                    (newStatus === 'Delivered' ? 'status-delivered' : 'status-pending');
             }
         } catch (e) {
             console.error('Failed to update status:', e);
@@ -1001,8 +1010,11 @@ window.adminApp = {
                         </button>
                     </td>
                     <td><span class="order-id-badge">${order.internalOrderNo || order.id}</span></td>
+                    <td><span style="font-size: 0.75rem; font-weight: 600; color: var(--brand-600);">${order.drawingNo || '-'}</span></td>
                     <td style="font-size: 0.75rem; color: var(--slate-600);">${order.description || '-'}</td>
                     <td style="font-size: 0.75rem; font-weight: 500; color: var(--slate-700);">${order.customer || '-'}</td>
+                    <td style="font-size: 0.75rem; font-weight: 600; text-align: center;">${order.qty || '-'}</td>
+                    <td style="font-size: 0.75rem; text-align: center;">${order.qtyUnit || '-'}</td>
                     <td>
                         <input type="date" class="table-form-input" 
                                value="${dueDateValue}"
@@ -1223,7 +1235,10 @@ window.adminApp = {
                         <tr>
                             <th>Priority</th>
                             <th>Order ID</th>
+                            <th>Drg No</th>
                             <th>Description</th>
+                            <th>Qty</th>
+                            <th>Unit</th>
                             <th>Customer</th>
                             <th>Due Date</th>
                             <th>Assigned To</th>
@@ -1242,7 +1257,10 @@ window.adminApp = {
                                 <tr class="${o.priority === 'urgent' ? 'urgent' : ''}">
                                     <td>${o.priority === 'urgent' ? '🔴 Urgent' : '⚪ Normal'}</td>
                                     <td>${o.internalOrderNo || o.id}</td>
+                                    <td>${o.drawingNo || '-'}</td>
                                     <td>${o.description || '-'}</td>
+                                    <td>${o.qty || '-'}</td>
+                                    <td>${o.qtyUnit || '-'}</td>
                                     <td>${o.customer || '-'}</td>
                                     <td>${dueDate}</td>
                                     <td>${assignedNames}</td>
@@ -1340,8 +1358,11 @@ window.adminApp = {
             return {
                 id: o.id || '',
                 internalOrderNo: o.internalOrderNo || '',
+                drawingNo: o.drawingNo || '',
                 description: o.description || '',
                 customer: o.customer || '',
+                qty: o.qty || '',
+                qtyUnit: o.qtyUnit || '',
                 priority: o.priority || 'normal',
                 assignedTo: o.assignedTo || [],
                 assignedNames: assignedNames,
@@ -1426,7 +1447,10 @@ window.adminApp = {
                         <tr>
                             <th>Priority</th>
                             <th>Order ID</th>
+                            <th>Drg No</th>
                             <th>Description</th>
+                            <th>Qty</th>
+                            <th>Unit</th>
                             <th>Customer</th>
                             <th>Due Date</th>
                             <th>Assigned To</th>
@@ -1442,7 +1466,10 @@ window.adminApp = {
                             <tr class="${o.priority === 'urgent' ? 'urgent' : ''}">
                                 <td>${o.priority === 'urgent' ? '🔴 Urgent' : '⚪ Normal'}</td>
                                 <td>${o.internalOrderNo || o.id}</td>
+                                <td>${o.drawingNo || '-'}</td>
                                 <td>${o.description || '-'}</td>
+                                <td>${o.qty || '-'}</td>
+                                <td>${o.qtyUnit || '-'}</td>
                                 <td>${o.customer || '-'}</td>
                                 <td>${dueDate}</td>
                                 <td>${o.assignedNames || 'Unassigned'}</td>
@@ -1549,13 +1576,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 description: `Machining of ${['Valve Body', 'Flange', 'Shaft', 'Housing'][Math.floor(Math.random() * 4)]}`,
                 date: new Date(Date.now() - Math.floor(Math.random() * 86400000 * 3)).toISOString().split('T')[0], // Last 3 days
                 delDate: new Date(Date.now() + Math.floor(Math.random() * 86400000 * 10)).toISOString().split('T')[0],
-                status: Math.random() > 0.6 ? 'In Progress' : 'Pending',
+                status: 'Pending',
                 createdAt: { seconds: Date.now() / 1000 - (i * 3600) } // Staggered times
             }));
             currentOrders = [...orders, ...mockOrders];
         } else {
             currentOrders = orders;
         }
+
+        // One-time migration: convert any "In Progress" orders to "Pending"
+        currentOrders.forEach(o => {
+            if (o.status === 'In Progress' && o.id) {
+                DB.updateOrder(o.id, { status: 'Pending' });
+                o.status = 'Pending';
+            }
+        });
 
         if (monitoringView && !monitoringView.classList.contains('hidden')) {
             Monitoring.renderTable(currentOrders);

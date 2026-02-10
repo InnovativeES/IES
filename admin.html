@@ -9,7 +9,9 @@
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@600;700;800&display=swap"
+        rel="stylesheet">
 
     <!-- Tailwind CSS (Local) -->
     <link rel="stylesheet" href="assets/admin/css/tailwind.css">
@@ -75,8 +77,14 @@
         <!-- Sidebar -->
         <aside id="sidebar">
             <div class="sidebar-header">
-                <img src="assets/logo.png" alt="Logo" class="sidebar-logo">
-                <span class="brand-text">IES Groups Admin Panel</span>
+                <span class="brand-text">IES Groups<br><small>Admin Portal</small></span>
+                <button id="sidebar-toggle" class="sidebar-toggle"
+                    onclick="document.getElementById('dashboard-container').classList.toggle('sidebar-collapsed')"
+                    title="Toggle Sidebar">
+                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                    </svg>
+                </button>
             </div>
 
             <nav class="sidebar-nav">
@@ -324,8 +332,11 @@
                                     <thead>
                                         <tr>
                                             <th>IO No</th>
+                                            <th>Drg No</th>
                                             <th>Description</th>
                                             <th>Customer</th>
+                                            <th>Qty</th>
+                                            <th>Unit</th>
                                             <th>Delivery Date</th>
                                             <th>Status</th>
                                         </tr>
@@ -351,17 +362,6 @@
                                 <div id="production-pipeline-chart" class="w-full">
                                     <!-- Production Pipeline Logic -->
                                     <div class="flex flex-col gap-3">
-                                        <div class="pipeline-item">
-                                            <div class="flex justify-between text-xs mb-1">
-                                                <span>In Progress</span>
-                                                <span id="pipeline-progress-pct">0%</span>
-                                            </div>
-                                            <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden"
-                                                style="background: #e2e8f0;">
-                                                <div id="pipeline-progress-bar" class="h-full"
-                                                    style="width: 0%; background: #3b82f6;"></div>
-                                            </div>
-                                        </div>
                                         <div class="pipeline-item">
                                             <div class="flex justify-between text-xs mb-1">
                                                 <span>Pending</span>
@@ -398,24 +398,6 @@
                                     <!-- Populated by JS -->
                                     <li class="text-center py-4 text-xs text-slate-400">Loading recent items...</li>
                                 </ul>
-                            </div>
-                        </div>
-
-                        <!-- Column 3: In Progress Orders (New) -->
-                        <div class="flex flex-col gap-4 col-right">
-                            <div class="card p-5 flex-1 flex flex-col min-h-0">
-                                <div class="mb-4 flex justify-between items-center">
-                                    <div>
-                                        <h3 style="font-size: 1rem; font-weight: 600;">In Progress Orders</h3>
-                                        <p class="text-xs text-slate-500 mt-1">Currently on the floor</p>
-                                    </div>
-                                    <span
-                                        class="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded font-medium">Live</span>
-                                </div>
-                                <div id="dashboard-inprogress-list" class="flex-1 overflow-y-auto pr-1">
-                                    <!-- Populated by JS -->
-                                    <div class="text-xs text-slate-400 p-4 text-center">Loading...</div>
-                                </div>
                             </div>
                         </div>
 
@@ -489,8 +471,8 @@
                                     <tr class="header-group-row">
                                         <th rowspan="2" width="50">S.No</th>
                                         <th colspan="2" class="text-center group-order">Internal Order</th>
-                                        <th colspan="2" class="text-center group-item">Item Details</th>
-                                        <th colspan="4" class="text-center group-pricing">Pricing & Production</th>
+                                        <th colspan="3" class="text-center group-item">Item Details</th>
+                                        <th colspan="5" class="text-center group-pricing">Pricing & Production</th>
                                         <th colspan="6" class="text-center group-customer">Customer Data</th>
                                         <th colspan="5" class="text-center group-delivery">Delivery date Actual</th>
                                         <th rowspan="2" width="80" class="text-right">Actions</th>
@@ -501,8 +483,10 @@
                                         </th>
                                         <th class="sortable" onclick="window.adminApp.sort('date')">Date</th>
                                         <th>Item Code</th>
+                                        <th>Drg No</th>
                                         <th style="min-width: 150px;">Description</th>
                                         <th class="text-right">Qty</th>
+                                        <th>Unit</th>
                                         <th class="text-right">Sale Val</th>
                                         <th class="text-right">Prod Val</th>
                                         <th class="text-right sortable" onclick="window.adminApp.sort('total')">Total
@@ -719,8 +703,11 @@
                                     <tr>
                                         <th style="width: 40px;">⚡</th>
                                         <th>Order ID</th>
+                                        <th>Drg No</th>
                                         <th>Description</th>
                                         <th>Customer</th>
+                                        <th>Qty</th>
+                                        <th>Unit</th>
                                         <th>Due Date</th>
                                         <th style="min-width: 200px;">Assigned To</th>
                                         <th style="min-width: 200px;">Remarks</th>
@@ -922,9 +909,11 @@
                                         <th style="width: 100px;">Date</th>
                                         <th style="width: 150px;">Customer</th>
                                         <th style="width: 200px;">Item</th>
+                                        <th style="width: 80px;">Drg No</th>
                                         <th style="width: 100px;">Department</th>
                                         <th style="width: 80px;">DC.No</th>
                                         <th style="width: 80px;">Quantity</th>
+                                        <th style="width: 50px;">Unit</th>
                                         <th style="width: 100px;">Delivery Value</th>
                                         <th style="width: 100px;">Labour</th>
                                         <th style="width: 120px;">Daily Value</th>
@@ -971,76 +960,109 @@
 
                     <!-- Section: Order Details -->
                     <div class="inline-section-label">Order Details</div>
-                    <div class="compact-form-grid" style="grid-template-columns: 1fr 1fr 1.5fr 3fr;">
-                        <div class="form-group">
-                            <label class="form-label">Order No <span class="required-indicator">*</span></label>
-                            <input type="text" name="internalOrderNo" class="form-input" required
-                                placeholder="IO-2025-001">
+                    <div class="modal-list-view">
+                        <div class="list-row list-row-2col">
+                            <div class="form-group">
+                                <label class="form-label">Order No <span class="required-indicator">*</span></label>
+                                <input type="text" name="internalOrderNo" class="form-input" required
+                                    placeholder="IO-2026-001">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Order Date <span class="required-indicator">*</span></label>
+                                <input type="date" name="date" class="form-input" required>
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">Order Date <span class="required-indicator">*</span></label>
-                            <input type="date" name="date" class="form-input" required>
+                        <div class="list-row list-row-2col">
+                            <div class="form-group">
+                                <label class="form-label">Item Code</label>
+                                <input type="text" name="itemCode" class="form-input" placeholder="Item/Serial No">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Drawing No</label>
+                                <input type="text" name="drawingNo" class="form-input" placeholder="Drg No">
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">Item Code</label>
-                            <input type="text" name="itemCode" class="form-input" placeholder="Item/Serial No">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Description</label>
-                            <input type="text" name="description" class="form-input"
-                                placeholder="Enter order description...">
+                        <div class="list-row">
+                            <div class="form-group">
+                                <label class="form-label">Description</label>
+                                <input type="text" name="description" class="form-input"
+                                    placeholder="Enter order description...">
+                            </div>
                         </div>
                     </div>
 
                     <div class="inline-section-label" style="margin-top: 1.5rem;">Pricing & Production</div>
-                    <div class="compact-form-grid">
-                        <div class="form-group">
-                            <label class="form-label">Order Qty</label>
-                            <input type="number" name="qty" class="form-input" min="0" id="order-qty">
+                    <div class="modal-list-view">
+                        <div class="list-row list-row-3col">
+                            <div class="form-group">
+                                <label class="form-label">Order Qty</label>
+                                <input type="number" name="qty" class="form-input" min="0" id="order-qty">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Unit</label>
+                                <input type="text" name="qtyUnit" class="form-input" value="Nos" list="unit-suggestions"
+                                    placeholder="e.g. Nos, Kgs">
+                                <datalist id="unit-suggestions">
+                                    <option value="Nos">
+                                    <option value="Kgs">
+                                    <option value="mm">
+                                    <option value="Mtrs">
+                                    <option value="Sets">
+                                    <option value="Lots">
+                                </datalist>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Department</label>
+                                <select name="department" class="form-input">
+                                    <option value="">Select Dept</option>
+                                    <option value="Fab">Fab</option>
+                                    <option value="CNC">CNC</option>
+                                    <option value="VMC">VMC</option>
+                                    <option value="Turning">Turning</option>
+                                    <option value="Assembly">Assembly</option>
+                                </select>
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">Sale Val (ea)</label>
-                            <input type="number" name="saleValueEa" class="form-input" min="0" step="0.01"
-                                id="order-value">
+                        <div class="list-row list-row-3col">
+                            <div class="form-group">
+                                <label class="form-label">Sale Val (ea)</label>
+                                <input type="number" name="saleValueEa" class="form-input" min="0" step="0.01"
+                                    id="order-value">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Prod Val (ea)</label>
+                                <input type="number" name="prodValueEa" class="form-input" min="0" step="0.01">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Total (Sale)</label>
+                                <input type="text" name="total" class="form-input computed" id="order-total" readonly>
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">Prod Val (ea)</label>
-                            <input type="number" name="prodValueEa" class="form-input" min="0" step="0.01">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Total (Sale)</label>
-                            <input type="text" name="total" class="form-input computed" id="order-total" readonly>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Department</label>
-                            <select name="department" class="form-input">
-                                <option value="">Select Dept</option>
-                                <option value="Fab">Fab</option>
-                                <option value="CNC">CNC</option>
-                                <option value="VMC">VMC</option>
-                                <option value="Turning">Turning</option>
-                                <option value="Assembly">Assembly</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Labour Cost</label>
-                            <input type="number" name="labourCost" class="form-input" min="0" step="0.01">
+                        <div class="list-row">
+                            <div class="form-group">
+                                <label class="form-label">Labour Cost</label>
+                                <input type="number" name="labourCost" class="form-input" min="0" step="0.01">
+                            </div>
                         </div>
                     </div>
 
                     <div class="inline-section-label" style="margin-top: 1.5rem;">Customer & Checks</div>
-                    <div class="compact-form-grid" style="grid-template-columns: 2fr 1fr 1fr;">
-                        <div class="form-group">
-                            <label class="form-label">Customer</label>
-                            <input type="text" name="customer" class="form-input" placeholder="Customer Name">
+                    <div class="modal-list-view">
+                        <div class="list-row">
+                            <div class="form-group">
+                                <label class="form-label">Customer</label>
+                                <input type="text" name="customer" class="form-input" placeholder="Customer Name">
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">PO No</label>
-                            <input type="text" name="poNo" class="form-input" placeholder="PO #">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">PO Date</label>
-                            <input type="date" name="poDate" class="form-input">
+                        <div class="list-row list-row-2col">
+                            <div class="form-group">
+                                <label class="form-label">PO No</label>
+                                <input type="text" name="poNo" class="form-input" placeholder="PO #">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">PO Date</label>
+                                <input type="date" name="poDate" class="form-input">
+                            </div>
                         </div>
                     </div>
 
@@ -1068,30 +1090,33 @@
                     </div>
 
                     <div class="inline-section-label" style="margin-top: 1rem;">Delivery & Billing</div>
-                    <div class="compact-form-grid" style="grid-template-columns: repeat(5, 1fr);">
-                        <div class="form-group">
-                            <label class="form-label">Del. Date</label>
-                            <input type="date" name="deliveryDateActual" class="form-input">
+                    <div class="modal-list-view">
+                        <div class="list-row list-row-3col">
+                            <div class="form-group">
+                                <label class="form-label">Del. Date</label>
+                                <input type="date" name="deliveryDateActual" class="form-input">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Del. Qty</label>
+                                <input type="number" name="deliveryQty" class="form-input" min="0">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">DC No</label>
+                                <input type="text" name="dcNo" class="form-input" placeholder="DC #">
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">Del. Qty</label>
-                            <input type="number" name="deliveryQty" class="form-input" min="0">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">DC No</label>
-                            <input type="text" name="dcNo" class="form-input" placeholder="DC #">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Bill No</label>
-                            <input type="text" name="billNo" class="form-input" placeholder="Invoice #">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Status</label>
-                            <select name="status" class="form-input">
-                                <option value="Pending">🟡 Pending</option>
-                                <option value="In Progress">🔵 In Progress</option>
-                                <option value="Delivered">🟢 Delivered</option>
-                            </select>
+                        <div class="list-row list-row-2col">
+                            <div class="form-group">
+                                <label class="form-label">Bill No</label>
+                                <input type="text" name="billNo" class="form-input" placeholder="Invoice #">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Status</label>
+                                <input type="text" class="form-input" value="🟡 Pending" readonly
+                                    style="background:#f8fafc; cursor:default; color:#94a3b8; font-weight:600;"
+                                    id="order-status-display">
+                                <input type="hidden" name="status" value="Pending">
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1126,65 +1151,95 @@
 
                     <!-- Section: Delivery Details -->
                     <div class="inline-section-label purple-theme">Delivery Details</div>
-                    <div class="compact-form-grid">
-                        <div class="form-group">
-                            <label class="form-label">Date *</label>
-                            <input type="date" name="date" class="form-input" required>
+                    <div class="modal-list-view">
+                        <div class="list-row list-row-2col">
+                            <div class="form-group">
+                                <label class="form-label">Date *</label>
+                                <input type="date" name="date" class="form-input" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Customer *</label>
+                                <input type="text" name="customer" class="form-input" required
+                                    placeholder="Customer Name">
+                            </div>
                         </div>
-                        <div class="form-group" style="grid-column: span 3;">
-                            <label class="form-label">Customer *</label>
-                            <input type="text" name="customer" class="form-input" required placeholder="Customer Name">
+                        <div class="list-row list-row-2col">
+                            <div class="form-group">
+                                <label class="form-label">Item Code</label>
+                                <input type="text" name="itemCode" class="form-input" placeholder="Item/Serial No">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Drawing No</label>
+                                <input type="text" name="drawingNo" class="form-input" placeholder="Drg No">
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">Item Code</label>
-                            <input type="text" name="itemCode" class="form-input" placeholder="Item/Serial No">
-                        </div>
-                        <div class="form-group" style="grid-column: span 3;">
-                            <label class="form-label">Description</label>
-                            <input type="text" name="description" class="form-input" placeholder="Description">
+                        <div class="list-row">
+                            <div class="form-group">
+                                <label class="form-label">Description</label>
+                                <input type="text" name="description" class="form-input" placeholder="Description">
+                            </div>
                         </div>
                     </div>
 
                     <!-- Section: Values & Logistics -->
                     <div class="inline-section-label purple-theme">Values & Logistics</div>
-                    <div class="compact-form-grid">
-                        <div class="form-group">
-                            <label class="form-label">Quantity</label>
-                            <input type="number" name="qty" class="form-input" min="0" id="del-qty">
+                    <div class="modal-list-view">
+                        <div class="list-row list-row-3col">
+                            <div class="form-group">
+                                <label class="form-label">Quantity</label>
+                                <input type="number" name="qty" class="form-input" min="0" id="del-qty">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Unit</label>
+                                <input type="text" name="qtyUnit" class="form-input" value="Nos"
+                                    list="unit-suggestions-del" placeholder="e.g. Nos, Kgs">
+                                <datalist id="unit-suggestions-del">
+                                    <option value="Nos">
+                                    <option value="Kgs">
+                                    <option value="mm">
+                                    <option value="Mtrs">
+                                    <option value="Sets">
+                                    <option value="Lots">
+                                </datalist>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">DC No</label>
+                                <input type="text" name="dcNo" class="form-input" placeholder="DC Number">
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">Delivery Value</label>
-                            <input type="number" name="total" class="form-input" min="0" step="0.01" id="del-total"
-                                placeholder="Total Value">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Labour Cost</label>
-                            <input type="number" name="labourCost" class="form-input" min="0" placeholder="Cost">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">DC No</label>
-                            <input type="text" name="dcNo" class="form-input" placeholder="DC Number">
+                        <div class="list-row list-row-2col">
+                            <div class="form-group">
+                                <label class="form-label">Delivery Value</label>
+                                <input type="number" name="total" class="form-input" min="0" step="0.01" id="del-total"
+                                    placeholder="Total Value">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Labour Cost</label>
+                                <input type="number" name="labourCost" class="form-input" min="0" placeholder="Cost">
+                            </div>
                         </div>
                     </div>
 
                     <!-- Section: Department -->
                     <div class="inline-section-label purple-theme">Department & Manpower</div>
-                    <div class="compact-form-grid">
-                        <div class="form-group">
-                            <label class="form-label">Department</label>
-                            <select name="department" class="form-input">
-                                <option value="">Select Dept</option>
-                                <option value="Fab">Fab</option>
-                                <option value="CNC">CNC</option>
-                                <option value="VMC">VMC</option>
-                                <option value="Turning">Turning</option>
-                                <option value="Assembly">Assembly</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Manpower</label>
-                            <input type="number" name="manpower" class="form-input" min="0"
-                                placeholder="Daily Value (₹)">
+                    <div class="modal-list-view">
+                        <div class="list-row list-row-2col">
+                            <div class="form-group">
+                                <label class="form-label">Department</label>
+                                <select name="department" class="form-input">
+                                    <option value="">Select Dept</option>
+                                    <option value="Fab">Fab</option>
+                                    <option value="CNC">CNC</option>
+                                    <option value="VMC">VMC</option>
+                                    <option value="Turning">Turning</option>
+                                    <option value="Assembly">Assembly</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Manpower</label>
+                                <input type="number" name="manpower" class="form-input" min="0"
+                                    placeholder="Daily Value (₹)">
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1216,10 +1271,8 @@
                 <div class="modal-body">
                     <input type="hidden" id="memberId-input" name="memberId">
 
-                    <!-- 2-Column Grid Layout -->
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
-                        <!-- Left Column: Basic Info -->
-                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div class="modal-list-view">
+                        <div class="list-row list-row-2col">
                             <div class="form-group">
                                 <label class="form-label">Full Name *</label>
                                 <input type="text" name="name" class="form-input" required
@@ -1229,6 +1282,18 @@
                                 <label class="form-label">Employee ID</label>
                                 <input type="text" name="employeeId" class="form-input" placeholder="e.g. EMP001">
                             </div>
+                        </div>
+                        <div class="list-row list-row-2col">
+                            <div class="form-group">
+                                <label class="form-label">Email Address</label>
+                                <input type="email" name="email" class="form-input" placeholder="email@company.com">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Phone Number</label>
+                                <input type="tel" name="phone" class="form-input" placeholder="+91 98765 43210">
+                            </div>
+                        </div>
+                        <div class="list-row">
                             <div class="form-group">
                                 <label class="form-label">Roles/Designations *</label>
                                 <!-- Multi-Select Container -->
@@ -1249,17 +1314,7 @@
                                 </div>
                             </div>
                         </div>
-
-                        <!-- Right Column: Contact & Dept -->
-                        <div style="display: flex; flex-direction: column; gap: 1rem;">
-                            <div class="form-group">
-                                <label class="form-label">Email Address</label>
-                                <input type="email" name="email" class="form-input" placeholder="email@company.com">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Phone Number</label>
-                                <input type="tel" name="phone" class="form-input" placeholder="+91 98765 43210">
-                            </div>
+                        <div class="list-row">
                             <div class="form-group">
                                 <label class="form-label">Departments *</label>
                                 <!-- Multi-Select Container for Departments -->
@@ -1280,30 +1335,29 @@
                                 </div>
                             </div>
                         </div>
-                    </div>
-
-                    <!-- Full Width: Reporting & Status -->
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1rem;">
-                        <div class="form-group">
-                            <label class="form-label">Reporting Manager</label>
-                            <select name="reportingManager" id="manager-select" class="form-input">
-                                <option value="">Select Manager</option>
-                                <!-- Populated by JS -->
-                            </select>
+                        <div class="list-row list-row-2col">
+                            <div class="form-group">
+                                <label class="form-label">Reporting Manager</label>
+                                <select name="reportingManager" id="manager-select" class="form-input">
+                                    <option value="">Select Manager</option>
+                                    <!-- Populated by JS -->
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Status</label>
+                                <select name="status" class="form-input">
+                                    <option value="Active">Active</option>
+                                    <option value="On Leave">On Leave</option>
+                                    <option value="Inactive">Inactive</option>
+                                </select>
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">Status</label>
-                            <select name="status" class="form-input">
-                                <option value="Active">Active</option>
-                                <option value="On Leave">On Leave</option>
-                                <option value="Inactive">Inactive</option>
-                            </select>
+                        <div class="list-row">
+                            <div class="form-group">
+                                <label class="form-label">Joining Date</label>
+                                <input type="date" name="joiningDate" class="form-input">
+                            </div>
                         </div>
-                    </div>
-
-                    <div class="form-group" style="margin-top: 1rem;">
-                        <label class="form-label">Joining Date</label>
-                        <input type="date" name="joiningDate" class="form-input">
                     </div>
                 </div>
                 <div class="modal-footer">
