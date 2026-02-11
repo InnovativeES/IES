@@ -230,9 +230,9 @@ export const renderDashboardPendingOrders = (orders) => {
     container.innerHTML = pending.map(order => `
         <tr>
             <td style="font-weight: 600; color: #1e293b;">${order.internalOrderNo || '-'}</td>
-            <td>${order.drawingNo || '-'}</td>
-            <td class="truncate" style="max-width: 200px;" title="${order.description}">${order.description || '-'}</td>
             <td>${order.customer || '-'}</td>
+            <td class="truncate" style="max-width: 200px;" title="${order.description}">${order.description || '-'}</td>
+            <td>${order.drawingNo || '-'}</td>
             <td>${order.qty || '-'}</td>
             <td>${order.qtyUnit || '-'}</td>
             <td style="color: #64748b;">${order.date || order.deliveryDateActual || '-'}</td>

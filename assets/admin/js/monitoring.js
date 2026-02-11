@@ -502,7 +502,7 @@ export const renderDeliveryReport = async (weekValue) => {
 
     const tbody = document.getElementById('delivery-report-body');
     if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="14" class="text-center py-8">Loading report data...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="16" class="text-center py-8">Loading report data...</td></tr>';
 
     // Fetch Daily Stats
     const startDateStr = startOfWeek.toISOString().slice(0, 10);
@@ -618,9 +618,11 @@ export const renderDeliveryReport = async (weekValue) => {
             tr.innerHTML = `
                 <td class="px-4 py-2 text-center text-slate-500">${isFirst ? groupSerialNo : ''}</td>
                 <td class="px-4 py-2 font-medium">${isFirst ? formatDate(date) : ''}</td> 
+                <td class="px-4 py-2 font-medium" style="color: var(--brand-600);">${order.internalOrderNo || '-'}</td>
                 <td class="px-4 py-2">${order.customer || '-'}</td>
-                <td class="px-4 py-2 font-medium">${order.itemCode || order.description || '-'}</td>
-                <td class="px-4 py-2">${order.drawingNo || '-'}</td>
+                <td class="px-4 py-2">${order.description || '-'}</td>
+                <td class="px-4 py-2 font-medium">${order.itemCode || '-'}</td>
+                <td class="px-4 py-2" style="white-space: nowrap;">${order.drawingNo || '-'}</td>
                 <td class="px-4 py-2 text-center">
                     <span class="px-2 py-1 rounded text-xs font-semibold bg-slate-100 text-slate-600">${order.department || '-'}</span>
                 </td>
@@ -667,6 +669,6 @@ export const renderDeliveryReport = async (weekValue) => {
     }
 
     if (reportOrders.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="14" class="px-4 py-8 text-center text-slate-400">No delivered orders found for this week.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="16" class="px-4 py-8 text-center text-slate-400">No delivered orders found for this week.</td></tr>`;
     }
 };

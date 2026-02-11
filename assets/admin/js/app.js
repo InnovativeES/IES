@@ -553,10 +553,47 @@ window.adminApp = {
         const hidden = document.getElementById('delivery-orderId-input');
         if (hidden) hidden.value = '';
 
+        // Clear the IO lookup field
+        const ioLookup = document.getElementById('delivery-io-lookup');
+        if (ioLookup) ioLookup.value = '';
+
+        // Populate datalist with existing IO numbers for autocomplete
+        const datalist = document.getElementById('delivery-io-suggestions');
+        if (datalist) {
+            const pendingOrders = currentOrders.filter(o => o.status === 'Pending' && o.internalOrderNo);
+            datalist.innerHTML = pendingOrders.map(o =>
+                `<option value="${o.internalOrderNo}">${o.customer || ''} - ${o.description || ''}</option>`
+            ).join('');
+        }
+
         const dateInput = form.querySelector('[name="date"]');
         if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
 
         window.adminApp.openModal('add-delivery-modal');
+    },
+
+    // Lookup: Auto-fill delivery form from an existing Internal Order
+    lookupOrderForDelivery: (ioNo) => {
+        if (!ioNo || !ioNo.trim()) return;
+        const order = currentOrders.find(o => o.internalOrderNo === ioNo.trim());
+        if (!order) return;
+
+        const form = document.getElementById('add-delivery-form');
+        if (!form) return;
+
+        // Auto-fill fields (all remain editable)
+        const setVal = (name, val) => {
+            const el = form.querySelector(`[name="${name}"]`);
+            if (el && val) el.value = val;
+        };
+
+        setVal('customer', order.customer);
+        setVal('description', order.description);
+        setVal('drawingNo', order.drawingNo);
+        setVal('itemCode', order.itemCode);
+        setVal('qty', order.qty);
+        setVal('qtyUnit', order.qtyUnit);
+        setVal('department', order.department);
     },
 
     submitDeliveryForm: async () => {
@@ -574,7 +611,9 @@ window.adminApp = {
             date: formData.get('date'),
             customer: formData.get('customer'),
             itemCode: formData.get('itemCode') || '',
+            drawingNo: formData.get('drawingNo') || '',
             description: formData.get('description') || '',
+            internalOrderNo: document.getElementById('delivery-io-lookup')?.value?.trim() || '',
             qty: parseFloat(formData.get('qty')) || 0,
             total: parseFloat(formData.get('total')) || 0, // Manual Delivery Value
             department: formData.get('department') || '',
@@ -1010,9 +1049,9 @@ window.adminApp = {
                         </button>
                     </td>
                     <td><span class="order-id-badge">${order.internalOrderNo || order.id}</span></td>
-                    <td><span style="font-size: 0.75rem; font-weight: 600; color: var(--brand-600);">${order.drawingNo || '-'}</span></td>
-                    <td style="font-size: 0.75rem; color: var(--slate-600);">${order.description || '-'}</td>
                     <td style="font-size: 0.75rem; font-weight: 500; color: var(--slate-700);">${order.customer || '-'}</td>
+                    <td style="font-size: 0.75rem; color: var(--slate-600);">${order.description || '-'}</td>
+                    <td><span style="font-size: 0.75rem; font-weight: 600; color: var(--brand-600);">${order.drawingNo || '-'}</span></td>
                     <td style="font-size: 0.75rem; font-weight: 600; text-align: center;">${order.qty || '-'}</td>
                     <td style="font-size: 0.75rem; text-align: center;">${order.qtyUnit || '-'}</td>
                     <td>
@@ -1235,11 +1274,11 @@ window.adminApp = {
                         <tr>
                             <th>Priority</th>
                             <th>Order ID</th>
-                            <th>Drg No</th>
+                            <th>Customer</th>
                             <th>Description</th>
+                            <th>Drg No</th>
                             <th>Qty</th>
                             <th>Unit</th>
-                            <th>Customer</th>
                             <th>Due Date</th>
                             <th>Assigned To</th>
                             <th>Remarks</th>
@@ -1257,11 +1296,11 @@ window.adminApp = {
                                 <tr class="${o.priority === 'urgent' ? 'urgent' : ''}">
                                     <td>${o.priority === 'urgent' ? '🔴 Urgent' : '⚪ Normal'}</td>
                                     <td>${o.internalOrderNo || o.id}</td>
-                                    <td>${o.drawingNo || '-'}</td>
+                                    <td>${o.customer || '-'}</td>
                                     <td>${o.description || '-'}</td>
+                                    <td>${o.drawingNo || '-'}</td>
                                     <td>${o.qty || '-'}</td>
                                     <td>${o.qtyUnit || '-'}</td>
-                                    <td>${o.customer || '-'}</td>
                                     <td>${dueDate}</td>
                                     <td>${assignedNames}</td>
                                     <td>${o.remarks || '-'}</td>
@@ -1447,11 +1486,11 @@ window.adminApp = {
                         <tr>
                             <th>Priority</th>
                             <th>Order ID</th>
-                            <th>Drg No</th>
+                            <th>Customer</th>
                             <th>Description</th>
+                            <th>Drg No</th>
                             <th>Qty</th>
                             <th>Unit</th>
-                            <th>Customer</th>
                             <th>Due Date</th>
                             <th>Assigned To</th>
                             <th>Remarks</th>
@@ -1466,11 +1505,11 @@ window.adminApp = {
                             <tr class="${o.priority === 'urgent' ? 'urgent' : ''}">
                                 <td>${o.priority === 'urgent' ? '🔴 Urgent' : '⚪ Normal'}</td>
                                 <td>${o.internalOrderNo || o.id}</td>
-                                <td>${o.drawingNo || '-'}</td>
+                                <td>${o.customer || '-'}</td>
                                 <td>${o.description || '-'}</td>
+                                <td>${o.drawingNo || '-'}</td>
                                 <td>${o.qty || '-'}</td>
                                 <td>${o.qtyUnit || '-'}</td>
-                                <td>${o.customer || '-'}</td>
                                 <td>${dueDate}</td>
                                 <td>${o.assignedNames || 'Unassigned'}</td>
                                 <td>${o.remarks || '-'}</td>

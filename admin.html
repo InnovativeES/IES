@@ -332,9 +332,9 @@
                                     <thead>
                                         <tr>
                                             <th>IO No</th>
-                                            <th>Drg No</th>
-                                            <th>Description</th>
                                             <th>Customer</th>
+                                            <th>Description</th>
+                                            <th>Drg No</th>
                                             <th>Qty</th>
                                             <th>Unit</th>
                                             <th>Delivery Date</th>
@@ -663,10 +663,11 @@
                             <select id="pending-filter-department" class="form-select text-xs"
                                 style="min-width: 120px;">
                                 <option value="">All Departments</option>
-                                <option value="Fabrication">Fabrication</option>
-                                <option value="CNC & VMC">CNC & VMC</option>
-                                <option value="SPM">SPM</option>
-                                <option value="HR">HR</option>
+                                <option value="Fab">Fab</option>
+                                <option value="CNC">CNC</option>
+                                <option value="VMC">VMC</option>
+                                <option value="Turning">Turning</option>
+                                <option value="Assembly">Assembly</option>
                             </select>
                         </div>
                         <div class="flex items-center gap-2">
@@ -703,9 +704,9 @@
                                     <tr>
                                         <th style="width: 40px;">⚡</th>
                                         <th>Order ID</th>
-                                        <th>Drg No</th>
-                                        <th>Description</th>
                                         <th>Customer</th>
+                                        <th>Description</th>
+                                        <th>Drg No</th>
                                         <th>Qty</th>
                                         <th>Unit</th>
                                         <th>Due Date</th>
@@ -907,8 +908,10 @@
                                         <!-- Widths adjusted for report layout -->
                                         <th style="width: 50px;" class="text-center">S.No</th>
                                         <th style="width: 100px;">Date</th>
-                                        <th style="width: 150px;">Customer</th>
-                                        <th style="width: 200px;">Item</th>
+                                        <th style="width: 100px;">Order ID</th>
+                                        <th style="width: 130px;">Customer</th>
+                                        <th style="width: 160px;">Description</th>
+                                        <th style="width: 160px;">Item</th>
                                         <th style="width: 80px;">Drg No</th>
                                         <th style="width: 100px;">Department</th>
                                         <th style="width: 80px;">DC.No</th>
@@ -1148,6 +1151,22 @@
             <form id="add-delivery-form" onsubmit="event.preventDefault(); window.adminApp.submitDeliveryForm()">
                 <div class="modal-body compact">
                     <input type="hidden" id="delivery-orderId-input" name="orderId">
+
+                    <!-- Section: Order Lookup -->
+                    <div class="inline-section-label purple-theme">Order Lookup</div>
+                    <div class="modal-list-view">
+                        <div class="list-row">
+                            <div class="form-group">
+                                <label class="form-label">IO No <span
+                                        style="font-weight: 400; color: var(--slate-400);">(type to
+                                        auto-fill)</span></label>
+                                <input type="text" id="delivery-io-lookup" class="form-input"
+                                    placeholder="e.g. 202526-530" list="delivery-io-suggestions"
+                                    oninput="window.adminApp.lookupOrderForDelivery(this.value)">
+                                <datalist id="delivery-io-suggestions"></datalist>
+                            </div>
+                        </div>
+                    </div>
 
                     <!-- Section: Delivery Details -->
                     <div class="inline-section-label purple-theme">Delivery Details</div>
