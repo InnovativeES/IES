@@ -104,7 +104,7 @@ export const renderTable = (orders) => {
 
         let matchesSearch = true;
         if (searchTerm) {
-            const searchStr = `${order.internalOrderNo} ${order.customer} ${order.description} ${order.itemCode} ${order.poNo}`.toLowerCase();
+            const searchStr = `${order.internalOrderNo} ${order.customer} ${order.description} ${order.poNo}`.toLowerCase();
             matchesSearch = searchStr.includes(searchTerm);
         }
 
@@ -215,9 +215,8 @@ export const renderTable = (orders) => {
 
         tr.innerHTML = `
             <td>${startIdx + index + 1}</td>
-            <td class="font-medium">${t(order.internalOrderNo)}</td>
+            <td class="font-medium" style="white-space: nowrap;">${t(order.internalOrderNo)}</td>
             <td>${formatDate(order.date)}</td>
-            <td>${t(order.itemCode)}</td>
             <td>${t(order.drawingNo)}</td>
             <td class="truncate" style="max-width: 150px;" title="${t(order.description)}">${t(order.description)}</td>
             <td class="text-right">${t(order.qty)}</td>
@@ -347,7 +346,7 @@ export const exportToPDF = () => {
         }
         let matchesSearch = true;
         if (searchTerm) {
-            const searchStr = `${order.internalOrderNo} ${order.customer} ${order.description} ${order.itemCode} ${order.poNo}`.toLowerCase();
+            const searchStr = `${order.internalOrderNo} ${order.customer} ${order.description} ${order.poNo}`.toLowerCase();
             matchesSearch = searchStr.includes(searchTerm);
         }
         return matchesMonth && matchesSearch && order.entryType !== 'delivery_report';
@@ -389,7 +388,7 @@ export const exportToPDF = () => {
                 { content: 'Status', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } }
             ],
             [
-                'IO No', 'Date', 'Code', 'Drg No', 'Description',
+                'IO No', 'Date', 'Drg No', 'Description',
                 'Qty', 'Unit', 'Sale', 'InH', 'Out', 'Total',
                 'Customer', 'PO No', 'PO Date', 'Drg', 'Raw', 'Fin',
                 'Del Date', 'DC No', 'Del Qty', 'Bill No', 'Stat'
@@ -400,7 +399,6 @@ export const exportToPDF = () => {
             index + 1,
             o.internalOrderNo || '-',
             formatDate(o.date),
-            o.itemCode || '-',
             o.drawingNo || '-',
             o.description || '-',
             o.qty || 0,
@@ -619,10 +617,9 @@ export const renderDeliveryReport = async (weekValue) => {
             tr.innerHTML = `
                 <td class="px-4 py-2 text-center text-slate-500">${isFirst ? groupSerialNo : ''}</td>
                 <td class="px-4 py-2 font-medium">${isFirst ? formatDate(date) : ''}</td> 
-                <td class="px-4 py-2 font-medium" style="color: var(--brand-600);">${order.internalOrderNo || '-'}</td>
+                <td class="px-4 py-2 font-medium" style="color: var(--brand-600); white-space: nowrap;">${order.internalOrderNo || '-'}</td>
                 <td class="px-4 py-2">${order.customer || '-'}</td>
                 <td class="px-4 py-2">${order.description || '-'}</td>
-                <td class="px-4 py-2 font-medium">${order.itemCode || '-'}</td>
                 <td class="px-4 py-2 text-center" style="white-space: nowrap; text-align: center !important;">${order.drawingNo || '-'}</td>
                 <td class="px-4 py-2 text-center">
                     <span class="px-2 py-1 rounded text-xs font-semibold bg-slate-100 text-slate-600">${order.department || '-'}</span>

@@ -579,7 +579,6 @@ window.adminApp = {
         setVal('customer', order.customer);
         setVal('description', order.description);
         setVal('drawingNo', order.drawingNo);
-        setVal('itemCode', order.itemCode);
         setVal('qty', order.qty);
         setVal('qtyUnit', order.qtyUnit);
         setVal('department', order.department);
@@ -599,7 +598,6 @@ window.adminApp = {
         const orderData = {
             date: formData.get('date'),
             customer: formData.get('customer'),
-            itemCode: formData.get('itemCode') || '',
             drawingNo: formData.get('drawingNo') || '',
             description: formData.get('description') || '',
             internalOrderNo: document.getElementById('delivery-io-lookup')?.value?.trim() || '',
@@ -631,6 +629,27 @@ window.adminApp = {
             result = await DB.updateOrder(orderId, orderData);
         } else {
             result = await DB.addOrder(orderData);
+        }
+
+        // Automated Sync: Update original Internal Order if IO Number is linked
+        if (!result.error && orderData.internalOrderNo && orderData.dcNo) {
+            const originalOrder = currentOrders.find(o =>
+                o.internalOrderNo === orderData.internalOrderNo && (!o.entryType || o.entryType !== 'delivery_report')
+            );
+            if (originalOrder) {
+                console.log('Automated Sync: Updating original Internal Order', originalOrder.id);
+
+                // Multiple DC Numbers support: Append if exists
+                let existingDCs = originalOrder.dcNo ? originalOrder.dcNo.split(',').map(s => s.trim()).filter(s => s) : [];
+                if (!existingDCs.includes(orderData.dcNo.trim())) {
+                    existingDCs.push(orderData.dcNo.trim());
+                }
+
+                await DB.updateOrder(originalOrder.id, {
+                    dcNo: existingDCs.join(', '),
+                    status: 'Delivered'
+                });
+            }
         }
 
         if (result.error) {
@@ -722,7 +741,6 @@ window.adminApp = {
                     form.querySelector('[name="orderId"]').value = order.id;
                     form.querySelector('[name="date"]').value = order.deliveryDateActual;
                     form.querySelector('[name="customer"]').value = order.customer;
-                    form.querySelector('[name="itemCode"]').value = order.itemCode;
                     form.querySelector('[name="description"]').value = order.description;
                     form.querySelector('[name="department"]').value = order.department;
                     form.querySelector('[name="dcNo"]').value = order.dcNo;
