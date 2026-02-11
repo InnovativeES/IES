@@ -28,6 +28,146 @@
     <!-- Admin Styles -->
     <link rel="stylesheet" href="assets/admin/css/admin.css?v=1">
     <link rel="stylesheet" href="assets/admin/css/delivery-modal.css">
+    <style>
+        /* Modal Redesign - 2 Column Layout */
+        .modal-wide {
+            max-width: 1000px !important;
+        }
+
+        .modal-body.modal-2col-layout {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 2rem !important;
+            align-items: start !important;
+        }
+
+        .modal-col-left,
+        .modal-col-right {
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+            /* Reduced from 1.5rem */
+            min-width: 0;
+        }
+
+        /* Close Button Placement */
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #fff;
+        }
+
+        .modal-close svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        @media (max-width: 768px) {
+            .modal-body.modal-2col-layout {
+                grid-template-columns: 1fr !important;
+            }
+        }
+
+        /* Premium Production Cost Card */
+        /* Polished Modal Inputs */
+        .form-input {
+            height: 42px;
+            /* Standardize height */
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 0 1rem;
+            transition: all 0.2s;
+        }
+
+        .form-input:focus {
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        /* Subtle Production Cost Group */
+        .production-cost-group {
+            background-color: #f8fafc;
+            border-radius: 8px;
+            padding: 0.75rem;
+            /* Reduced from 1rem */
+            margin-top: 0.5rem;
+            /* Reduced from 0.75rem */
+            border: 1px dashed #cbd5e1;
+        }
+
+        .production-cost-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.4rem;
+            /* Reduced from 0.75rem */
+        }
+
+        /* Checkbox Grid Polish */
+        .avail-checks {
+            display: block !important;
+            background-color: #f8fafc;
+            padding: 0.75rem;
+            /* Reduced from 1rem */
+            margin-top: 0.5rem;
+            /* Reduced from 0.75rem */
+            border: 1px dashed #cbd5e1;
+            /* Match Production Cost Group */
+        }
+
+        .check-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+            color: #475569;
+            cursor: pointer;
+        }
+
+        .check-item input {
+            width: 1.125rem;
+            height: 1.125rem;
+            accent-color: #10b981;
+        }
+
+        /* Section Spacing */
+        .inline-section-label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 0.4rem;
+            /* Reduced from 0.5rem */
+            margin-top: 0.6rem;
+            /* Reduced from 0.75rem */
+            display: flex;
+            align-items: center;
+        }
+
+        .inline-section-label::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: #e2e8f0;
+            margin-left: 0.75rem;
+        }
+
+        /* Remove top margin for first section */
+        .modal-col-left .w-full:first-child .inline-section-label,
+        .modal-col-right .w-full:first-child .inline-section-label {
+            margin-top: 0;
+        }
+    </style>
 </head>
 
 <body>
@@ -484,7 +624,7 @@
                                         <th rowspan="2" width="50">S.No</th>
                                         <th colspan="2" class="text-center group-order">Internal Order</th>
                                         <th colspan="3" class="text-center group-item">Item Details</th>
-                                        <th colspan="5" class="text-center group-pricing">Pricing & Production</th>
+                                        <th colspan="7" class="text-center group-pricing">Pricing & Production</th>
                                         <th colspan="6" class="text-center group-customer">Customer Data</th>
                                         <th colspan="5" class="text-center group-delivery">Delivery date Actual</th>
                                         <th rowspan="2" width="80" class="text-right">Actions</th>
@@ -500,7 +640,9 @@
                                         <th class="text-right">Qty</th>
                                         <th>Unit</th>
                                         <th class="text-right">Sale Val</th>
-                                        <th class="text-right">Prod Val</th>
+                                        <th class="text-right">In-house</th>
+                                        <th class="text-right">Outsource</th>
+                                        <th class="text-center">Labor</th>
                                         <th class="text-right sortable" onclick="window.adminApp.sort('total')">Total
                                         </th>
 
@@ -903,19 +1045,6 @@
                             <div class="stats-card-icon bg-purple-100 text-purple-600">
                                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z">
-                                    </path>
-                                </svg>
-                            </div>
-                            <div>
-                                <p class="text-sm text-slate-500 font-medium">Labour Cost</p>
-                                <h3 class="text-2xl font-bold text-slate-800" id="report-total-labour">₹0</h3>
-                            </div>
-                        </div>
-                        <div class="stats-card">
-                            <div class="stats-card-icon bg-purple-100 text-purple-600">
-                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                         d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z">
                                     </path>
                                 </svg>
@@ -947,7 +1076,6 @@
                                         <th style="width: 80px;">Quantity</th>
                                         <th style="width: 50px;">Unit</th>
                                         <th style="width: 100px;">Delivery Value</th>
-                                        <th style="width: 100px;">Labour</th>
                                         <th style="width: 120px;">Daily Value</th>
                                         <th style="width: 120px;">Manpower</th>
                                         <th style="width: 80px;" class="text-center no-print">Actions</th>
@@ -987,173 +1115,205 @@
             </div>
 
             <form id="add-order-form">
-                <div class="modal-body compact">
+                <div class="modal-body compact modal-2col-layout">
+                    <!-- LEFT COLUMN -->
+                    <div class="modal-col-left">
+                        <!-- Order Details -->
+                        <div class="w-full">
+                            <div class="inline-section-label">Order Details</div>
+                            <div class="modal-list-view">
+                                <div class="list-row list-row-2col">
+                                    <div class="form-group">
+                                        <label class="form-label">Order No <span
+                                                class="required-indicator">*</span></label>
+                                        <input type="text" name="internalOrderNo" class="form-input" required
+                                            placeholder="IO-2026-001">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Order Date <span
+                                                class="required-indicator">*</span></label>
+                                        <input type="date" name="date" class="form-input" required>
+                                    </div>
+                                </div>
+                                <div class="list-row list-row-2col">
+                                    <div class="form-group">
+                                        <label class="form-label">Item Code</label>
+                                        <input type="text" name="itemCode" class="form-input"
+                                            placeholder="Item/Serial No">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Drawing No</label>
+                                        <input type="text" name="drawingNo" class="form-input" placeholder="Drg No">
+                                    </div>
+                                </div>
+                                <div class="list-row">
+                                    <div class="form-group">
+                                        <label class="form-label">Description</label>
+                                        <input type="text" name="description" class="form-input"
+                                            placeholder="Enter order description...">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Pricing & Production -->
+                        <div class="w-full">
+                            <div class="inline-section-label">Pricing & Production</div>
+                            <div class="modal-list-view">
+                                <div class="list-row list-row-3col">
+                                    <div class="form-group">
+                                        <label class="form-label">Order Qty</label>
+                                        <input type="number" name="qty" class="form-input" min="0" id="order-qty">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Unit</label>
+                                        <input type="text" name="qtyUnit" class="form-input" value="Nos"
+                                            list="unit-suggestions" placeholder="e.g. Nos, Kgs">
+                                        <datalist id="unit-suggestions">
+                                            <option value="Nos">
+                                            <option value="Kgs">
+                                            <option value="mm">
+                                            <option value="Mtrs">
+                                            <option value="Sets">
+                                            <option value="Lots">
+                                        </datalist>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Department</label>
+                                        <select name="department" class="form-input">
+                                            <option value="">Select Dept</option>
+                                            <option value="Fab">Fab</option>
+                                            <option value="CNC">CNC</option>
+                                            <option value="VMC">VMC</option>
+                                            <option value="Turning">Turning</option>
+                                            <option value="Assembly">Assembly</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="list-row list-row-2col">
+                                    <div class="form-group">
+                                        <label class="form-label">Sale Val (ea)</label>
+                                        <input type="number" name="saleValueEa" class="form-input" min="0" step="0.01"
+                                            id="order-value">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Total (Sale)</label>
+                                        <input type="text" name="total" class="form-input computed" id="order-total"
+                                            readonly>
+                                    </div>
+                                </div>
+
+                                <!-- Production Cost Group -->
+                                <div class="production-cost-group">
+                                    <div class="production-cost-label">Production Cost</div>
+                                    <div class="list-row list-row-2col">
+                                        <div class="form-group">
+                                            <label class="form-label" style="color: #475569;">In-house Value</label>
+                                            <input type="number" name="prodValueEa" class="form-input" min="0"
+                                                step="0.01" placeholder="In-house">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" style="color: #475569;">Outsource
+                                                Value</label>
+                                            <input type="number" name="outsourceValue" class="form-input" min="0"
+                                                step="0.01" placeholder="Outsource">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- RIGHT COLUMN -->
+                    <div class="modal-col-right">
+                        <!-- Customer & Checks -->
+                        <div class="w-full">
+                            <div class="inline-section-label">Customer Details</div>
+                            <div class="modal-list-view">
+                                <div class="form-group">
+                                    <label class="form-label">Customer</label>
+                                    <input type="text" name="customer" class="form-input" placeholder="Customer Name">
+                                </div>
+                                <div class="list-row list-row-2col">
+                                    <div class="form-group">
+                                        <label class="form-label">PO No</label>
+                                        <input type="text" name="poNo" class="form-input" placeholder="PO #">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">PO Date</label>
+                                        <input type="date" name="poDate" class="form-input">
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <!-- Delivery & Billing -->
+                        <div class="w-full">
+                            <div class="inline-section-label">Delivery & Billing</div>
+                            <div class="modal-list-view">
+                                <div class="list-row list-row-2col">
+                                    <div class="form-group">
+                                        <label class="form-label">Del. Date</label>
+                                        <input type="date" name="deliveryDateActual" class="form-input">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Del. Qty</label>
+                                        <input type="number" name="deliveryQty" class="form-input" min="0">
+                                    </div>
+                                </div>
+                                <div class="list-row list-row-2col">
+                                    <div class="form-group">
+                                        <label class="form-label">DC No</label>
+                                        <input type="text" name="dcNo" class="form-input" placeholder="DC #">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Bill No</label>
+                                        <input type="text" name="billNo" class="form-input" placeholder="Invoice #">
+                                    </div>
+                                </div>
+                                <div class="list-row">
+                                    <div class="form-group">
+                                        <label class="form-label">Status</label>
+                                        <input type="text" class="form-input" value="🟡 Pending" readonly
+                                            style="background:#f8fafc; cursor:default; color:#94a3b8; font-weight:600;"
+                                            id="order-status-display">
+                                        <input type="hidden" name="status" value="Pending">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Availability Checks -->
+                        <div class="avail-checks">
+                            <div class="production-cost-label">Availability</div>
+                            <div class="list-row list-row-2col">
+                                <label class="check-item">
+                                    <input type="checkbox" name="drgAvail" value="y">
+                                    <span>Drg Available</span>
+                                </label>
+                                <label class="check-item">
+                                    <input type="checkbox" name="rawAvail" value="y">
+                                    <span>Raw Mat. Avail</span>
+                                </label>
+                            </div>
+                            <div class="list-row list-row-2col">
+                                <label class="check-item">
+                                    <input type="checkbox" name="isLaborJob" value="y">
+                                    <span>Labor Job</span>
+                                </label>
+                                <label class="check-item">
+                                    <input type="checkbox" name="finishAvail" value="y">
+                                    <span>Finished Part Avail</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
                     <input type="hidden" id="orderId-input" name="orderId">
-
-                    <!-- Section: Order Details -->
-                    <div class="inline-section-label">Order Details</div>
-                    <div class="modal-list-view">
-                        <div class="list-row list-row-2col">
-                            <div class="form-group">
-                                <label class="form-label">Order No <span class="required-indicator">*</span></label>
-                                <input type="text" name="internalOrderNo" class="form-input" required
-                                    placeholder="IO-2026-001">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Order Date <span class="required-indicator">*</span></label>
-                                <input type="date" name="date" class="form-input" required>
-                            </div>
-                        </div>
-                        <div class="list-row list-row-2col">
-                            <div class="form-group">
-                                <label class="form-label">Item Code</label>
-                                <input type="text" name="itemCode" class="form-input" placeholder="Item/Serial No">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Drawing No</label>
-                                <input type="text" name="drawingNo" class="form-input" placeholder="Drg No">
-                            </div>
-                        </div>
-                        <div class="list-row">
-                            <div class="form-group">
-                                <label class="form-label">Description</label>
-                                <input type="text" name="description" class="form-input"
-                                    placeholder="Enter order description...">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="inline-section-label" style="margin-top: 1.5rem;">Pricing & Production</div>
-                    <div class="modal-list-view">
-                        <div class="list-row list-row-3col">
-                            <div class="form-group">
-                                <label class="form-label">Order Qty</label>
-                                <input type="number" name="qty" class="form-input" min="0" id="order-qty">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Unit</label>
-                                <input type="text" name="qtyUnit" class="form-input" value="Nos" list="unit-suggestions"
-                                    placeholder="e.g. Nos, Kgs">
-                                <datalist id="unit-suggestions">
-                                    <option value="Nos">
-                                    <option value="Kgs">
-                                    <option value="mm">
-                                    <option value="Mtrs">
-                                    <option value="Sets">
-                                    <option value="Lots">
-                                </datalist>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Department</label>
-                                <select name="department" class="form-input">
-                                    <option value="">Select Dept</option>
-                                    <option value="Fab">Fab</option>
-                                    <option value="CNC">CNC</option>
-                                    <option value="VMC">VMC</option>
-                                    <option value="Turning">Turning</option>
-                                    <option value="Assembly">Assembly</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="list-row list-row-3col">
-                            <div class="form-group">
-                                <label class="form-label">Sale Val (ea)</label>
-                                <input type="number" name="saleValueEa" class="form-input" min="0" step="0.01"
-                                    id="order-value">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Prod Val (ea)</label>
-                                <input type="number" name="prodValueEa" class="form-input" min="0" step="0.01">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Total (Sale)</label>
-                                <input type="text" name="total" class="form-input computed" id="order-total" readonly>
-                            </div>
-                        </div>
-                        <div class="list-row">
-                            <div class="form-group">
-                                <label class="form-label">Labour Cost</label>
-                                <input type="number" name="labourCost" class="form-input" min="0" step="0.01">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="inline-section-label" style="margin-top: 1.5rem;">Customer & Checks</div>
-                    <div class="modal-list-view">
-                        <div class="list-row">
-                            <div class="form-group">
-                                <label class="form-label">Customer</label>
-                                <input type="text" name="customer" class="form-input" placeholder="Customer Name">
-                            </div>
-                        </div>
-                        <div class="list-row list-row-2col">
-                            <div class="form-group">
-                                <label class="form-label">PO No</label>
-                                <input type="text" name="poNo" class="form-input" placeholder="PO #">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">PO Date</label>
-                                <input type="date" name="poDate" class="form-input">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="avail-checks"
-                        style="background: #f8fafc; padding: 1rem; border-radius: 8px; margin-top: 1rem; display: flex; gap: 2rem; border: 1px solid #e2e8f0;">
-                        <label class="check-item"
-                            style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                            <input type="checkbox" name="drgAvail" value="y"
-                                style="width: 18px; height: 18px; accent-color: #14b8a6;">
-                            <span style="font-size: 0.875rem; font-weight: 500; color: #475569;">Drg Available</span>
-                        </label>
-                        <label class="check-item"
-                            style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                            <input type="checkbox" name="rawAvail" value="y"
-                                style="width: 18px; height: 18px; accent-color: #14b8a6;">
-                            <span style="font-size: 0.875rem; font-weight: 500; color: #475569;">Raw Mat. Avail</span>
-                        </label>
-                        <label class="check-item"
-                            style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                            <input type="checkbox" name="finishAvail" value="y"
-                                style="width: 18px; height: 18px; accent-color: #14b8a6;">
-                            <span style="font-size: 0.875rem; font-weight: 500; color: #475569;">Finished Part
-                                Avail</span>
-                        </label>
-                    </div>
-
-                    <div class="inline-section-label" style="margin-top: 1rem;">Delivery & Billing</div>
-                    <div class="modal-list-view">
-                        <div class="list-row list-row-3col">
-                            <div class="form-group">
-                                <label class="form-label">Del. Date</label>
-                                <input type="date" name="deliveryDateActual" class="form-input">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Del. Qty</label>
-                                <input type="number" name="deliveryQty" class="form-input" min="0">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">DC No</label>
-                                <input type="text" name="dcNo" class="form-input" placeholder="DC #">
-                            </div>
-                        </div>
-                        <div class="list-row list-row-2col">
-                            <div class="form-group">
-                                <label class="form-label">Bill No</label>
-                                <input type="text" name="billNo" class="form-input" placeholder="Invoice #">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Status</label>
-                                <input type="text" class="form-input" value="🟡 Pending" readonly
-                                    style="background:#f8fafc; cursor:default; color:#94a3b8; font-weight:600;"
-                                    id="order-status-display">
-                                <input type="hidden" name="status" value="Pending">
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
-                <div class="modal-footer">
+                <div class="modal-footer" style="border-top: 1px solid #e2e8f0; margin-top: 0; padding-top: 1.5rem;">
                     <button type="button" class="btn btn-secondary"
                         onclick="window.adminApp.closeModal('add-order-modal')">Cancel</button>
                     <button type="submit" class="btn btn-primary">Save Order</button>

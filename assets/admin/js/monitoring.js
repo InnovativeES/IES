@@ -224,6 +224,8 @@ export const renderTable = (orders) => {
             <td>${t(order.qtyUnit)}</td>
             <td class="text-right">${t(order.saleValueEa || order.value)}</td>
             <td class="text-right">${t(order.prodValueEa)}</td>
+            <td class="text-right">${t(order.outsourceValue)}</td>
+            <td class="text-center">${avail(order.isLaborJob)}</td>
             <td class="text-right font-bold">${t(order.total)}</td>
             
             <td>${t(order.customer)}</td>
@@ -388,7 +390,7 @@ export const exportToPDF = () => {
             ],
             [
                 'IO No', 'Date', 'Code', 'Drg No', 'Description',
-                'Qty', 'Unit', 'Sale', 'Prod', 'Total',
+                'Qty', 'Unit', 'Sale', 'InH', 'Out', 'Total',
                 'Customer', 'PO No', 'PO Date', 'Drg', 'Raw', 'Fin',
                 'Del Date', 'DC No', 'Del Qty', 'Bill No', 'Stat'
             ]
@@ -405,6 +407,7 @@ export const exportToPDF = () => {
             o.qtyUnit || '-',
             o.saleValueEa || o.value || 0,
             o.prodValueEa || 0,
+            o.outsourceValue || 0,
             o.total || 0,
             o.customer || '-',
             o.poNo || '-',
@@ -436,23 +439,24 @@ export const exportToPDF = () => {
                 6: { cellWidth: 7 },  // Qty
                 7: { cellWidth: 8 },  // Unit
                 8: { cellWidth: 10 }, // Sale
-                9: { cellWidth: 10 }, // Prod
-                10: { cellWidth: 12 }, // Total
-                11: { cellWidth: 16 }, // Cust
-                12: { cellWidth: 12 }, // PO
-                13: { cellWidth: 13 }, // PO Date
-                14: { cellWidth: 6 },  // Drg
-                15: { cellWidth: 6 },  // Raw
-                16: { cellWidth: 6 },  // Fin
-                17: { cellWidth: 13 }, // Del Date
-                18: { cellWidth: 9 },  // DC
-                19: { cellWidth: 7 },  // Del Qty
-                20: { cellWidth: 9 },  // Bill
-                21: { cellWidth: 14 }  // Status
+                9: { cellWidth: 9 },  // InH
+                10: { cellWidth: 9 }, // Out
+                11: { cellWidth: 12 }, // Total
+                12: { cellWidth: 16 }, // Cust
+                13: { cellWidth: 12 }, // PO
+                14: { cellWidth: 13 }, // PO Date
+                15: { cellWidth: 6 },  // Drg
+                16: { cellWidth: 6 },  // Raw
+                17: { cellWidth: 6 },  // Fin
+                18: { cellWidth: 13 }, // Del Date
+                19: { cellWidth: 9 },  // DC
+                20: { cellWidth: 7 },  // Del Qty
+                21: { cellWidth: 9 },  // Bill
+                22: { cellWidth: 14 }  // Status
             },
             didParseCell: (data) => {
                 // Color coding for status
-                if (data.section === 'body' && data.column.index === 21) {
+                if (data.section === 'body' && data.column.index === 22) {
                     const status = data.cell.raw;
                     if (status === 'Delivered') data.cell.styles.textColor = [22, 163, 74];
                     else if (status === 'Pending') data.cell.styles.textColor = [202, 138, 4];
@@ -580,7 +584,6 @@ export const renderDeliveryReport = async (weekValue) => {
     // Calculate Summary Stats
     let totalItems = reportOrders.length;
     let totalValue = reportOrders.reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0);
-    let totalLabour = reportOrders.reduce((sum, o) => sum + (parseFloat(o.labourCost) || 0), 0);
     let totalManpower = reportOrders.reduce((sum, o) => sum + (parseFloat(o.manpower) || 0), 0);
 
     // Update Stats UI
@@ -590,8 +593,6 @@ export const renderDeliveryReport = async (weekValue) => {
     const totalValueEl = document.getElementById('report-total-value');
     if (totalValueEl) totalValueEl.textContent = '₹' + totalValue.toLocaleString('en-IN');
 
-    const totalLabourEl = document.getElementById('report-total-labour');
-    if (totalLabourEl) totalLabourEl.textContent = '₹' + totalLabour.toLocaleString('en-IN');
 
     const totalManpowerEl = document.getElementById('report-total-manpower');
     if (totalManpowerEl) totalManpowerEl.textContent = '₹' + totalManpower.toLocaleString('en-IN');
@@ -630,7 +631,6 @@ export const renderDeliveryReport = async (weekValue) => {
                 <td class="px-4 py-2 text-right font-bold">${order.deliveryQty || order.qty || 0}</td>
                 <td class="px-4 py-2">${order.qtyUnit || '-'}</td>
                 <td class="px-4 py-2 text-right">₹${(parseFloat(order.total) || 0).toLocaleString('en-IN')}</td>
-                <td class="px-4 py-2 text-right text-slate-500">₹${(parseFloat(order.labourCost) || 0).toLocaleString('en-IN')}</td>
                 <td class="px-4 py-2 text-right ${dailyClass}">${displayDailyValue}</td>
                 <td class="px-4 py-2 text-right ${dailyClass}">${displayDailyManpower}</td>
                 <td class="px-4 py-2 text-center no-print">

@@ -297,9 +297,9 @@ export const renderMemberWorkload = (member, tasks) => {
     const pendingTasks = tasks.filter(t => t.status !== 'Completed' && t.status !== 'Delivered');
     const completedTasks = tasks.filter(t => t.status === 'Completed' || t.status === 'Delivered');
 
-    // Calculate Pending Value
+    // Calculate Pending Value (Using In-house Value only as per new requirement)
     const pendingValue = pendingTasks.reduce((sum, t) => {
-        const val = typeof t.total === 'number' ? t.total : parseFloat((t.total || '0').toString().replace(/,/g, '')) || 0;
+        const val = typeof t.prodValueEa === 'number' ? t.prodValueEa : parseFloat((t.prodValueEa || '0').toString().replace(/,/g, '')) || 0;
         return sum + val;
     }, 0);
 

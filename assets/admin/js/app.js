@@ -31,8 +31,8 @@ function calculateDashboardStats(orders, selectedMonth = 'all', selectedDept = '
         return 0;
     };
 
-    // Revenue is now sum of all Pending orders in selection
-    const revenue = active.reduce((sum, o) => sum + parseTotal(o.total), 0);
+    // Revenue is now sum of all Pending orders in selection (Using In-house Value only)
+    const revenue = active.reduce((sum, o) => sum + parseTotal(o.prodValueEa), 0);
     const pendingCount = active.length;
 
     // Unassigned orders: Pending orders with no assignment
