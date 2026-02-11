@@ -129,12 +129,12 @@ export const renderMemberList = (members) => {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>
-                <div style="display: flex; align-items: center; gap: 0.75rem;">
-                    <div style="width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #34d399 0%, #059669 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 0.875rem;">
+                <div class="member-clickable" onclick="window.adminApp.viewMemberWorkload('${member.id}')" style="display: flex; align-items: center; gap: 0.75rem;">
+                    <div id="avatar-${member.id}" style="width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #34d399 0%, #059669 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 0.875rem;">
                         ${member.name.charAt(0).toUpperCase()}
                     </div>
                     <div>
-                        <div style="font-weight: 600; color: #1e293b;">${member.name}</div>
+                        <div class="member-name-text" style="font-weight: 600; color: #1e293b;">${member.name}</div>
                         <div style="font-size: 0.8125rem; color: #64748b;">${member.email || ''}</div>
                     </div>
                 </div>
@@ -198,9 +198,8 @@ export const updateStats = (stats) => {
     }
     setEl('stat-active-orders', stats.activeOrders ?? 0);
     setEl('stat-pending-count', `${stats.pendingCount ?? 0} Pending`);
-    setEl('stat-weekly-due', stats.weeklyDue ?? 0);
-    setEl('stat-efficiency', `${stats.efficiency ?? 0}%`);
-    setEl('stat-member-count', `${stats.totalMembers || 0} Staff Active`);
+    setEl('stat-unassigned', stats.unassignedCount ?? 0);
+
 
     // Pipeline Bars
     const setBar = (id, pctId, value) => {
@@ -274,3 +273,76 @@ export const renderDashboardRecentActivity = (orders) => {
         </li>
     `).join('');
 };
+
+export const renderMemberWorkload = (member, tasks) => {
+    // Populate header info
+    const nameEl = document.getElementById('workload-member-name');
+    const roleEl = document.getElementById('workload-member-role');
+    const deptEl = document.getElementById('workload-member-dept');
+    const avatarEl = document.getElementById('workload-member-avatar');
+    const printDateEl = document.getElementById('workload-print-date');
+
+    if (nameEl) nameEl.textContent = member.name || 'Unknown Member';
+    if (roleEl) roleEl.textContent = member.role || member.designation || 'Team Member';
+    if (deptEl) deptEl.textContent = member.section || member.department || 'N/A';
+    if (avatarEl) avatarEl.textContent = (member.name || '?').charAt(0).toUpperCase();
+    if (printDateEl) printDateEl.textContent = `Report Date: ${new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
+
+    // Populate stats
+    const totalEl = document.getElementById('workload-total-tasks');
+    const pendingEl = document.getElementById('workload-pending-tasks');
+    const completedEl = document.getElementById('workload-completed-tasks');
+    const valueEl = document.getElementById('workload-pending-value');
+
+    const pendingTasks = tasks.filter(t => t.status !== 'Completed' && t.status !== 'Delivered');
+    const completedTasks = tasks.filter(t => t.status === 'Completed' || t.status === 'Delivered');
+
+    // Calculate Pending Value
+    const pendingValue = pendingTasks.reduce((sum, t) => {
+        const val = typeof t.total === 'number' ? t.total : parseFloat((t.total || '0').toString().replace(/,/g, '')) || 0;
+        return sum + val;
+    }, 0);
+
+    if (totalEl) totalEl.textContent = tasks.length;
+    if (pendingEl) pendingEl.textContent = pendingTasks.length;
+    if (completedEl) completedEl.textContent = completedTasks.length;
+    if (valueEl) valueEl.textContent = `₹${pendingValue.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+
+    // Populate table
+    const tableBody = document.getElementById('workload-tasks-body');
+    if (!tableBody) return;
+
+    if (tasks.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-slate-400">No tasks assigned to this member.</td></tr>';
+        return;
+    }
+
+    // Get all members for co-assignment lookup (assuming they are available globally or we can pass them)
+    // In app.js, we have currentMembers. We can either pass it or use a global if available via window.adminApp.getMembers()
+    const allMembers = window.adminApp?.getCurrentMembers ? window.adminApp.getCurrentMembers() : [];
+
+    tableBody.innerHTML = tasks.map(task => {
+        // Find other members assigned to this task (excluding the current member)
+        const others = (task.assignedTo || [])
+            .filter(id => id !== member.id)
+            .map(id => allMembers.find(m => m.id === id)?.name || id)
+            .join(', ');
+
+        return `
+        <tr>
+            <td style="font-weight: 600;">${task.internalOrderNo || '-'}</td>
+            <td>${task.description || '-'}</td>
+            <td>${task.drawingNo || '-'}</td>
+            <td>${task.customer || '-'}</td>
+            <td class="text-center">${task.qty || 0} ${task.qtyUnit || ''}</td>
+            <td>${task.delDate || task.estimatedCompletion ? new Date(task.delDate || task.estimatedCompletion).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}</td>
+            <td style="font-size: 0.8125rem; color: #64748b;">${others || '-'}</td>
+            <td class="text-center">
+                <span class="badge ${task.status === 'Pending' ? 'badge-warning' : 'badge-success'}">${task.status}</span>
+            </td>
+        </tr>
+    `;
+    }).join('');
+};
+
+

@@ -622,7 +622,7 @@ export const renderDeliveryReport = async (weekValue) => {
                 <td class="px-4 py-2">${order.customer || '-'}</td>
                 <td class="px-4 py-2">${order.description || '-'}</td>
                 <td class="px-4 py-2 font-medium">${order.itemCode || '-'}</td>
-                <td class="px-4 py-2" style="white-space: nowrap;">${order.drawingNo || '-'}</td>
+                <td class="px-4 py-2 text-center" style="white-space: nowrap; text-align: center !important;">${order.drawingNo || '-'}</td>
                 <td class="px-4 py-2 text-center">
                     <span class="px-2 py-1 rounded text-xs font-semibold bg-slate-100 text-slate-600">${order.department || '-'}</span>
                 </td>

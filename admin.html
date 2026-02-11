@@ -144,6 +144,15 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a href="#" class="nav-link" data-view="inventory_management">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                            </svg>
+                            Inventory Management
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a href="#" class="nav-link" data-view="project_management">
                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -187,16 +196,36 @@
                             <h2 class="text-2xl font-bold text-slate-800">Executive Overview</h2>
                             <p class="text-sm text-slate-500">Real-time production & revenue insights</p>
                         </div>
-                        <div class="dashboard-controls flex items-center gap-3">
-                            <label for="dashboard-month-filter"
-                                class="text-sm font-medium text-slate-600">Period:</label>
-                            <select id="dashboard-month-filter" class="form-select text-sm rounded-lg border-slate-200">
-                                <option value="all">All Time</option>
-                                <option value="2026-02">February 2026</option>
-                                <option value="2026-01">January 2026</option>
-                                <option value="2025-12">December 2025</option>
-                                <option value="2025-11">November 2025</option>
-                            </select>
+                        <div class="dashboard-filter-bar flex items-center gap-4 p-1.5 rounded-full ml-auto">
+                            <div class="flex items-center gap-2 pl-3">
+                                <span
+                                    class="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-slate-400">Filter
+                                    by Dept</span>
+                                <select id="dashboard-dept-filter"
+                                    class="bg-white border-0 text-xs font-bold text-slate-700 rounded-full px-4 py-1.5 ring-1 ring-slate-200 focus:ring-2 focus:ring-teal-500 transition-all cursor-pointer outline-none shadow-sm"
+                                    onchange="window.adminApp.refreshDashboard()">
+                                    <option value="all">All Departments</option>
+                                    <option value="Fab">Fabrication</option>
+                                    <option value="CNC">CNC</option>
+                                    <option value="VMC">VMC</option>
+                                    <option value="Turning">Turning</option>
+                                    <option value="Assembly">Assembly</option>
+                                </select>
+                            </div>
+                            <div class="h-6 w-px bg-slate-200"></div>
+                            <div class="flex items-center gap-2 pr-1">
+                                <span
+                                    class="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-slate-400">Time
+                                    Period</span>
+                                <select id="dashboard-month-filter"
+                                    class="bg-white border-0 text-xs font-bold text-slate-700 rounded-full px-4 py-1.5 ring-1 ring-slate-200 focus:ring-2 focus:ring-teal-500 transition-all cursor-pointer outline-none shadow-sm"
+                                    onchange="window.adminApp.refreshDashboard()">
+                                    <option value="all">All Time</option>
+                                    <option value="2026-02">February 2026</option>
+                                    <option value="2026-01">January 2026</option>
+                                    <option value="2025-12">December 2025</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
 
@@ -211,7 +240,7 @@
                             </div>
                             <div class="stat-content">
                                 <h3>
-                                    Total Revenue
+                                    Pending Order Value
                                     <!-- Inline Privacy Toggle -->
                                     <button class="privacy-toggle" onclick="toggleRevenue()" title="Toggle Visibility">
                                         <svg id="eye-icon" width="16" height="16" fill="none" stroke="currentColor"
@@ -279,36 +308,19 @@
                             </div>
                         </div>
 
-                        <!-- KPI Card 3: Priority -->
+                        <!-- KPI Card 3: Unassigned -->
                         <div class="stat-card amber">
                             <div class="stat-icon amber">
                                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                 </svg>
                             </div>
                             <div class="stat-content">
-                                <h3>Due this Week</h3>
-                                <p id="stat-weekly-due">0</p>
-                                <div class="stat-trend up">
-                                    <span>Production Focus</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- KPI Card 4: Team -->
-                        <div class="stat-card purple">
-                            <div class="stat-icon purple">
-                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                </svg>
-                            </div>
-                            <div class="stat-content">
-                                <h3>Efficiency</h3>
-                                <p id="stat-efficiency">0%</p>
-                                <div class="stat-trend up">
-                                    <span id="stat-member-count">0 Staff Active</span>
+                                <h3>Unassigned Orders</h3>
+                                <p id="stat-unassigned">0</p>
+                                <div class="stat-trend down">
+                                    <span>Requires Action</span>
                                 </div>
                             </div>
                         </div>
@@ -334,7 +346,7 @@
                                             <th>IO No</th>
                                             <th>Customer</th>
                                             <th>Description</th>
-                                            <th>Drg No</th>
+                                            <th class="text-center">Drg No</th>
                                             <th>Qty</th>
                                             <th>Unit</th>
                                             <th>Delivery Date</th>
@@ -483,7 +495,7 @@
                                         </th>
                                         <th class="sortable" onclick="window.adminApp.sort('date')">Date</th>
                                         <th>Item Code</th>
-                                        <th>Drg No</th>
+                                        <th class="text-center">Drg No</th>
                                         <th style="min-width: 150px;">Description</th>
                                         <th class="text-right">Qty</th>
                                         <th>Unit</th>
@@ -635,18 +647,17 @@
 
                 <!-- View: Pending Assignment -->
                 <section id="view-pending_assignment" class="view-section hidden">
-                    <!-- Header Row -->
-                    <div
-                        class="flex items-center justify-between w-full bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-4">
-                        <div class="flex items-center gap-3">
-                            <h2 style="font-size: 1.25rem; font-weight: 700; color: #1e293b; margin: 0;">
-                                📋 Pending Orders Assignment
-                            </h2>
-                            <span id="pending-assignment-count" class="px-2 py-1 text-xs font-semibold rounded-full"
-                                style="background: #fef3c7; color: #92400e;">0 orders</span>
+                    <!-- Modern Header -->
+                    <div class="pa-header">
+                        <div class="pa-header-left">
+                            <div class="pa-title-group">
+                                <h2 class="pa-title">Pending Orders</h2>
+                                <span class="pa-subtitle">Assignment & Tracking</span>
+                            </div>
+                            <span id="pending-assignment-count" class="pa-count-badge">0 orders</span>
                         </div>
-                        <div class="flex items-center gap-3">
-                            <button class="btn btn-secondary" onclick="window.adminApp.generatePendingReport()">
+                        <div class="pa-header-right">
+                            <button class="pa-btn-generate" onclick="window.adminApp.generatePendingReport()">
                                 <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                         d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -656,12 +667,11 @@
                         </div>
                     </div>
 
-                    <!-- Filters Row -->
-                    <div class="flex items-center gap-4 mb-4 p-3 bg-white rounded-lg border border-slate-200">
-                        <div class="flex items-center gap-2">
-                            <label class="text-xs font-medium text-slate-600">Department:</label>
-                            <select id="pending-filter-department" class="form-select text-xs"
-                                style="min-width: 120px;">
+                    <!-- Modern Filter Bar -->
+                    <div class="pa-filters">
+                        <div class="pa-filter-group">
+                            <label class="pa-filter-label">Department</label>
+                            <select id="pending-filter-department" class="pa-filter-select">
                                 <option value="">All Departments</option>
                                 <option value="Fab">Fab</option>
                                 <option value="CNC">CNC</option>
@@ -670,25 +680,25 @@
                                 <option value="Assembly">Assembly</option>
                             </select>
                         </div>
-                        <div class="flex items-center gap-2">
-                            <label class="text-xs font-medium text-slate-600">Assigned:</label>
-                            <select id="pending-filter-assigned" class="form-select text-xs" style="min-width: 120px;">
+                        <div class="pa-filter-group">
+                            <label class="pa-filter-label">Assigned</label>
+                            <select id="pending-filter-assigned" class="pa-filter-select">
                                 <option value="">All</option>
                                 <option value="assigned">Assigned</option>
                                 <option value="unassigned">Unassigned</option>
                             </select>
                         </div>
-                        <div class="flex items-center gap-2">
-                            <label class="text-xs font-medium text-slate-600">Priority:</label>
-                            <select id="pending-filter-priority" class="form-select text-xs" style="min-width: 100px;">
+                        <div class="pa-filter-group">
+                            <label class="pa-filter-label">Priority</label>
+                            <select id="pending-filter-priority" class="pa-filter-select">
                                 <option value="">All</option>
                                 <option value="urgent">Urgent Only</option>
                                 <option value="normal">Normal Only</option>
                             </select>
                         </div>
-                        <div class="flex items-center gap-2" style="margin-left: auto;">
-                            <label class="text-xs font-medium text-slate-600">Sort By:</label>
-                            <select id="pending-sort-by" class="form-select text-xs" style="min-width: 130px;">
+                        <div class="pa-filter-group" style="margin-left: auto;">
+                            <label class="pa-filter-label">Sort By</label>
+                            <select id="pending-sort-by" class="pa-filter-select">
                                 <option value="priority">Priority (Urgent First)</option>
                                 <option value="dueDate">Due Date (Earliest)</option>
                                 <option value="orderId">Order ID</option>
@@ -696,27 +706,27 @@
                         </div>
                     </div>
 
-                    <!-- Pending Orders Table -->
-                    <div class="table-container" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
-                        <div class="table-scroll-wrapper" style="flex: 1; overflow: auto;">
-                            <table class="monitoring-table" id="pending-assignment-table">
+                    <!-- Modern Table Container -->
+                    <div class="pa-table-card">
+                        <div class="pa-table-scroll">
+                            <table class="pa-table" id="pending-assignment-table">
                                 <thead>
                                     <tr>
-                                        <th style="width: 40px;">⚡</th>
+                                        <th style="width: 50px;">⚡</th>
                                         <th>Order ID</th>
                                         <th>Customer</th>
                                         <th>Description</th>
-                                        <th>Drg No</th>
-                                        <th>Qty</th>
-                                        <th>Unit</th>
-                                        <th>Due Date</th>
-                                        <th style="min-width: 200px;">Assigned To</th>
+                                        <th class="text-center">Drg No</th>
+                                        <th style="width: 70px;">Qty</th>
+                                        <th style="width: 60px;">Unit</th>
+                                        <th style="width: 150px;">Due Date</th>
+                                        <th style="min-width: 220px;">Assigned To</th>
                                         <th style="min-width: 200px;">Remarks</th>
                                     </tr>
                                 </thead>
                                 <tbody id="pending-assignment-body">
                                     <tr>
-                                        <td colspan="7" class="text-center py-8 text-slate-400">Loading pending
+                                        <td colspan="10" class="text-center py-8 text-slate-400">Loading pending
                                             orders...</td>
                                     </tr>
                                 </tbody>
@@ -724,6 +734,7 @@
                         </div>
                     </div>
                 </section>
+
 
                 <!-- View: Daily Reports -->
                 <section id="view-reports" class="view-section hidden">
@@ -783,6 +794,23 @@
                         </div>
                     </div>
                 </section>
+
+                <!-- View: Inventory Management (Coming Soon) -->
+                <section id="view-inventory_management" class="view-section hidden">
+                    <div class="coming-soon-container">
+                        <div class="coming-soon-icon">📦</div>
+                        <h1 class="coming-soon-title">Inventory Management</h1>
+                        <p class="coming-soon-text">
+                            We're building a powerful inventory tracking system to help you manage raw materials,
+                            stock levels, and supplier orders with ease.
+                        </p>
+                        <div
+                            class="inline-flex items-center px-6 py-3 rounded-full bg-teal-50 text-teal-700 font-bold border border-teal-100">
+                            🚀 Launching Soon
+                        </div>
+                    </div>
+                </section>
+
 
                 <!-- View: Delivery Report -->
                 <section id="view-delivery_report" class="view-section hidden">
@@ -912,7 +940,8 @@
                                         <th style="width: 130px;">Customer</th>
                                         <th style="width: 160px;">Description</th>
                                         <th style="width: 160px;">Item</th>
-                                        <th style="width: 80px;">Drg No</th>
+                                        <th style="width: 80px; text-align: center !important;" class="text-center">DRG
+                                            NO</th>
                                         <th style="width: 100px;">Department</th>
                                         <th style="width: 80px;">DC.No</th>
                                         <th style="width: 80px;">Quantity</th>
@@ -1387,6 +1416,115 @@
             </form>
         </div>
     </div>
+
+    <!-- ============================================
+         MODAL: Member Workload & Task Report
+         ============================================ -->
+    <div id="member-workload-modal" class="modal hidden">
+        <div class="modal-backdrop" onclick="window.adminApp.closeModal('member-workload-modal')"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Member Workload Report</h3>
+                <div class="flex items-center gap-2 no-print">
+                    <button class="btn btn-secondary btn-sm" onclick="window.adminApp.printMemberWorkload()">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                        </svg>
+                        Print
+                    </button>
+                    <button class="modal-close" onclick="window.adminApp.closeModal('member-workload-modal')">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <div class="modal-body">
+                <!-- Print Header (Only visible in print) -->
+                <div class="workload-print-only">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <h1 style="font-size: 24pt; font-weight: 800; color: #0f172a; margin: 0;">WORKLOAD REPORT</h1>
+                        <div style="text-align: right;">
+                            <div style="font-weight: 700; color: #1e293b;">Innovative Engineering Solutions</div>
+                            <div style="font-size: 10pt; color: #64748b;" id="workload-print-date"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Main Info Header -->
+                <div class="workload-header-main">
+                    <div>
+                        <div class="flex items-center gap-4 mb-2">
+                            <div id="workload-member-avatar"
+                                style="width: 56px; height: 56px; border-radius: 50%; background: #059669; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5rem; font-weight: 700;">
+                                ?
+                            </div>
+                            <div>
+                                <h2 id="workload-member-name"
+                                    style="font-size: 1.5rem; font-weight: 700; color: #1e293b; margin: 0;">-</h2>
+                                <p id="workload-member-role" style="font-size: 0.875rem; color: #64748b; margin: 0;">-
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="text-align: right;">
+                        <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Department</span>
+                        <div id="workload-member-dept" style="font-size: 1.25rem; font-weight: 700; color: #334155;">-
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Task Summary Mini Cards -->
+                <div class="grid grid-cols-4 gap-4 mb-6 no-print">
+                    <div class="card p-4 flex flex-col items-center justify-center text-center">
+                        <span class="text-xs font-bold text-slate-400 uppercase">Assigned Total</span>
+                        <span id="workload-total-tasks" class="text-2xl font-extrabold text-slate-800">0</span>
+                    </div>
+                    <div class="card p-4 flex flex-col items-center justify-center text-center">
+                        <span class="text-xs font-bold text-amber-500 uppercase">Pending</span>
+                        <span id="workload-pending-tasks" class="text-2xl font-extrabold text-amber-600">0</span>
+                    </div>
+                    <div class="card p-4 flex flex-col items-center justify-center text-center">
+                        <span class="text-xs font-bold text-teal-500 uppercase">Completed</span>
+                        <span id="workload-completed-tasks" class="text-2xl font-extrabold text-teal-600">0</span>
+                    </div>
+                    <div class="card p-4 flex flex-col items-center justify-center text-center">
+                        <span class="text-xs font-bold text-emerald-500 uppercase">Pending Order Value</span>
+                        <span id="workload-pending-value" class="text-2xl font-extrabold text-emerald-600">₹0</span>
+                    </div>
+                </div>
+
+                <!-- Tasks Table -->
+                <div class="table-container">
+                    <table id="workload-tasks-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 100px;">IO No</th>
+                                <th>Description</th>
+                                <th style="width: 120px;">Drg No</th>
+                                <th style="width: 150px;">Customer</th>
+                                <th style="width: 80px;" class="text-center">Qty</th>
+                                <th style="width: 120px;">Due Date</th>
+                                <th style="width: 150px;">Assigned With</th>
+                                <th style="width: 100px;" class="text-center">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="workload-tasks-body">
+                            <!-- Tasks will be injected here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer no-print">
+                <button class="btn btn-secondary"
+                    onclick="window.adminApp.closeModal('member-workload-modal')">Close</button>
+            </div>
+        </div>
+    </div>
+
 
     <!-- ============================================
          MODAL: Add/Edit Project

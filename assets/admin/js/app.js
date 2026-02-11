@@ -11,14 +11,19 @@ let currentOrders = [];
 let isTrashView = false;
 
 // Helper: Get Dash Details
-function calculateDashboardStats(orders, selectedMonth = 'all') {
-    // Filter by month if not 'all'
-    const filteredOrders = selectedMonth === 'all'
-        ? orders
-        : orders.filter(o => o.date && o.date.startsWith(selectedMonth));
+function calculateDashboardStats(orders, selectedMonth = 'all', selectedDept = 'all') {
+    // Filter by month and department
+    const filteredOrders = orders.filter(o => {
+        if (o.isTrash) return false;
 
-    const active = filteredOrders.filter(o => !o.isTrash && o.status === 'Pending');
-    const delivered = filteredOrders.filter(o => !o.isTrash && o.status === 'Delivered');
+        const matchesMonth = selectedMonth === 'all' || (o.date && o.date.startsWith(selectedMonth));
+        const matchesDept = selectedDept === 'all' || o.department === selectedDept;
+
+        return matchesMonth && matchesDept;
+    });
+
+    const active = filteredOrders.filter(o => o.status === 'Pending');
+    const delivered = filteredOrders.filter(o => o.status === 'Delivered');
 
     const parseTotal = (val) => {
         if (typeof val === 'number') return val;
@@ -26,48 +31,25 @@ function calculateDashboardStats(orders, selectedMonth = 'all') {
         return 0;
     };
 
+    // Revenue is now sum of all Pending orders in selection
     const revenue = active.reduce((sum, o) => sum + parseTotal(o.total), 0);
-    const pendingCount = active.filter(o => o.status === 'Pending').length;
+    const pendingCount = active.length;
 
-    // Check due this week
-    const now = new Date();
-    const oneWeekLater = new Date();
-    oneWeekLater.setDate(now.getDate() + 7);
-
-    const weeklyDue = active.filter(o => {
-        if (!o.delDate && !o.date) return false;
-        const d = new Date(o.delDate || o.date);
-        return d >= now && d <= oneWeekLater;
-    }).length;
+    // Unassigned orders: Pending orders with no assignment
+    const unassignedCount = active.filter(o => !o.assignedTo || o.assignedTo.length === 0).length;
 
     const totalCount = active.length + delivered.length;
-    const efficiency = totalCount > 0 ? Math.round((delivered.length / totalCount) * 100) : 0;
 
     // Pipeline percentages
     const pendingPct = totalCount > 0 ? Math.round((pendingCount / totalCount) * 100) : 0;
     const deliveredPct = totalCount > 0 ? Math.round((delivered.length / totalCount) * 100) : 100;
 
-    // --- NEW: Critical Alerts (Logic) ---
-    const alerts = [];
-    const overdue = active.filter(o => {
-        if (!o.delDate && !o.date) return false;
-        const d = new Date(o.delDate || o.date);
-        return d < now; // Strictly past
-    });
-    if (overdue.length > 0) {
-        alerts.push({ type: 'danger', message: `${overdue.length} Orders Overdue`, count: overdue.length });
-    }
-
     return {
         revenue,
         activeOrders: active.length,
         pendingCount,
-        weeklyDue,
-        efficiency,
+        unassignedCount,
         totalMembers: currentMembers.length,
-        activeTasks: active.length,
-        completedTasks: delivered.length,
-        departments: 4,
         pendingPct,
         deliveredPct,
         filteredOrders
@@ -77,9 +59,12 @@ function calculateDashboardStats(orders, selectedMonth = 'all') {
 // Helper: Refresh Dashboard UI
 function refreshDashboard() {
     const monthFilter = document.getElementById('dashboard-month-filter');
-    const selectedMonth = monthFilter ? monthFilter.value : 'all';
+    const deptFilter = document.getElementById('dashboard-dept-filter');
 
-    const stats = calculateDashboardStats(currentOrders, selectedMonth);
+    const selectedMonth = monthFilter ? monthFilter.value : 'all';
+    const selectedDept = deptFilter ? deptFilter.value : 'all';
+
+    const stats = calculateDashboardStats(currentOrders, selectedMonth, selectedDept);
     UI.updateStats(stats);
     UI.renderDashboardPendingOrders(stats.filteredOrders);
     UI.renderDashboardRecentActivity(stats.filteredOrders);
@@ -162,6 +147,10 @@ function getNextStatus(current) {
 window.adminApp = {
     switchView: (viewName) => {
         UI.switchView(viewName);
+    },
+
+    refreshDashboard: () => {
+        refreshDashboard();
     },
 
     // Definitions
@@ -670,6 +659,27 @@ window.adminApp = {
         }
     },
 
+    viewMemberWorkload: (memberId) => {
+        const member = currentMembers.find(m => m.id === memberId);
+        if (!member) return;
+
+        // Filter orders assigned to this member (include all for summary stats)
+        const memberTasks = currentOrders.filter(o =>
+            o.assignedTo && Array.isArray(o.assignedTo) && o.assignedTo.includes(memberId) &&
+            !o.isTrash && !o.deleted
+        );
+
+        UI.renderMemberWorkload(member, memberTasks);
+        window.adminApp.openModal('member-workload-modal');
+    },
+
+    printMemberWorkload: () => {
+        window.print();
+    },
+
+    getCurrentMembers: () => currentMembers,
+    getCurrentOrders: () => currentOrders,
+
     // Custom Confirm Modal
     showConfirmModal: (title, message, onConfirm) => {
         const modal = document.getElementById('confirm-modal');
@@ -1049,34 +1059,38 @@ window.adminApp = {
                         </button>
                     </td>
                     <td><span class="order-id-badge">${order.internalOrderNo || order.id}</span></td>
-                    <td style="font-size: 0.75rem; font-weight: 500; color: var(--slate-700);">${order.customer || '-'}</td>
-                    <td style="font-size: 0.75rem; color: var(--slate-600);">${order.description || '-'}</td>
-                    <td><span style="font-size: 0.75rem; font-weight: 600; color: var(--brand-600);">${order.drawingNo || '-'}</span></td>
-                    <td style="font-size: 0.75rem; font-weight: 600; text-align: center;">${order.qty || '-'}</td>
-                    <td style="font-size: 0.75rem; text-align: center;">${order.qtyUnit || '-'}</td>
+                    <td style="font-weight: 500;">${order.customer || '-'}</td>
+                    <td>${order.description || '-'}</td>
+                    <td><span style="font-weight: 600; color: var(--brand-600);">${order.drawingNo || '-'}</span></td>
+                    <td style="font-weight: 600; text-align: center;">${order.qty || '-'}</td>
+                    <td style="text-align: center;">${order.qtyUnit || '-'}</td>
                     <td>
                         <input type="date" class="table-form-input" 
                                value="${dueDateValue}"
                                onchange="window.adminApp.updateDueDate('${order.id}', this.value)"
                                title="Click to set/change due date">
                     </td>
-                    <td>
-                        <select class="table-form-select" 
+                    <td class="assign-cell">
+                        <select class="assign-dropdown" 
                                 onchange="window.adminApp.updateAssignment('${order.id}', this.value)"
                                 id="assign-${order.id}">
-                            <option value="">-- Assign Employee --</option>
+                            <option value="">+ Add</option>
                             ${memberOptions}
                         </select>
-                        <div class="assign-badge-container">
-                            ${assignedList.map(m => `
-                                <span class="assign-badge">
-                                    👤 ${m.name}
-                                    <button class="remove-assign-btn" 
+                        ${assignedList.length > 0 ? `
+                        <div class="assign-chips">
+                            ${assignedList.map(m => {
+                const initials = m.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+                return `
+                                <span class="assign-chip">
+                                    <span class="assign-chip-avatar">${initials}</span>
+                                    <span class="assign-chip-name">${m.name}</span>
+                                    <button class="assign-chip-remove" 
                                             onclick="window.adminApp.removeAssignment('${order.id}', '${m.id}')"
-                                            title="Remove Assignment">×</button>
-                                </span>
-                            `).join('')}
-                        </div>
+                                            title="Remove">×</button>
+                                </span>`;
+            }).join('')}
+                        </div>` : ''}
                     </td>
                     <td>
                         <input type="text" class="table-form-input"
@@ -1089,13 +1103,7 @@ window.adminApp = {
             `;
         }).join('');
 
-        // Set current assignments in dropdowns
-        pendingOrders.forEach(order => {
-            const select = document.getElementById(`assign-${order.id}`);
-            if (select && order.assignedTo && order.assignedTo.length > 0) {
-                select.value = order.assignedTo[order.assignedTo.length - 1]; // Show last assigned
-            }
-        });
+
     },
 
     updateAssignment: async (orderId, memberId) => {
@@ -1787,7 +1795,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (view === 'reports') {
                     // Render daily reports list
                     window.adminApp.renderReports();
+                } else if (view === 'inventory_management') {
+                    // No action needed for static Coming Soon page for now,
+                    // UI.switchView(view) handles toggling the hidden class.
                 }
+
             }, 50);
         });
     });
