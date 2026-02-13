@@ -536,27 +536,54 @@ window.adminApp = {
     },
 
     // New: Delivery Modal Logic
-    openAddDeliveryModal: () => {
+    openAddDeliveryModal: (existingOrder = null) => {
         const form = document.getElementById('add-delivery-form');
         if (form) form.reset();
+
         const hidden = document.getElementById('delivery-orderId-input');
-        if (hidden) hidden.value = '';
+        if (hidden) hidden.value = existingOrder ? existingOrder.id : '';
 
-        // Clear the IO lookup field
+        // Clear/Populate the IO lookup field
         const ioLookup = document.getElementById('delivery-io-lookup');
-        if (ioLookup) ioLookup.value = '';
+        if (ioLookup) {
+            ioLookup.value = existingOrder ? (existingOrder.internalOrderNo || '') : '';
+        }
 
-        // Populate datalist with existing IO numbers for autocomplete
+        // Populate datalist with all active/delivered IO numbers for autocomplete
         const datalist = document.getElementById('delivery-io-suggestions');
         if (datalist) {
-            const pendingOrders = currentOrders.filter(o => o.status === 'Pending' && o.internalOrderNo);
-            datalist.innerHTML = pendingOrders.map(o =>
-                `<option value="${o.internalOrderNo}">${o.customer || ''} - ${o.description || ''}</option>`
+            const activeOrders = currentOrders.filter(o =>
+                (o.status === 'Pending' || o.status === 'Portion Delivered' || o.status === 'Delivered' || (existingOrder && o.internalOrderNo === existingOrder.internalOrderNo)) &&
+                o.internalOrderNo &&
+                (!o.entryType || o.entryType !== 'delivery_report')
+            );
+            datalist.innerHTML = activeOrders.map(o =>
+                `<option value="${o.internalOrderNo}">${o.customer || ''} - ${o.description || ''} (${o.status})</option>`
             ).join('');
         }
 
-        const dateInput = form.querySelector('[name="date"]');
-        if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
+        if (existingOrder) {
+            // Populate fields directly if editing
+            const setVal = (name, val) => {
+                const el = form.querySelector(`[name="${name}"]`);
+                if (el) el.value = val !== undefined && val !== null ? val : '';
+            };
+            setVal('date', existingOrder.deliveryDateActual || existingOrder.date);
+            setVal('customer', existingOrder.customer);
+            setVal('description', existingOrder.description);
+            setVal('drawingNo', existingOrder.drawingNo);
+            setVal('department', existingOrder.department);
+            setVal('dcNo', existingOrder.dcNo);
+            setVal('qty', existingOrder.deliveryQty || existingOrder.qty);
+            setVal('total', existingOrder.total || '');
+            setVal('labourCost', existingOrder.labourCost || 0);
+            setVal('billNo', existingOrder.billNo || '');
+            setVal('manpower', existingOrder.manpower || '');
+            setVal('qtyUnit', existingOrder.qtyUnit || 'Nos');
+        } else {
+            const dateInput = form.querySelector('[name="date"]');
+            if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
+        }
 
         window.adminApp.openModal('add-delivery-modal');
     },
@@ -600,7 +627,7 @@ window.adminApp = {
             customer: formData.get('customer'),
             drawingNo: formData.get('drawingNo') || '',
             description: formData.get('description') || '',
-            internalOrderNo: document.getElementById('delivery-io-lookup')?.value?.trim() || '',
+            internalOrderNo: formData.get('internalOrderNo')?.trim() || '',
             qty: parseFloat(formData.get('qty')) || 0,
             total: parseFloat(formData.get('total')) || 0, // Manual Delivery Value
             department: formData.get('department') || '',
@@ -632,22 +659,47 @@ window.adminApp = {
         }
 
         // Automated Sync: Update original Internal Order if IO Number is linked
-        if (!result.error && orderData.internalOrderNo && orderData.dcNo) {
+        if (!result.error && orderData.internalOrderNo) {
+            const ioNo = orderData.internalOrderNo;
             const originalOrder = currentOrders.find(o =>
-                o.internalOrderNo === orderData.internalOrderNo && (!o.entryType || o.entryType !== 'delivery_report')
+                o.internalOrderNo === ioNo && (!o.entryType || o.entryType !== 'delivery_report')
             );
-            if (originalOrder) {
-                console.log('Automated Sync: Updating original Internal Order', originalOrder.id);
 
-                // Multiple DC Numbers support: Append if exists
-                let existingDCs = originalOrder.dcNo ? originalOrder.dcNo.split(',').map(s => s.trim()).filter(s => s) : [];
-                if (!existingDCs.includes(orderData.dcNo.trim())) {
-                    existingDCs.push(orderData.dcNo.trim());
+            if (originalOrder) {
+                // 1. Calculate Total Delivered Quantity across all delivery report entries
+                const allDeliveries = currentOrders.filter(o =>
+                    o.entryType === 'delivery_report' &&
+                    o.internalOrderNo === ioNo &&
+                    o.id !== orderId // Exclude old version if editing
+                );
+
+                const totalDelivered = allDeliveries.reduce((sum, o) => sum + (parseFloat(o.deliveryQty) || 0), 0) + orderData.deliveryQty;
+
+                // 2. Pool DC Numbers
+                let allDCs = allDeliveries.map(o => o.dcNo?.trim()).filter(dc => dc);
+                if (orderData.dcNo?.trim() && !allDCs.includes(orderData.dcNo.trim())) {
+                    allDCs.push(orderData.dcNo.trim());
+                }
+                const pooledDCs = allDCs.join(', ');
+
+                // 3. Update Status based on completion
+                const orderedQty = parseFloat(originalOrder.qty) || 0;
+                let newStatus = originalOrder.status;
+
+                if (totalDelivered >= orderedQty && orderedQty > 0) {
+                    newStatus = 'Delivered';
+                } else if (totalDelivered > 0) {
+                    newStatus = 'Portion Delivered';
+                } else {
+                    newStatus = 'Pending';
                 }
 
+                console.log(`Automated Sync: Updating IO ${ioNo} -> ${totalDelivered}/${orderedQty} (${newStatus})`);
+
                 await DB.updateOrder(originalOrder.id, {
-                    dcNo: existingDCs.join(', '),
-                    status: 'Delivered'
+                    deliveryQty: totalDelivered,
+                    dcNo: pooledDCs,
+                    status: newStatus
                 });
             }
         }
@@ -731,26 +783,8 @@ window.adminApp = {
         if (!order) return;
 
         if (order.entryType === 'delivery_report') {
-            // Use Delivery Modal for direct entries
-            window.adminApp.openAddDeliveryModal();
-
-            // Populate delivery info
-            setTimeout(() => {
-                const form = document.getElementById('add-delivery-form');
-                if (form) {
-                    form.querySelector('[name="orderId"]').value = order.id;
-                    form.querySelector('[name="date"]').value = order.deliveryDateActual;
-                    form.querySelector('[name="customer"]').value = order.customer;
-                    form.querySelector('[name="description"]').value = order.description;
-                    form.querySelector('[name="department"]').value = order.department;
-                    form.querySelector('[name="dcNo"]').value = order.dcNo;
-                    form.querySelector('[name="qty"]').value = order.deliveryQty;
-                    form.querySelector('[name="total"]').value = order.total || ''; // Delivery Value
-                    form.querySelector('[name="labourCost"]').value = order.labourCost;
-                    form.querySelector('[name="billNo"]').value = order.billNo;
-                    form.querySelector('[name="manpower"]').value = order.manpower || '';
-                }
-            }, 100);
+            // Use specialized delivery modal population
+            window.adminApp.openAddDeliveryModal(order);
         } else {
             // Use Standard Modal
             Monitoring.populateForm(order);

@@ -1322,6 +1322,13 @@ tr.row-deleted td:first-child {
     background-color: #fef9c3;
 }
 
+.status-select.status-portion,
+.status-badge.status-portion {
+    border-color: #fed7aa;
+    color: #9a3412;
+    background-color: #ffedd5;
+}
+
 .status-select.status-delivered,
 .status-badge.status-delivered {
     border-color: #bbf7d0;
@@ -1338,6 +1345,19 @@ tr.row-deleted td:first-child {
     border: 1px solid;
     text-transform: uppercase;
     letter-spacing: 0.03em;
+}
+
+/* Row Backgrounds */
+.row-delivered {
+    background-color: #f0fdf4 !important;
+}
+
+.row-pending {
+    background-color: white !important;
+}
+
+.row-portion {
+    background-color: #fffaf0 !important;
 }
 
 .status-select:hover {
@@ -2837,9 +2857,13 @@ tr.row-deleted td:first-child {
 .excel-style-table thead th {
     border: 1px solid rgba(255, 255, 255, 0.1);
     vertical-align: middle;
+    position: sticky !important;
+    z-index: 50 !important;
+    background-clip: padding-box;
 }
 
 .header-group-row th {
+    top: 0 !important;
     background: var(--brand-700) !important;
     font-size: 0.75rem;
     text-transform: uppercase;
@@ -2848,6 +2872,8 @@ tr.row-deleted td:first-child {
 }
 
 .header-column-row th {
+    top: 35px;
+    /* Adjust based on first row height */
     background: var(--brand-600) !important;
     font-size: 0.7rem !important;
     padding: 0.4rem 0.25rem !important;
@@ -2888,9 +2914,14 @@ tr.row-deleted td:first-child {
 }
 
 /* Ensure horizontal scroll is usable */
+/* Ensure table container scrolls correctly for sticky headers */
 .table-wrapper {
-    overflow-x: auto;
+    overflow: auto !important;
+    height: calc(100vh - 160px);
+    /* Fill available height */
     scrollbar-width: thin;
+    position: relative;
+    background: white;
 }
 
 /* === PURPLE THEME MODALS & BUTTONS === */
@@ -3004,10 +3035,10 @@ tr.row-deleted td:first-child {
     border-collapse: separate;
     border-spacing: 0;
     width: 100%;
-    margin-top: 1rem;
+    margin-top: 0;
     background: white;
     border-radius: 12px;
-    overflow: hidden;
+    /* overflow: hidden; Removed to fix sticky header */
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     font-size: 0.75rem;
     /* Compact font */
@@ -3025,8 +3056,20 @@ tr.row-deleted td:first-child {
     text-transform: uppercase;
     font-size: 0.7rem;
     letter-spacing: 0.05em;
-    border-bottom: 1px solid var(--slate-700);
+    border-bottom: 2px solid var(--slate-700);
     white-space: nowrap;
+    position: sticky !important;
+    z-index: 50 !important;
+    background-clip: padding-box;
+}
+
+#monitoring-table thead .header-group-row th {
+    top: 0 !important;
+}
+
+#monitoring-table thead .header-column-row th {
+    top: 31px !important;
+    /* Row 1 height approx 31px */
 }
 
 /* Restore & Brighten Row Background Colors */
