@@ -104,6 +104,12 @@
     --z-nav: 1000;
     --z-modal: 1100;
     --z-float: 1050;
+
+    /* Glassmorphism & Effects */
+    --glass-bg: rgba(255, 255, 255, 0.03);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --glass-shine: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, transparent 100%);
+    --glow-primary: 0 0 20px rgba(16, 185, 129, 0.2);
 }
 
 /* ==========================================
@@ -968,23 +974,48 @@ h6 {
     }
 }
 
-/* Infrastructure Grid */
-.infra-title {
-    text-align: center;
-    font-size: var(--text-2xl);
-    color: var(--white);
+/* ... existing reset ... */
+
+/* ==========================================
+   OUR INFRASTRUCTURE (MERGED SHOWROOM)
+   ========================================== */
+.infra-container {
+    position: relative;
+    z-index: 1;
+}
+
+.infra-container {
+    position: relative;
+    z-index: 1;
+}
+
+.infra-group {
+    margin-bottom: var(--space-20);
+}
+
+.infra-group-title {
+    font-size: var(--text-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--primary-500);
     margin-bottom: var(--space-8);
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.infra-group-title::after {
+    content: '';
+    height: 1px;
+    flex-grow: 1;
+    background: linear-gradient(90deg, var(--primary-500), transparent);
+    opacity: 0.3;
 }
 
 .infra-grid {
     display: grid;
-    gap: var(--space-4);
-}
-
-@media (min-width: 768px) {
-    .infra-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
+    gap: var(--space-8);
+    grid-template-columns: 1fr;
 }
 
 @media (min-width: 1024px) {
@@ -993,46 +1024,131 @@ h6 {
     }
 }
 
+@media (min-width: 768px) and (max-width: 1023px) {
+    .infra-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
 .infra-card {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: var(--radius-lg);
-    padding: var(--space-6);
-    text-align: center;
+    background: #ffffff;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-2xl);
+    padding: var(--space-8);
     transition: all var(--transition-base);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+}
+
+.infra-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--glass-shine);
+    opacity: 0;
+    transition: opacity var(--transition-base);
 }
 
 .infra-card:hover {
-    background: rgba(255, 255, 255, 0.1);
-    transform: translateY(-4px);
+    transform: translateY(-10px);
+    border-color: var(--primary-300);
+    box-shadow: 0 20px 40px rgba(16, 185, 129, 0.08);
+    /* Soft primary glow */
 }
 
-.infra-icon {
-    width: 50px;
-    height: 50px;
+.infra-card:hover::before {
+    opacity: 1;
+}
+
+.infra-badge {
+    position: absolute;
+    top: var(--space-4);
+    right: var(--space-4);
+    background: var(--primary-50);
+    color: var(--primary-600);
+    padding: 6px 14px;
+    border-radius: var(--radius-full);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    border: 1px solid var(--primary-100);
+    z-index: 2;
+}
+
+.infra-image {
+    width: 100%;
+    height: 220px;
+    margin-bottom: var(--space-6);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    background: #fdfdfd;
+    /* White image background */
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, var(--primary-500), var(--secondary-500));
-    border-radius: var(--radius-lg);
-    margin: 0 auto var(--space-4);
-    color: var(--white);
+    position: relative;
+    border: 1px solid var(--gray-50);
 }
 
-.infra-icon svg {
-    width: 24px;
-    height: 24px;
+.infra-image img {
+    width: 95%;
+    height: 95%;
+    object-fit: contain;
+    transition: transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.infra-card h4 {
-    font-size: var(--text-base);
-    color: var(--white);
+.infra-card:hover .infra-image img {
+    transform: scale(1.08);
+}
+
+.infra-info h4 {
+    font-size: var(--text-xl);
+    color: var(--gray-900);
     margin-bottom: var(--space-2);
+    font-weight: 700;
 }
 
-.infra-card p {
-    font-size: var(--text-sm);
-    color: var(--gray-400);
+.infra-subtitle {
+    font-size: var(--text-xs);
+    color: var(--primary-600);
+    margin-bottom: var(--space-4);
+    display: block;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.infra-specs {
+    list-style: none;
+    margin-top: auto;
+    display: grid;
+    gap: var(--space-3);
+}
+
+.infra-specs li {
+    font-size: var(--text-xs);
+    color: var(--gray-500);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-4);
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--gray-100);
+}
+
+.infra-specs li span:first-child {
+    flex-shrink: 0;
+}
+
+.infra-specs li span:last-child {
+    color: var(--gray-800);
+    font-weight: 600;
+    text-align: right;
 }
 
 /* ==========================================
