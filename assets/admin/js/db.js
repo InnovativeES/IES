@@ -115,9 +115,8 @@ export const addProject = async (projectData) => {
     try {
         // Use custom projectId if provided (e.g. from Internal Order), else auto-generate
         const projectId = projectData.projectId || await generateProjectId();
-        const { projectId: _, ...restData } = projectData; // strip projectId from spread to avoid conflict
         const docRef = await addDoc(collection(db, PROJECTS_COLLECTION), {
-            ...restData,
+            ...projectData,
             projectId: projectId,
             revision: 0,
             status: "Draft",
