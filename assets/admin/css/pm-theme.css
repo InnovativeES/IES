@@ -1,0 +1,142 @@
+/* ================================================
+   PROJECT MANAGEMENT MODULE — THEME OVERRIDE
+   ================================================ */
+
+:root {
+    --pm-bg: #f8fafc;
+    --pm-card-bg: #ffffff;
+    --pm-text-main: #0f172a;
+    --pm-text-muted: #64748b;
+    --pm-text-light: #94a3b8;
+    --pm-border: #e2e8f0;
+    --pm-border-hover: #cbd5e1;
+    --pm-card-hover: #f1f5f9;
+    --pm-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+    --pm-shadow-hover: 0 8px 24px rgba(0, 0, 0, 0.08);
+
+    /* Vibrant accents */
+    --pm-accent-primary: #10b981;
+    /* Emerald */
+    --pm-accent-secondary: #0ea5e9;
+    /* Sky */
+    --pm-accent-gradient: linear-gradient(135deg, #10b981, #0ea5e9);
+}
+
+/* ================================================
+   APPLY VARIABLES 
+   ================================================ */
+
+@media screen {
+
+    /* Global Section Background */
+    #view-project_management {
+        background-color: var(--pm-bg);
+        min-height: 100%;
+    }
+
+    /* When viewing deep dive, the main background matches */
+    #view-project_detail {
+        background-color: var(--pm-bg) !important;
+        color: var(--pm-text-main) !important;
+    }
+
+    #view-project_management .pm-header,
+    #view-project_detail .dd-header {
+        background-color: var(--pm-card-bg);
+        border-color: var(--pm-border);
+        box-shadow: var(--pm-shadow);
+    }
+
+    #view-project_management .pm-header-title h2,
+    #view-project_detail .dd-project-name {
+        color: var(--pm-text-main);
+    }
+
+    /* Stats Ribbon & Custom Stats */
+    #view-project_management .pm-stat-card {
+        background-color: var(--pm-card-bg);
+        border-color: var(--pm-border);
+    }
+
+    #view-project_management .pm-stat-card:hover {
+        box-shadow: var(--pm-shadow-hover);
+        transform: translateY(-2px);
+        background-color: var(--pm-card-hover);
+    }
+
+    #view-project_management .pm-stat-value {
+        color: var(--pm-text-main);
+    }
+}
+
+/* Enhancing default standard colorful UI */
+.pm-stat-card {
+    border-radius: 16px;
+    background: var(--pm-card-bg);
+    border: 1px solid var(--pm-border);
+    transition: all 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pm-stat-card:hover {
+    box-shadow: var(--pm-shadow-hover);
+    transform: translateY(-3px);
+    border-color: var(--pm-border-hover);
+    background: var(--pm-card-hover);
+}
+
+/* Premium Card Enhancements */
+.pm-card {
+    border-radius: 16px;
+    box-shadow: var(--pm-shadow);
+    transition: all 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pm-card:hover {
+    box-shadow: var(--pm-shadow-hover);
+    transform: translateY(-4px) scale(1.01);
+}
+
+/* ================================================
+   PRINT STYLES FOR PROJECT MANAGEMENT
+   ================================================ */
+@media print {
+
+    /* Force light theme colors */
+    #view-project_management,
+    #cr-excel-checklist thead th {
+        background: transparent !important;
+        color: white !important;
+        text-transform: uppercase;
+        font-size: 0.725rem;
+        letter-spacing: 0.1em;
+        padding: 1.15rem 0.5rem !important;
+        text-align: center !important;
+        border-color: rgba(255, 255, 255, 0.15) !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    #view-project_management,
+    #view-project_detail {
+        background-color: white !important;
+        color: black !important;
+    }
+
+    #view-project_management *,
+    #view-project_detail * {
+        background-color: transparent !important;
+        color: black !important;
+        border-color: #cbd5e1 !important;
+        box-shadow: none !important;
+    }
+
+    /* Keep icons/badges slightly colored but mostly printable */
+    .pm-card-accent {
+        display: none !important;
+    }
+
+    .theme-toggle-btn,
+    .pm-header-actions button,
+    #sidebar {
+        display: none !important;
+    }
+}

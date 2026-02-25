@@ -43,7 +43,8 @@ export const switchView = (viewName) => {
             'overview': 'Dashboard Overview',
             'monitoring': 'Internal Orders',
             'team_org': 'Team & Organization',
-            'project_management': 'Project Management'
+            'project_management': 'Project Management',
+            'project_detail': 'Project Deep Dive & Workflow'
         };
 
         const pageTitle = document.getElementById('page-title');
@@ -272,6 +273,11 @@ export const renderDashboardRecentActivity = (orders) => {
             </div>
         </li>
     `).join('');
+};
+
+export const getActiveView = () => {
+    const active = document.querySelector('.view-section:not(.hidden)');
+    return active ? active.id.replace('view-', '') : null;
 };
 
 export const renderMemberWorkload = (member, tasks) => {

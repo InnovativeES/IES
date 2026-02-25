@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -28,6 +28,8 @@
     <!-- Admin Styles -->
     <link rel="stylesheet" href="assets/admin/css/admin.css?v=1">
     <link rel="stylesheet" href="assets/admin/css/delivery-modal.css">
+    <link rel="stylesheet" href="assets/admin/css/project.css">
+    <link rel="stylesheet" href="assets/admin/css/pm-theme.css">
     <style>
         /* Modal Redesign - 2 Column Layout */
         .modal-wide {
@@ -166,6 +168,97 @@
         .modal-col-left .w-full:first-child .inline-section-label,
         .modal-col-right .w-full:first-child .inline-section-label {
             margin-top: 0;
+        }
+
+        /* Member Search Component */
+        .member-search-container {
+            position: relative;
+            width: 100%;
+        }
+
+        .search-tags-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            padding: 0.5rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            background: #fff;
+            min-height: 42px;
+            cursor: text;
+            transition: all 0.2s;
+        }
+
+        .search-tags-container:focus-within {
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .member-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            background: #f1f5f9;
+            color: #475569;
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            border: 1px solid #e2e8f0;
+        }
+
+        .member-tag-remove {
+            cursor: pointer;
+            color: #94a3b8;
+            font-size: 1rem;
+            line-height: 1;
+        }
+
+        .member-tag-remove:hover {
+            color: #ef4444;
+        }
+
+        .search-input-inline {
+            flex: 1;
+            min-width: 120px;
+            border: none;
+            outline: none;
+            font-size: 0.875rem;
+            padding: 0.2rem 0;
+            background: transparent;
+        }
+
+        .search-suggestions-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-top: none;
+            border-radius: 0 0 6px 6px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 50;
+        }
+
+        .suggestion-item {
+            padding: 0.6rem 0.8rem;
+            font-size: 0.875rem;
+            color: #475569;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .suggestion-item:hover {
+            background: #f8fafc;
+        }
+
+        .suggestion-item.selected {
+            background: #f1f5f9;
+            color: #6366f1;
+            font-weight: 500;
         }
     </style>
 </head>
@@ -734,54 +827,6 @@
                     </div>
                 </div>
 
-                <!-- ============================================
-                     VIEW: Project Management
-                     ============================================ -->
-                <div id="view-project_management" class="view-section hidden">
-                    <!-- Coming Soon Page -->
-                    <div
-                        style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; text-align: center; padding: 2rem;">
-                        <div
-                            style="width: 120px; height: 120px; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); border-radius: 24px; display: flex; align-items: center; justify-content: center; margin-bottom: 2rem; box-shadow: 0 20px 40px rgba(99, 102, 241, 0.3);">
-                            <svg style="width: 56px; height: 56px; color: white;" fill="none" stroke="currentColor"
-                                viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                                    d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10">
-                                </path>
-                            </svg>
-                        </div>
-                        <h2 style="font-size: 2rem; font-weight: 700; color: #1e293b; margin: 0 0 0.75rem 0;">Project
-                            Management</h2>
-                        <p style="font-size: 1.125rem; color: #64748b; margin: 0 0 2rem 0; max-width: 400px;">
-                            We're building something amazing! This feature is currently under development.
-                        </p>
-                        <div
-                            style="display: flex; align-items: center; gap: 0.75rem; padding: 0.875rem 1.5rem; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 1px solid #86efac; border-radius: 12px;">
-                            <div
-                                style="width: 10px; height: 10px; background: #22c55e; border-radius: 50%; animation: pulse 2s infinite;">
-                            </div>
-                            <span style="font-size: 0.875rem; font-weight: 600; color: #166534;">Coming Soon</span>
-                        </div>
-                        <p style="font-size: 0.875rem; color: #94a3b8; margin-top: 2rem;">
-                            Expected features: Kanban Board, Task Assignment, Timeline View, Progress Tracking
-                        </p>
-                    </div>
-                    <style>
-                        @keyframes pulse {
-
-                            0%,
-                            100% {
-                                opacity: 1;
-                                transform: scale(1);
-                            }
-
-                            50% {
-                                opacity: 0.5;
-                                transform: scale(1.1);
-                            }
-                        }
-                    </style>
-                </div>
 
                 <!-- Hidden view for backward compatibility -->
                 <div id="view-workflow" class="view-section hidden"></div>
@@ -1081,15 +1126,749 @@
                                 </thead>
                                 <tbody id="delivery-report-body">
                                     <!-- Report rows will be injected here -->
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- View: Project Management (Core Module) -->
+                <section id="view-project_management" class="view-section hidden">
+                    <!-- Header Bar -->
+                    <div class="pm-header">
+                        <div class="pm-header-title">
+                            <h2>🏗️ Project Management</h2>
+                            <span class="pm-header-badge">Regulated Workflow</span>
+                        </div>
+                        <div class="pm-header-actions">
+                            <div class="pm-view-toggle">
+                                <button class="view-btn active" id="btn-view-grid"
+                                    onclick="window.adminApp.setProjectView('grid')" title="Grid View">
+                                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                                    </svg>
+                                </button>
+                                <button class="view-btn" id="btn-view-list"
+                                    onclick="window.adminApp.setProjectView('list')" title="List View">
+                                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M4 6h16M4 12h16M4 18h16" />
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <button class="pm-trash-toggle" id="pm-trash-toggle-btn"
+                                onclick="window.adminApp.toggleProjectTrash()">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                <span id="pm-trash-toggle-label">Trash</span>
+                                <span class="pm-trash-count" id="pm-trash-count" style="display:none;">0</span>
+                            </button>
+                            <button class="btn btn-primary" id="pm-new-project-btn"
+                                onclick="window.adminApp.openAddProjectModal()">
+                                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 4v16m8-8H4" />
+                                </svg>
+                                New Project
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Stats Ribbon -->
+                    <div class="pm-stats-ribbon">
+                        <div class="pm-stat-card">
+                            <div class="pm-stat-icon total">📁</div>
+                            <div>
+                                <div class="pm-stat-value" id="pm-stat-total">0</div>
+                                <div class="pm-stat-label">Total Projects</div>
+                            </div>
+                        </div>
+                        <div class="pm-stat-card">
+                            <div class="pm-stat-icon active">⚡</div>
+                            <div>
+                                <div class="pm-stat-value" id="pm-stat-active">0</div>
+                                <div class="pm-stat-label">Active</div>
+                            </div>
+                        </div>
+                        <div class="pm-stat-card">
+                            <div class="pm-stat-icon done">✅</div>
+                            <div>
+                                <div class="pm-stat-value" id="pm-stat-completed">0</div>
+                                <div class="pm-stat-label">Completed</div>
+                            </div>
+                        </div>
+                        <div class="pm-stat-card">
+                            <div class="pm-stat-icon trash">🗑️</div>
+                            <div>
+                                <div class="pm-stat-value" id="pm-stat-trash">0</div>
+                                <div class="pm-stat-label">In Trash</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Trash Banner (shown when in trash view) -->
+                    <div class="pm-trash-banner" id="pm-trash-banner" style="display:none;">
+                        <div class="pm-trash-banner-icon">🗑️</div>
+                        <div class="pm-trash-banner-text">
+                            <strong>Viewing Trash</strong>
+                            <p>These projects are soft-deleted. Restore them or permanently delete.</p>
+                        </div>
+                    </div>
+
+                    <!-- Filter Bar -->
+                    <div class="pm-filter-bar" id="pm-filter-bar">
+                        <div class="filter-group">
+                            <label class="filter-label">Search</label>
+                            <input type="text" id="project-search" class="filter-input"
+                                placeholder="Project ID or Name..." oninput="window.adminApp.filterProjects()">
+                        </div>
+                        <div class="filter-group">
+                            <label class="filter-label">Status</label>
+                            <select id="project-status-filter" class="filter-input"
+                                onchange="window.adminApp.filterProjects()">
+                                <option value="all">All Statuses</option>
+                                <option value="Draft">Draft</option>
+                                <option value="Under Review">Under Review</option>
+                                <option value="Approved">Approved</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Completed">Completed</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label class="filter-label">Customer</label>
+                            <select id="project-customer-filter" class="filter-input"
+                                onchange="window.adminApp.filterProjects()">
+                                <option value="all">All Customers</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label class="filter-label">Job Type</label>
+                            <select id="project-type-filter" class="filter-input"
+                                onchange="window.adminApp.filterProjects()">
+                                <option value="all">All Types</option>
+                                <option value="CNC">CNC</option>
+                                <option value="VMC">VMC</option>
+                                <option value="Fabrication">Fabrication</option>
+                                <option value="Hybrid">Hybrid</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Project Grid -->
+                    <div id="project-grid" class="pm-grid">
+                        <div class="pm-empty-state">
+                            <div class="pm-empty-icon">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                        d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                                </svg>
+                            </div>
+                            <div class="pm-empty-title">Loading projects...</div>
+                            <div class="pm-empty-text">Your projects will appear here.</div>
+                        </div>
+                    </div>
+
+                    <!-- Project List (Table) -->
+                    <div id="project-list-view" class="pm-list-view hidden">
+                        <div class="pm-table-container">
+                            <table class="pm-table">
+                                <thead class="cr-emerald-header">
                                     <tr>
-                                        <td colspan="11" class="px-4 py-8 text-center text-slate-400">
-                                            Select a week to generate report
-                                        </td>
+                                        <th class="cr-emerald-bg">Project Details</th>
+                                        <th class="cr-emerald-bg">Customer</th>
+                                        <th class="cr-emerald-bg">Type</th>
+                                        <th class="cr-emerald-bg">Status</th>
+                                        <th class="cr-emerald-bg">Timeline</th>
+                                        <th class="cr-emerald-bg text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="project-list-body">
+                                    <!-- Rows injected by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+
+                <!-- View: Project Detail (Deep Dive Workspace) -->
+                <section id="view-project_detail" class="view-section hidden">
+
+                    <!-- Compact Header -->
+                    <div class="dd-header">
+                        <div class="dd-header-left">
+                            <button class="dd-back-btn" onclick="window.adminApp.switchView('project_management')">
+                                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                                </svg>
+                            </button>
+                            <div>
+                                <div style="display:flex;align-items:center;gap:0.5rem;">
+                                    <span id="detail-project-id" class="dd-project-id">IES-2026-00000</span>
+                                    <div class="dd-status-container relative">
+                                        <button id="detail-project-status"
+                                            class="status-badge draft flex items-center gap-1 group"
+                                            onclick="window.adminApp.toggleStatusMenu(event)">
+                                            <span>Draft</span>
+                                            <svg class="w-3 h-3 opacity-50 group-hover:opacity-100 transition-opacity"
+                                                fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M19 9l-7 7-7-7"></path>
+                                            </svg>
+                                        </button>
+                                        <div id="dd-status-menu" class="dd-status-menu hidden">
+                                            <div class="status-menu-item draft"
+                                                onclick="window.adminApp.updateProjectStatus('Draft')">
+                                                <span class="status-dot"></span> Draft
+                                            </div>
+                                            <div class="status-menu-item under-review"
+                                                onclick="window.adminApp.updateProjectStatus('Under Review')">
+                                                <span class="status-dot"></span> Under Review
+                                            </div>
+                                            <div class="status-menu-item approved"
+                                                onclick="window.adminApp.updateProjectStatus('Approved')">
+                                                <span class="status-dot"></span> Approved
+                                            </div>
+                                            <div class="status-menu-item in-progress"
+                                                onclick="window.adminApp.updateProjectStatus('In Progress')">
+                                                <span class="status-dot"></span> In Progress
+                                            </div>
+                                            <div class="status-menu-item completed"
+                                                onclick="window.adminApp.updateProjectStatus('Completed')">
+                                                <span class="status-dot"></span> Completed
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <h2 id="detail-project-name" class="dd-project-name">Project Name</h2>
+                            </div>
+                        </div>
+                        <div class="dd-header-right">
+                            <!-- Legacy buttons removed -->
+                        </div>
+                    </div>
+
+
+
+                    <!-- Tab Navigation -->
+                    <div class="dd-tabs">
+                        <button class="dd-tab active" onclick="window.adminApp.switchDeepDiveTab('review')"
+                            data-tab="review">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                            </svg>
+                            Contract Review
+                        </button>
+                        <button class="dd-tab" onclick="window.adminApp.switchDeepDiveTab('files')" data-tab="files">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                            </svg>
+                            Files
+                        </button>
+                    </div>
+
+                    <!-- ========== TAB PANELS ========== -->
+
+
+
+                    <!-- Panel: Contract Review -->
+                    <div id="dd-panel-review" class="dd-panel active h-full overflow-hidden">
+                        <div class="cr-gateway-container h-full flex flex-col p-4 gap-4 overflow-y-auto"
+                            style="height: 100%; overscroll-behavior: contain;">
+
+                            <!-- Monolithic Contract Review Master Table -->
+                            <!-- Modern Card-Based Contract Review (Assembles to Monolithic in Print) -->
+                            <div class="cr-modern-container flex flex-col gap-6 pb-6">
+
+                                <!-- Top actions/Title -->
+                                <div class="cr-print-header" style="display: none;">
+                                    <div
+                                        style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0f172a; padding-bottom: 6px; margin-bottom: 8px;">
+                                        <div>
+                                            <div
+                                                style="font-size: 14pt; font-weight: 800; color: #0f172a; letter-spacing: 0.02em;">
+                                                INNOVATIVE ENGINEERING SOLUTIONS</div>
+                                            <div
+                                                style="font-size: 7pt; color: #64748b; letter-spacing: 0.05em; margin-top: 1px;">
+                                                PRECISION • QUALITY • DELIVERY</div>
+                                        </div>
+                                        <div style="text-align: right;">
+                                            <div style="font-size: 11pt; font-weight: 700; color: #0f172a;">Contract
+                                                Review</div>
+                                            <div style="font-size: 7pt; color: #64748b;" id="cr-print-date"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between mt-2">
+                                    <h3 class="text-xl font-bold text-slate-800 tracking-tight">Contract Review</h3>
+                                    <div
+                                        class="flex items-center gap-2 bg-slate-100 rounded-lg p-1.5 border border-slate-200">
+                                        <span
+                                            class="text-xs font-bold text-slate-500 uppercase tracking-widest px-2">Order
+                                            No</span>
+                                        <input type="text" id="cr-review-no"
+                                            class="bg-white border border-slate-300 rounded px-3 py-1 text-sm font-bold text-emerald-700 w-32 outline-none focus:border-emerald-500"
+                                            readonly>
+                                    </div>
+                                </div>
+
+                                <!-- Card 1: Customer & Internal Data -->
+                                <div
+                                    class="cr-section-card bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                                    <table class="cr-card-table w-full border-collapse text-sm">
+                                        <colgroup>
+                                            <col style="width: 5%;"> <!-- S.No -->
+                                            <col style="width: 30%;"> <!-- Checklist -->
+                                            <col style="width: 5%;"> <!-- Req Yes -->
+                                            <col style="width: 5%;"> <!-- Req No -->
+                                            <col style="width: 5%;"> <!-- Out Ok -->
+                                            <col style="width: 5%;"> <!-- Out Nok -->
+                                            <col style="width: 7%;"> <!-- Out NA -->
+                                            <col style="width: 8%;"> <!-- Out More -->
+                                            <col style="width: 30%;"> <!-- Remarks -->
+                                        </colgroup>
+                                        <tbody>
+                                            <tr>
+                                                <td colspan="4" class="cr-emerald-bg">
+                                                    <div class="flex items-center gap-2">
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                                            stroke="currentColor" stroke-width="2.5"
+                                                            stroke-linecap="round" stroke-linejoin="round"
+                                                            class="opacity-90">
+                                                            <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+                                                            <circle cx="12" cy="7" r="4"></circle>
+                                                        </svg>
+                                                        Customer Data
+                                                    </div>
+                                                </td>
+                                                <td colspan="5" class="cr-emerald-bg">
+                                                    <div class="flex items-center gap-2">
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                                            stroke="currentColor" stroke-width="2.5"
+                                                            stroke-linecap="round" stroke-linejoin="round"
+                                                            class="opacity-90">
+                                                            <path
+                                                                d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z">
+                                                            </path>
+                                                            <polyline points="14 2 14 8 20 8"></polyline>
+                                                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                                                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                                                            <polyline points="10 9 9 9 8 9"></polyline>
+                                                        </svg>
+                                                        Internal Order
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td colspan="2" class="cr-master-label">PO NO</td>
+                                                <td colspan="2" class="p-0"><input type="text" id="cr-po-no"
+                                                        class="cr-master-input"></td>
+                                                <td colspan="2" class="cr-master-label">Date</td>
+                                                <td colspan="3" class="p-0"><input type="date" id="cr-internal-date"
+                                                        class="cr-master-input"></td>
+                                            </tr>
+                                            <tr>
+                                                <td colspan="2" class="cr-master-label">Date</td>
+                                                <td colspan="2" class="p-0"><input type="date" id="cr-date"
+                                                        class="cr-master-input"></td>
+                                                <td colspan="2" class="cr-master-label">Accountability/PL</td>
+                                                <td colspan="3" class="p-0">
+                                                    <div class="member-search-container" id="cr-search-accountability">
+                                                        <div class="search-tags-container">
+                                                            <input type="text" class="search-input-inline">
+                                                        </div>
+                                                        <div class="search-suggestions-dropdown hidden"></div>
+                                                        <input type="hidden" id="cr-accountability">
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td colspan="2" class="cr-master-label">Delivery date</td>
+                                                <td colspan="2" class="p-0"><input type="date" id="cr-delivery-date"
+                                                        class="cr-master-input"></td>
+                                                <td colspan="2" class="cr-master-label">Team</td>
+                                                <td colspan="3" class="p-0">
+                                                    <select id="cr-team" class="cr-master-select">
+                                                        <option value="">Select Team</option>
+                                                        <option value="CNC">CNC</option>
+                                                        <option value="Fab">Fab</option>
+                                                        <option value="Sourcing">Sourcing</option>
+                                                    </select>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td colspan="2" class="cr-master-label">Contact person</td>
+                                                <td colspan="2" class="p-0"><input type="text" id="cr-contact-person"
+                                                        class="cr-master-input"></td>
+                                                <td colspan="2" class="cr-master-label">Team leader</td>
+                                                <td colspan="3" class="p-0">
+                                                    <div class="member-search-container" id="cr-search-team-leader">
+                                                        <div class="search-tags-container">
+                                                            <input type="text" class="search-input-inline">
+                                                        </div>
+                                                        <div class="search-suggestions-dropdown hidden"></div>
+                                                        <input type="hidden" id="cr-team-leader">
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td colspan="2" class="cr-master-label">Ph No</td>
+                                                <td colspan="2" class="p-0"><input type="text" id="cr-phone"
+                                                        class="cr-master-input"></td>
+                                                <td colspan="2" class="cr-master-label">Members</td>
+                                                <td colspan="3" class="p-0">
+                                                    <div class="member-search-container" id="cr-search-members">
+                                                        <div class="search-tags-container">
+                                                            <input type="text" class="search-input-inline">
+                                                        </div>
+                                                        <div class="search-suggestions-dropdown hidden"></div>
+                                                        <input type="hidden" id="cr-members">
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <!-- Card 2: Checklist -->
+                                <div
+                                    class="cr-section-card bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                                    <table class="cr-card-table w-full border-collapse text-sm">
+                                        <colgroup>
+                                            <col style="width: 5%;"> <!-- S.No -->
+                                            <col style="width: 30%;"> <!-- Checklist -->
+                                            <col style="width: 5%;"> <!-- Req Yes -->
+                                            <col style="width: 5%;"> <!-- Req No -->
+                                            <col style="width: 5%;"> <!-- Out Ok -->
+                                            <col style="width: 5%;"> <!-- Out Nok -->
+                                            <col style="width: 7%;"> <!-- Out NA -->
+                                            <col style="width: 8%;"> <!-- Out More -->
+                                            <col style="width: 30%;"> <!-- Remarks -->
+                                        </colgroup>
+                                        <thead class="bg-slate-50">
+                                            <tr class="cr-emerald-header">
+                                                <td rowspan="2" class="cr-emerald-bg text-center border-b-0">
+                                                    <div class="flex flex-col items-center">
+                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                                                            stroke="currentColor" stroke-width="2"
+                                                            class="mb-1 opacity-90">
+                                                            <path
+                                                                d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z">
+                                                            </path>
+                                                            <polyline points="13 2 13 9 20 9"></polyline>
+                                                        </svg>
+                                                        S.No
+                                                    </div>
+                                                </td>
+                                                <td rowspan="2" class="cr-emerald-bg text-center border-b-0">
+                                                    <div class="flex items-center gap-2 justify-center">
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                                            stroke="currentColor" stroke-width="2" class="opacity-90">
+                                                            <path
+                                                                d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2">
+                                                            </path>
+                                                            <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+                                                            <path d="M9 14l2 2 4-4"></path>
+                                                        </svg>
+                                                        Checklist Items
+                                                    </div>
+                                                </td>
+                                                <td colspan="2" class="cr-emerald-bg text-center py-1">Requirement</td>
+                                                <td colspan="4" class="cr-emerald-bg text-center py-1">Review Outcome
+                                                </td>
+                                                <td rowspan="2" class="cr-emerald-bg text-center border-b-0">
+                                                    <div class="flex items-center gap-2 justify-center">
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                                            stroke="currentColor" stroke-width="2" class="opacity-90">
+                                                            <path
+                                                                d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z">
+                                                            </path>
+                                                        </svg>
+                                                        Remarks
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td class="cr-emerald-bg text-center">YES</td>
+                                                <td class="cr-emerald-bg text-center">NO</td>
+                                                <td class="cr-emerald-bg text-center">OK</td>
+                                                <td class="cr-emerald-bg text-center">NOK</td>
+                                                <td class="cr-emerald-bg text-center">N.A</td>
+                                                <td class="cr-emerald-bg text-center">Clarity</td>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="cr-excel-checklist">
+                                            <!-- JS will inject rows here -->
+                                        </tbody>
+                                    </table>
+                                    <!-- Add button outside table in screen, hidden in print -->
+                                    <div class="p-3 bg-slate-50 border-t border-slate-200 cr-no-print">
+                                        <button
+                                            class="cr-master-add-btn w-full py-2 text-sm text-emerald-700 bg-emerald-100 hover:bg-emerald-200 rounded-lg transition-colors font-bold shadow-sm"
+                                            onclick="window.adminApp.addCustomContractReviewItem()">+ Add Special
+                                            Requirement</button>
+                                    </div>
+                                </div>
+
+                                <!-- Card 3: Instructions & 6M -->
+                                <div
+                                    class="cr-section-card bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                                    <table class="cr-card-table w-full border-collapse text-sm">
+                                        <colgroup>
+                                            <col style="width: 5%;"> <!-- S.No -->
+                                            <col style="width: 30%;"> <!-- Checklist -->
+                                            <col style="width: 5%;"> <!-- Req Yes -->
+                                            <col style="width: 5%;"> <!-- Req No -->
+                                            <col style="width: 5%;"> <!-- Out Ok -->
+                                            <col style="width: 5%;"> <!-- Out Nok -->
+                                            <col style="width: 7%;"> <!-- Out NA -->
+                                            <col style="width: 8%;"> <!-- Out More -->
+                                            <col style="width: 30%;"> <!-- Remarks -->
+                                        </colgroup>
+                                        <tbody>
+                                            <tr>
+                                                <td colspan="5"
+                                                    class="cr-emerald-bg font-bold text-left align-middle pl-3 py-2">
+                                                    <div class="flex items-center gap-2">
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                                            stroke="currentColor" stroke-width="2.5"
+                                                            stroke-linecap="round" stroke-linejoin="round"
+                                                            class="opacity-90">
+                                                            <circle cx="12" cy="12" r="10"></circle>
+                                                            <line x1="12" y1="8" x2="12" y2="12"></line>
+                                                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                                                        </svg>
+                                                        Important Instructions
+                                                    </div>
+                                                </td>
+                                                <td colspan="2" class="cr-emerald-bg text-center">Points</td>
+                                                <td colspan="2" class="cr-emerald-bg text-center">Comments</td>
+                                            </tr>
+                                            <tr>
+                                                <td colspan="5" rowspan="6" class="p-0 align-top">
+                                                    <textarea id="cr-important-instructions"
+                                                        class="cr-master-textarea w-full h-full p-3 outline-none resize-none bg-yellow-50/30 focus:bg-yellow-50/70 transition-colors"
+                                                        style="min-height: 150px;"></textarea>
+                                                </td>
+                                                <td colspan="2" class="cr-master-label text-left pl-3">Matl</td>
+                                                <td colspan="2" class="p-0"><input type="text" data-field="cmt-matl"
+                                                        class="cr-master-input"></td>
+                                            </tr>
+                                            <tr>
+                                                <td colspan="2" class="cr-master-label text-left pl-3">Machine</td>
+                                                <td colspan="2" class="p-0"><input type="text" data-field="cmt-machine"
+                                                        class="cr-master-input"></td>
+                                            </tr>
+                                            <tr>
+                                                <td colspan="2" class="cr-master-label text-left pl-3">Man</td>
+                                                <td colspan="2" class="p-0"><input type="text" data-field="cmt-man"
+                                                        class="cr-master-input"></td>
+                                            </tr>
+                                            <tr>
+                                                <td colspan="2" class="cr-master-label text-left pl-3">Method</td>
+                                                <td colspan="2" class="p-0"><input type="text" data-field="cmt-method"
+                                                        class="cr-master-input"></td>
+                                            </tr>
+                                            <tr>
+                                                <td colspan="2" class="cr-master-label text-left pl-3">Measure</td>
+                                                <td colspan="2" class="p-0"><input type="text" data-field="cmt-measure"
+                                                        class="cr-master-input"></td>
+                                            </tr>
+                                            <tr>
+                                                <td colspan="2" class="cr-master-label text-left pl-3">Tools</td>
+                                                <td colspan="2" class="p-0"><input type="text" data-field="cmt-tools"
+                                                        class="cr-master-input"></td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <!-- Card 4: Decisions -->
+                                <div
+                                    class="cr-section-card bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                                    <table class="cr-card-table w-full border-collapse text-sm">
+                                        <colgroup>
+                                            <col style="width: 5%;"> <!-- S.No -->
+                                            <col style="width: 30%;"> <!-- Checklist -->
+                                            <col style="width: 5%;"> <!-- Req Yes -->
+                                            <col style="width: 5%;"> <!-- Req No -->
+                                            <col style="width: 5%;"> <!-- Out Ok -->
+                                            <col style="width: 5%;"> <!-- Out Nok -->
+                                            <col style="width: 7%;"> <!-- Out NA -->
+                                            <col style="width: 8%;"> <!-- Out More -->
+                                            <col style="width: 30%;"> <!-- Remarks -->
+                                        </colgroup>
+                                        <tbody>
+                                            <tr>
+                                                <td colspan="9" class="cr-emerald-bg">
+                                                    <div class="flex items-center gap-2">
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                                            stroke="currentColor" stroke-width="2.5"
+                                                            stroke-linecap="round" stroke-linejoin="round"
+                                                            class="opacity-90">
+                                                            <path
+                                                                d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z">
+                                                            </path>
+                                                            <path d="m9 12 2 2 4-4"></path>
+                                                        </svg>
+                                                        Final Verification & Order Acceptance
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            <tr class="cr-emerald-header">
+                                                <td colspan="2" class="cr-emerald-bg text-center">Decision</td>
+                                                <td colspan="1" class="cr-emerald-bg text-center p-0">Ok/Nok</td>
+                                                <td colspan="2" class="cr-emerald-bg text-center">Prepared By</td>
+                                                <td colspan="2" class="cr-emerald-bg text-center">Reviewed By</td>
+                                                <td colspan="2" class="cr-emerald-bg text-center">Approved By</td>
+                                            </tr>
+                                            <tr>
+                                                <td colspan="2" class="cr-master-label text-right pr-3">Capability</td>
+                                                <td colspan="1" class="p-0 text-center">
+                                                    <select data-field="cr-decision-cap"
+                                                        class="cr-master-select text-center font-bold">
+                                                        <option value="">-</option>
+                                                        <option value="ok" class="text-emerald-600">Ok</option>
+                                                        <option value="nok" class="text-red-600">Nok</option>
+                                                    </select>
+                                                </td>
+                                                <td colspan="2" rowspan="2" class="p-0">
+                                                    <div class="member-search-container h-full" id="cr-search-prepared">
+                                                        <div
+                                                            class="search-tags-container h-full border-0 rounded-none bg-transparent">
+                                                            <input type="text"
+                                                                class="search-input-inline h-full text-center">
+                                                        </div>
+                                                        <div class="search-suggestions-dropdown hidden text-left"></div>
+                                                        <input type="hidden" data-field="cr-prepared-by"
+                                                            id="cr-prepared-by">
+                                                    </div>
+                                                </td>
+                                                <td colspan="2" rowspan="2" class="p-0">
+                                                    <div class="member-search-container h-full" id="cr-search-reviewed">
+                                                        <div
+                                                            class="search-tags-container h-full border-0 rounded-none bg-transparent">
+                                                            <input type="text"
+                                                                class="search-input-inline h-full text-center">
+                                                        </div>
+                                                        <div class="search-suggestions-dropdown hidden text-left"></div>
+                                                        <input type="hidden" data-field="cr-reviewed-by"
+                                                            id="cr-reviewed-by">
+                                                    </div>
+                                                </td>
+                                                <td colspan="2" rowspan="2" class="p-0">
+                                                    <div class="member-search-container h-full" id="cr-search-approved">
+                                                        <div
+                                                            class="search-tags-container h-full border-0 rounded-none bg-transparent">
+                                                            <input type="text"
+                                                                class="search-input-inline h-full text-center">
+                                                        </div>
+                                                        <div class="search-suggestions-dropdown hidden text-left"></div>
+                                                        <input type="hidden" data-field="cr-approved-by"
+                                                            id="cr-approved-by">
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td colspan="2" class="cr-master-label text-right pr-3">Order Acceptance
+                                                </td>
+                                                <td colspan="1" class="p-0 text-center">
+                                                    <select data-field="cr-decision-oa"
+                                                        class="cr-master-select text-center font-bold">
+                                                        <option value="">-</option>
+                                                        <option value="ok" class="text-emerald-600">Ok</option>
+                                                        <option value="nok" class="text-red-600">Nok</option>
+                                                    </select>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                    <!-- Print-Only Notes Block -->
+                                    <div
+                                        class="cr-decision-notes text-[10px] p-4 text-slate-500 bg-slate-50/50 text-left border-t border-slate-200">
+                                        <div class="flex gap-2">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                                stroke="currentColor" stroke-width="2"
+                                                class="mt-0.5 flex-shrink-0 text-slate-400">
+                                                <path d="M12 19l7-7 3 3-7 7-3-3z"></path>
+                                                <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path>
+                                                <path d="m2 2 5 5"></path>
+                                                <path d="m11 11 5 5"></path>
+                                            </svg>
+                                            <div class="leading-relaxed">
+                                                <strong
+                                                    class="text-slate-700 uppercase tracking-wider text-[9px]">Execution
+                                                    Guidelines:</strong><br>
+                                                1. PL to prepare Job Card and plan for resources from Day 1 itself for
+                                                smooth completion.<br>
+                                                2. TL to own full Responsibility for Job Quality and Delivery.
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Actions Footer (Hidden in Print) -->
+                            <div
+                                class="cr-footer-actions bg-white p-3 rounded shadow-sm border border-slate-200 flex items-center justify-between mt-4 flex-shrink-0">
+                                <div class="flex items-center gap-3">
+                                    <span id="cr-save-status" class="text-sm font-semibold text-emerald-600"></span>
+                                    <div id="cr-overall-status" class="cr-status-badge hidden"></div>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button class="btn btn-sm btn-secondary"
+                                        onclick="window.adminApp.printContractReview()">Print Layout</button>
+                                    <button class="btn btn-sm btn-secondary"
+                                        onclick="window.adminApp.saveContractReview('draft')">Save Draft</button>
+                                    <button class="btn btn-sm btn-primary"
+                                        onclick="window.adminApp.saveContractReview('finalize')">Finalize Order</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Panel: Files -->
+                    <div id="dd-panel-files" class="dd-panel">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+                            <h3 style="font-size:1rem;font-weight:700;color:#0f172a;margin:0;">Files & Documents
+                            </h3>
+                            <button class="btn btn-secondary btn-sm" onclick="window.adminApp.openUploadModal()">
+                                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 4v16m8-8H4" />
+                                </svg>
+                                Upload
+                            </button>
+                        </div>
+                        <div style="background:white;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+                            <table class="w-full text-sm">
+                                <thead>
+                                    <tr class="text-left bg-slate-50 text-slate-400 font-bold uppercase text-[10px]">
+                                        <th class="p-3">File Name</th>
+                                        <th class="p-3">Category</th>
+                                        <th class="p-3 text-center">Version</th>
+                                        <th class="p-3">Uploaded By</th>
+                                        <th class="p-3 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="project-files-body">
+                                    <tr>
+                                        <td colspan="5" class="p-8 text-center text-slate-400 italic">No files
+                                            uploaded
+                                            yet.</td>
                                     </tr>
                                 </tbody>
                             </table>
                         </div>
                     </div>
+
+
+
                 </section>
 
             </main>
@@ -1306,6 +2085,13 @@
                 </div>
 
                 <div class="modal-footer" style="border-top: 1px solid #e2e8f0; margin-top: 0; padding-top: 1.5rem;">
+                    <label class="check-item"
+                        style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin-right: auto;">
+                        <input type="checkbox" id="io-create-project" checked
+                            style="width: 16px; height: 16px; accent-color: #0d9488; cursor: pointer;">
+                        <span style="font-size: 0.85rem; font-weight: 600; color: #334155;">Also create Project in
+                            PM</span>
+                    </label>
                     <button type="button" class="btn btn-secondary"
                         onclick="window.adminApp.closeModal('add-order-modal')">Cancel</button>
                     <button type="submit" class="btn btn-primary">Save Order</button>
@@ -1566,6 +2352,85 @@
     </div>
 
     <!-- ============================================
+         MODAL: Add Project (Regulatory Step-Based)
+         ============================================ -->
+    <div id="add-project-modal" class="modal hidden">
+        <div class="modal-backdrop" onclick="window.adminApp.closeModal('add-project-modal')"></div>
+        <div class="modal-content modal-wide">
+            <div class="modal-header">
+                <h3 class="modal-title">Initialize New Project</h3>
+                <button class="modal-close" onclick="window.adminApp.closeModal('add-project-modal')">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <form id="add-project-form">
+                <div class="modal-body compact modal-2col-layout">
+                    <!-- LEFT COLUMN: Setup -->
+                    <div class="modal-col-left">
+                        <div class="inline-section-label">Core Metadata</div>
+                        <div class="modal-list-view">
+                            <div class="form-group">
+                                <label class="form-label">Project Name *</label>
+                                <input type="text" name="name" class="form-input" required
+                                    placeholder="e.g. Turbine Shaft Fabrication">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Customer Name *</label>
+                                <input type="text" name="customerName" class="form-input" required
+                                    placeholder="Client Company name">
+                            </div>
+                            <div class="list-row list-row-2col">
+                                <div class="form-group">
+                                    <label class="form-label">Job Type</label>
+                                    <select name="jobType" class="form-input">
+                                        <option value="CNC">CNC</option>
+                                        <option value="VMC">VMC</option>
+                                        <option value="Fabrication">Fabrication</option>
+                                        <option value="Hybrid">Hybrid</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Drawing Source</label>
+                                    <select name="drawingSource" class="form-input">
+                                        <option value="Customer Supplied">Customer Supplied</option>
+                                        <option value="In-house Design">In-house Design</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- RIGHT COLUMN: Targets -->
+                    <div class="modal-col-right">
+                        <div class="inline-section-label">Production Targets</div>
+                        <div class="modal-list-view">
+                            <div class="form-group">
+                                <label class="form-label">Expected Completion Date</label>
+                                <input type="date" name="expectedCompletion" class="form-input">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Initial Internal Notes</label>
+                                <textarea name="internalNotes" class="form-input" rows="3"
+                                    placeholder="Production constraints, material availability..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary"
+                        onclick="window.adminApp.closeModal('add-project-modal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Initialize Project</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ============================================
          MODAL: Member Workload & Task Report
          ============================================ -->
     <div id="member-workload-modal" class="modal hidden">
@@ -1674,58 +2539,6 @@
     </div>
 
 
-    <!-- ============================================
-         MODAL: Add/Edit Project
-         ============================================ -->
-    <div id="add-project-modal" class="modal hidden">
-        <div class="modal-backdrop" onclick="window.adminApp.closeModal('add-project-modal')"></div>
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 class="modal-title">New Project</h3>
-                <button class="modal-close" onclick="window.adminApp.closeModal('add-project-modal')">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-            </div>
-            <form id="add-project-form">
-                <div class="modal-body">
-                    <input type="hidden" id="projectId-input" name="projectId">
-                    <div class="form-group">
-                        <label class="form-label">Project Name *</label>
-                        <input type="text" name="name" class="form-input" required placeholder="Enter project name">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Client/Customer</label>
-                        <input type="text" name="client" class="form-input" placeholder="Client name">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Description</label>
-                        <textarea name="description" class="form-input" rows="3"
-                            placeholder="Project details..."></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Due Date</label>
-                        <input type="date" name="dueDate" class="form-input">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Priority</label>
-                        <select name="priority" class="form-input">
-                            <option value="Low">Low</option>
-                            <option value="Medium" selected>Medium</option>
-                            <option value="High">High</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary"
-                        onclick="window.adminApp.closeModal('add-project-modal')">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Create Project</button>
-                </div>
-            </form>
-        </div>
-    </div>
 
 
     <!-- Confirmation Modal -->

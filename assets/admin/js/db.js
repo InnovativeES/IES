@@ -3,6 +3,8 @@ import {
     collection,
     addDoc,
     getDocs,
+    getDoc,
+    setDoc,
     query,
     onSnapshot,
     orderBy,
@@ -93,28 +95,124 @@ export const assignTask = async (employeeId, description) => {
     // This function is no longer used for Internal Orders as "tasks" is a separate concept
 };
 
-// Projects
+// --- Project Management Functions ---
+
+export const generateProjectId = async () => {
+    const year = new Date().getFullYear();
+    const q = query(collection(db, PROJECTS_COLLECTION), orderBy("createdAt", "desc"));
+    const snapshot = await getDocs(q);
+    let count = 1;
+    if (!snapshot.empty) {
+        const lastProject = snapshot.docs[0].data().projectId;
+        if (lastProject && lastProject.startsWith(`IES-${year}`)) {
+            count = parseInt(lastProject.split('-')[2]) + 1;
+        }
+    }
+    return `IES-${year}-${count.toString().padStart(5, '0')}`;
+};
+
 export const addProject = async (projectData) => {
     try {
+        // Use custom projectId if provided (e.g. from Internal Order), else auto-generate
+        const projectId = projectData.projectId || await generateProjectId();
+        const { projectId: _, ...restData } = projectData; // strip projectId from spread to avoid conflict
         const docRef = await addDoc(collection(db, PROJECTS_COLLECTION), {
-            ...projectData,
-            status: "Planning",
-            createdAt: serverTimestamp()
+            ...restData,
+            projectId: projectId,
+            revision: 0,
+            status: "Draft",
+            currentStage: "Intake",
+            progress: 0,
+            isLocked: false,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
         });
-        return { id: docRef.id, error: null };
+
+        // Initial Audit Log
+        await addAuditLog(docRef.id, "Project Created", `Project ${projectId} initialized.`);
+
+        return { id: docRef.id, projectId: projectId, error: null };
     } catch (error) {
         console.error("Error adding project:", error);
         return { id: null, error: error.message };
     }
 };
 
+export const updateProject = async (projectId, updates, userAction = "Updated") => {
+    try {
+        const ref = doc(db, PROJECTS_COLLECTION, projectId);
+        // Check if revision increase is needed (e.g., if status was 'Approved')
+        // This logic will be more detailed in the UI/App layer, 
+        // but we ensure updatedAt is always set.
+
+        await updateDoc(ref, {
+            ...updates,
+            updatedAt: serverTimestamp()
+        });
+
+        await addAuditLog(projectId, userAction, JSON.stringify(updates));
+
+        return { success: true };
+    } catch (error) {
+        console.error("Error updating project:", error);
+        return { error: error.message };
+    }
+};
+
+export const addAuditLog = async (projectId, action, details) => {
+    try {
+        await addDoc(collection(db, PROJECTS_COLLECTION, projectId, "audit_logs"), {
+            action,
+            details,
+            timestamp: serverTimestamp(),
+            user: "System/Admin" // Should be passed from actual user session later
+        });
+    } catch (error) {
+        console.error("Audit log error:", error);
+    }
+};
+
+export const addProjectFile = async (projectId, fileData) => {
+    try {
+        const docRef = await addDoc(collection(db, PROJECTS_COLLECTION, projectId, "files"), {
+            ...fileData,
+            uploadedAt: serverTimestamp(),
+            isApproved: false
+        });
+        return { id: docRef.id, error: null };
+    } catch (error) {
+        console.error("Error adding project file:", error);
+        return { id: null, error: error.message };
+    }
+};
+
+export const submitApproval = async (projectId, stage, approverData) => {
+    try {
+        await addDoc(collection(db, PROJECTS_COLLECTION, projectId, "approvals"), {
+            ...approverData,
+            stage,
+            timestamp: serverTimestamp()
+        });
+
+        // If approved, update project stage/status
+        if (approverData.status === 'Approved') {
+            await updateProject(projectId, {
+                status: 'Approved',
+                isLocked: true
+            }, `Stage ${stage} Approved`);
+        }
+
+        return { success: true };
+    } catch (error) {
+        console.error("Approval error:", error);
+        return { error: error.message };
+    }
+};
+
 export const subscribeToProjects = (callback) => {
     const q = query(collection(db, PROJECTS_COLLECTION), orderBy("createdAt", "desc"));
     return onSnapshot(q, (snapshot) => {
-        const projects = [];
-        snapshot.forEach((doc) => {
-            projects.push({ id: doc.id, ...doc.data() });
-        });
+        const projects = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         callback(projects);
     });
 };
@@ -127,6 +225,30 @@ export const deleteProject = async (projectId) => {
     } catch (error) {
         console.error("Error deleting project:", error);
         return { success: false, error: error.message };
+    }
+};
+
+export const softDeleteProject = async (projectId) => {
+    try {
+        const ref = doc(db, PROJECTS_COLLECTION, projectId);
+        await updateDoc(ref, { isDeleted: true, deletedAt: serverTimestamp() });
+        await addAuditLog(projectId, "Moved to Trash", "Project soft-deleted.");
+        return { success: true };
+    } catch (error) {
+        console.error("Error soft-deleting project:", error);
+        return { error: error.message };
+    }
+};
+
+export const restoreProject = async (projectId) => {
+    try {
+        const ref = doc(db, PROJECTS_COLLECTION, projectId);
+        await updateDoc(ref, { isDeleted: false, restoredAt: serverTimestamp() });
+        await addAuditLog(projectId, "Restored from Trash", "Project restored.");
+        return { success: true };
+    } catch (error) {
+        console.error("Error restoring project:", error);
+        return { error: error.message };
     }
 };
 
@@ -208,11 +330,46 @@ export const permanentDeleteOrder = async (orderId) => {
 export const updateProjectStatus = async (projectId, newStatus) => {
     try {
         const ref = doc(db, PROJECTS_COLLECTION, projectId);
-        await updateDoc(ref, { status: newStatus });
+        const updates = { status: newStatus };
+
+        // Auto-file contract for certain statuses
+        const milestoneStatuses = ['Approved', 'In Progress', 'Completed'];
+        if (milestoneStatuses.includes(newStatus)) {
+            updates.contractFiled = true;
+        }
+
+        await updateDoc(ref, updates);
         return { success: true };
     } catch (error) {
         console.error("Error updating project:", error);
         return { error: error.message };
+    }
+};
+
+
+// === CONTRACT REVIEW ===
+export const saveContractReview = async (projectDocId, reviewData) => {
+    try {
+        const ref = doc(db, PROJECTS_COLLECTION, projectDocId, 'contractReview', 'review');
+        await setDoc(ref, { ...reviewData, updatedAt: serverTimestamp() }, { merge: true });
+        return { success: true };
+    } catch (error) {
+        console.error("Error saving contract review:", error);
+        return { error: error.message };
+    }
+};
+
+export const getContractReview = async (projectDocId) => {
+    try {
+        const ref = doc(db, PROJECTS_COLLECTION, projectDocId, 'contractReview', 'review');
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+            return { data: snap.data(), error: null };
+        }
+        return { data: null, error: null };
+    } catch (error) {
+        console.error("Error getting contract review:", error);
+        return { data: null, error: error.message };
     }
 };
 
@@ -375,4 +532,22 @@ export const checkTodayReport = async (dateStr) => {
         console.error("Error checking today's report:", error);
         return null;
     }
+};
+
+// --- Real-time Project Detail Subscriptions ---
+
+export const subscribeToProjectFiles = (projectId, callback) => {
+    const q = query(collection(db, PROJECTS_COLLECTION, projectId, "files"), orderBy("version", "desc"));
+    return onSnapshot(q, (snapshot) => {
+        const files = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        callback(files);
+    });
+};
+
+export const subscribeToProjectAuditLogs = (projectId, callback) => {
+    const q = query(collection(db, PROJECTS_COLLECTION, projectId, "audit_logs"), orderBy("timestamp", "desc"));
+    return onSnapshot(q, (snapshot) => {
+        const logs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        callback(logs);
+    });
 };

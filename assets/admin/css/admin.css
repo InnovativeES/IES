@@ -771,7 +771,7 @@ h4 {
 
 #main-content {
     flex: 1;
-    padding: 1.5rem;
+    padding: 0;
     overflow: hidden;
     /* Prevent page scroll */
     display: flex;
@@ -781,6 +781,7 @@ h4 {
 /* === VIEW SECTIONS === */
 .view-section {
     height: 100%;
+    padding: 1.5rem;
     display: flex;
     flex-direction: column;
     animation: fadeIn 0.2s ease;
@@ -4268,15 +4269,175 @@ tr.row-deleted {
 
 /* Professional Print Overrides */
 @media print {
+    @page {
+        size: A4 portrait;
+        margin: 10mm;
+    }
 
-    /* Hide all main UI elements */
-    body>*:not(#member-workload-modal),
-    .sidebar,
+    body {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    /* Reset heights and overflows to allow scrolling pages to print */
+    body,
+    html,
+    #dashboard-container,
+    .main-wrapper,
+    #main-content,
+    .view-section,
+    .dd-panel,
+    .cr-gateway-container,
+    .overflow-y-auto,
+    .overflow-hidden,
+    .overflow-x-auto {
+        height: auto !important;
+        min-height: auto !important;
+        overflow: visible !important;
+        position: static !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    /* Compress the grid layouts so there is no massive white space */
+
+    /* Reduce margins between sections for single-page fit */
+    .cr-gateway-container .bg-white {
+        margin-bottom: 1.5mm !important;
+        padding: 4px !important;
+    }
+
+    /* Aggressive scale to ensure single page portrait fit */
+    .cr-gateway-container {
+        zoom: 0.63;
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .cr-gateway-container>div {
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        margin-bottom: 1.5mm !important;
+        page-break-inside: avoid;
+    }
+
+    /* ULTRA HIGH SPECIFICITY PRINT RESET FOR DARK THEME */
+    body[data-theme="dark"],
+    [data-pm-theme="dark"],
+    #view-project_detail[data-pm-theme="dark"],
+    #view-project_detail[data-pm-theme="dark"] .bg-white,
+    #view-project_detail[data-pm-theme="dark"] .bg-slate-50,
+    #view-project_detail[data-pm-theme="dark"] .bg-slate-100,
+    #view-project_detail[data-pm-theme="dark"] .bg-slate-900,
+    #view-project_detail[data-pm-theme="dark"] .dd-panel,
+    #view-project_detail[data-pm-theme="dark"] .dd-info-card,
+    #view-project_detail[data-pm-theme="dark"] thead,
+    #view-project_detail[data-pm-theme="dark"] tbody,
+    .cr-gateway-container thead,
+    .cr-gateway-container tbody,
+    .cr-gateway-container .bg-slate-50,
+    .cr-gateway-container .bg-white {
+        background-color: transparent !important;
+        background: transparent !important;
+    }
+
+    /* Force all text to black */
+    .cr-gateway-container *,
+    #view-project_detail[data-pm-theme="dark"] * {
+        color: black !important;
+    }
+
+    /* Remove borders and lines ONLY from remarks and comments */
+    .cr-remarks-input,
+    #cr-important-instructions,
+    input[data-field^="cmt-"] {
+        border: none !important;
+        background: transparent !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        box-shadow: none !important;
+    }
+
+    /* Ensure Customer Data / Internal Order headers HAVE visible borders in print */
+    .cr-excel-header input,
+    .cr-excel-header select {
+        border: 1px solid #cbd5e1 !important;
+        background: white !important;
+        padding: 2px 4px !important;
+    }
+
+    /* Keep table borders for structure but remove input-specific highlights */
+    .cr-gateway-container td {
+        border-color: #e2e8f0 !important;
+    }
+
+    /* Professional header style for ALL tables and heading blocks */
+    .cr-gateway-container thead th,
+    .cr-gateway-container .bg-slate-50,
+    #cr-excel-checklist thead th,
+    #view-project_detail[data-pm-theme="dark"] thead th {
+        background-color: #f1f5f9 !important;
+        color: #0f172a !important;
+        font-weight: bold !important;
+    }
+
+    /* Hide standard UI elements */
+    #sidebar,
     .dashboard-header,
     .top-bar,
-    .modal-backdrop,
+    .pm-header,
+    .dd-header,
+    .pm-header-actions,
+    .dd-tabs,
     .no-print {
         display: none !important;
+    }
+
+    /* Contract Review Table Print Formatting */
+    #cr-excel-checklist {
+        width: 100% !important;
+        page-break-inside: auto;
+    }
+
+    #cr-excel-checklist tr {
+        page-break-inside: avoid;
+        page-break-after: auto;
+    }
+
+    /* Force tables in print to be un-styled black and white */
+    table,
+    th,
+    td {
+        border-color: #94a3b8 !important;
+        /* light grey borders */
+        color: black !important;
+        padding: 2px 4px !important;
+        /* Tighten cells */
+    }
+
+    th {
+        background-color: #f1f5f9 !important;
+    }
+
+    input,
+    textarea,
+    select {
+        border: none !important;
+        border-bottom: 1px solid #cbd5e1 !important;
+        /* Provide a line for fillable fields */
+        border-radius: 0 !important;
+        background: transparent !important;
+        color: black !important;
+        padding: 2px 0 !important;
+        resize: none !important;
+        min-height: auto !important;
+    }
+
+    textarea#cr-important-instructions {
+        min-height: 60px !important;
     }
 
     #member-workload-modal {

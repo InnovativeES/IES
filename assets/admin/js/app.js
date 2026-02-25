@@ -9,8 +9,113 @@ let currentMembers = [];
 let currentProjects = [];
 let currentOrders = [];
 let isTrashView = false;
+let isProjectTrashView = false;
+let projectViewMode = localStorage.getItem('projectViewMode') || 'grid';
 
-// Helper: Get Dash Details
+// Helper: Member Search Handling
+function setupMemberSearch(containerId, inputClass, hiddenInputId, onSelectChange) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    const tagsContainer = container.querySelector('.search-tags-container');
+    const input = container.querySelector('.' + inputClass);
+    const hiddenInput = document.getElementById(hiddenInputId);
+    const dropdown = container.querySelector('.search-suggestions-dropdown');
+
+    let selectedMembers = [];
+
+    // Initialize from hidden input if it has a value
+    if (hiddenInput && hiddenInput.value) {
+        try {
+            selectedMembers = JSON.parse(hiddenInput.value);
+            renderTags();
+        } catch (e) {
+            // Fallback for comma-separated string if it's not JSON
+            selectedMembers = hiddenInput.value.split(',').map(s => s.trim()).filter(s => s);
+            renderTags();
+        }
+    }
+
+    function renderTags() {
+        if (!tagsContainer) return;
+        const currentInput = input.value;
+        const tagHTML = selectedMembers.map(m => `
+            <span class="member-tag">
+                ${m}
+                <span class="member-tag-remove" data-member="${m}">&times;</span>
+            </span>
+        `).join('');
+
+        tagsContainer.innerHTML = tagHTML;
+        tagsContainer.appendChild(input);
+        input.value = currentInput;
+
+        if (hiddenInput) {
+            hiddenInput.value = JSON.stringify(selectedMembers);
+            // Trigger change event if needed
+            hiddenInput.dispatchEvent(new Event('change'));
+        }
+
+        if (onSelectChange) onSelectChange(selectedMembers);
+    }
+
+    function showSuggestions(term) {
+        if (!dropdown) return;
+        const filtered = currentMembers.filter(m =>
+            m.name.toLowerCase().includes(term.toLowerCase()) &&
+            !selectedMembers.includes(m.name)
+        );
+
+        if (filtered.length === 0 || term === '') {
+            dropdown.innerHTML = '';
+            dropdown.classList.add('hidden');
+            return;
+        }
+
+        dropdown.innerHTML = filtered.map(m => `
+            <div class="suggestion-item" data-name="${m.name}">${m.name}</div>
+        `).join('');
+        dropdown.classList.remove('hidden');
+    }
+
+    input.addEventListener('input', (e) => {
+        showSuggestions(e.target.value);
+    });
+
+    input.addEventListener('focus', () => {
+        showSuggestions(input.value);
+    });
+
+    // Close dropdown on click outside
+    document.addEventListener('click', (e) => {
+        if (!container.contains(e.target)) {
+            dropdown?.classList.add('hidden');
+        }
+    });
+
+    container.addEventListener('click', (e) => {
+        if (e.target.classList.contains('suggestion-item')) {
+            const name = e.target.dataset.name;
+            if (!selectedMembers.includes(name)) {
+                selectedMembers.push(name);
+                input.value = '';
+                dropdown.classList.add('hidden');
+                renderTags();
+            }
+        } else if (e.target.classList.contains('member-tag-remove')) {
+            const name = e.target.dataset.member;
+            selectedMembers = selectedMembers.filter(m => m !== name);
+            renderTags();
+        } else if (e.target === tagsContainer || e.target.classList.contains('member-tag')) {
+            input.focus();
+        }
+    });
+
+    // Initial render if members were pre-loaded
+    renderTags();
+}
+
+// Global App Object
 function calculateDashboardStats(orders, selectedMonth = 'all', selectedDept = 'all') {
     // Filter by month and department
     const filteredOrders = orders.filter(o => {
@@ -70,81 +175,11 @@ function refreshDashboard() {
     UI.renderDashboardRecentActivity(stats.filteredOrders);
 }
 
-// Project Kanban Rendering
-function renderKanban(projects) {
-    const columns = {
-        'Planning': document.getElementById('cards-planning'),
-        'In Progress': document.getElementById('cards-inprogress'),
-        'Review': document.getElementById('cards-review'),
-        'Completed': document.getElementById('cards-completed')
-    };
 
-    const counts = {
-        'Planning': document.getElementById('count-planning'),
-        'In Progress': document.getElementById('count-inprogress'),
-        'Review': document.getElementById('count-review'),
-        'Completed': document.getElementById('count-completed')
-    };
-
-    // Clear all columns
-    Object.values(columns).forEach(col => { if (col) col.innerHTML = ''; });
-    Object.values(counts).forEach(cnt => { if (cnt) cnt.textContent = '0'; });
-
-    // Group projects by status
-    const grouped = { 'Planning': [], 'In Progress': [], 'Review': [], 'Completed': [] };
-    projects.forEach(p => {
-        const status = p.status || 'Planning';
-        if (grouped[status]) grouped[status].push(p);
-    });
-
-    // Render each column
-    Object.keys(grouped).forEach(status => {
-        const col = columns[status];
-        const cnt = counts[status];
-        if (!col) return;
-
-        cnt.textContent = grouped[status].length;
-
-        if (grouped[status].length === 0) {
-            col.innerHTML = '<p style="color: #94a3b8; font-size: 0.875rem; text-align: center; padding: 1rem;">No projects</p>';
-            return;
-        }
-
-        grouped[status].forEach(project => {
-            const card = document.createElement('div');
-            card.className = 'kanban-card';
-            card.innerHTML = `
-                <div class="kanban-card-title">${project.name || project.title || 'Untitled'}</div>
-                <div class="kanban-card-meta">
-                    ${project.client ? `<span>${project.client}</span>` : ''}
-                    ${project.dueDate ? `<span>Due: ${project.dueDate}</span>` : ''}
-                </div>
-                <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem;">
-                    ${status !== 'Completed' ? `
-                        <button class="btn btn-secondary" style="padding: 0.375rem 0.75rem; font-size: 0.75rem;"
-                                onclick="window.adminApp.moveProject('${project.id}', '${getNextStatus(status)}')">
-                            Move →
-                        </button>
-                    ` : ''}
-                    <button class="btn btn-ghost" style="padding: 0.375rem 0.75rem; font-size: 0.75rem; color: #ef4444;"
-                            onclick="window.adminApp.deleteProject('${project.id}')">
-                        Delete
-                    </button>
-                </div>
-            `;
-            col.appendChild(card);
-        });
-    });
-}
-
-function getNextStatus(current) {
-    const flow = ['Planning', 'In Progress', 'Review', 'Completed'];
-    const idx = flow.indexOf(current);
-    return idx < flow.length - 1 ? flow[idx + 1] : current;
-}
 
 // Global App Object
 window.adminApp = {
+    currentEditingProjectId: null,
     switchView: (viewName) => {
         UI.switchView(viewName);
     },
@@ -417,15 +452,42 @@ window.adminApp = {
         }
     },
 
-    openAddProjectModal: () => {
+    openAddProjectModal: (projectId = null) => {
         const modal = document.getElementById('add-project-modal');
         if (!modal) return;
 
-        // Reset form
         const form = document.getElementById('add-project-form');
         if (form) form.reset();
 
-        modal.classList.add('active');
+        const title = modal.querySelector('.modal-title');
+        const submitBtn = form?.querySelector('button[type="submit"]');
+
+        if (projectId) {
+            // Edit mode
+            const project = currentProjects.find(p => p.id === projectId);
+            if (!project) return;
+
+            if (title) title.textContent = 'Edit Project';
+            if (submitBtn) submitBtn.textContent = 'Save Changes';
+
+            // Pre-fill
+            const setVal = (name, val) => { const el = form.querySelector(`[name="${name}"]`); if (el) el.value = val || ''; };
+            setVal('name', project.name);
+            setVal('customerName', project.customerName);
+            setVal('jobType', project.jobType);
+            setVal('drawingSource', project.drawingSource);
+            setVal('expectedCompletion', project.expectedCompletion);
+            setVal('internalNotes', project.internalNotes);
+
+            // Store edit ID
+            modal.dataset.editId = projectId;
+        } else {
+            if (title) title.textContent = 'Initialize New Project';
+            if (submitBtn) submitBtn.textContent = 'Initialize Project';
+            delete modal.dataset.editId;
+        }
+
+        window.adminApp.openModal('add-project-modal');
     },
 
     submitProjectForm: async () => {
@@ -435,51 +497,637 @@ window.adminApp = {
             return;
         }
 
-        const formData = new FormData(form);
-        const projectData = {
-            name: formData.get('name'),
-            client: formData.get('client') || '',
-            description: formData.get('description') || '',
-            dueDate: formData.get('dueDate') || null,
-            priority: formData.get('priority') || 'Medium',
-            status: 'Planning'
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) submitBtn.disabled = true;
+
+        try {
+            const formData = new FormData(form);
+            const projectData = {
+                name: formData.get('name'),
+                customerName: formData.get('customerName'),
+                jobType: formData.get('jobType'),
+                drawingSource: formData.get('drawingSource'),
+                expectedCompletion: formData.get('expectedCompletion') || null,
+                internalNotes: formData.get('internalNotes') || '',
+            };
+
+            const modal = document.getElementById('add-project-modal');
+            const editId = modal?.dataset.editId;
+
+            if (editId) {
+                // Update existing
+                const result = await DB.updateProject(editId, projectData, 'Project Edited');
+                if (result.error) {
+                    alert('Error: ' + result.error);
+                } else {
+                    window.adminApp.closeModal('add-project-modal');
+                    form.reset();
+                    delete modal.dataset.editId;
+                }
+            } else {
+                // Create new
+                const result = await DB.addProject(projectData);
+                if (result.error) {
+                    alert('Error: ' + result.error);
+                } else {
+                    window.adminApp.closeModal('add-project-modal');
+                    form.reset();
+                }
+            }
+        } finally {
+            if (submitBtn) submitBtn.disabled = false;
+        }
+    },
+
+    filterProjects: () => {
+        const searchTerm = document.getElementById('project-search')?.value.toLowerCase() || '';
+        const statusFilter = document.getElementById('project-status-filter')?.value || 'all';
+        const typeFilter = document.getElementById('project-type-filter')?.value || 'all';
+
+        const filtered = currentProjects.filter(p => {
+            // Filter based on trash view
+            const isDeleted = !!p.isDeleted;
+            if (isProjectTrashView !== isDeleted) return false;
+
+            const matchesSearch = (p.name?.toLowerCase().includes(searchTerm) ||
+                p.projectId?.toLowerCase().includes(searchTerm) ||
+                p.customerName?.toLowerCase().includes(searchTerm));
+            const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
+            const matchesType = typeFilter === 'all' || p.jobType === typeFilter;
+
+            return matchesSearch && matchesStatus && matchesType;
+        });
+
+        window.adminApp.renderProjectCards(filtered);
+        window.adminApp.updateProjectStats();
+    },
+
+    setProjectView: (mode) => {
+        window.adminApp.projectViewMode = mode;
+        localStorage.setItem('projectViewMode', mode);
+
+        // Update Toggle Buttons
+        const gridBtn = document.getElementById('btn-view-grid');
+        const listBtn = document.getElementById('btn-view-list');
+        if (gridBtn) gridBtn.classList.toggle('active', mode === 'grid');
+        if (listBtn) listBtn.classList.toggle('active', mode === 'list');
+
+        window.adminApp.filterProjects();
+    },
+
+    renderProjectTable: (projects) => {
+        const tbody = document.getElementById('project-list-body');
+        if (!tbody) return;
+
+        if (projects.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-12 text-slate-400">No projects found.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = projects.map(p => {
+            const statusClass = (p.status || 'draft').toLowerCase().replace(/\s+/g, '-');
+            const isTrashed = !!p.isDeleted;
+            const deliveryDate = p.expectedCompletion ? new Date(p.expectedCompletion).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : 'N/A';
+
+            const actions = isTrashed ? `
+                <button class="pm-action-btn restore-btn" onclick="event.stopPropagation(); window.adminApp.restoreProject('${p.id}')">Restore</button>
+                <button class="pm-action-btn" style="color:#ef4444;" onclick="event.stopPropagation(); window.adminApp.permanentDeleteProject('${p.id}')">Delete</button>
+            ` : `
+                <div class="flex gap-2 justify-end">
+                    <button class="pm-action-btn" onclick="event.stopPropagation(); window.adminApp.editProject('${p.id}')">Edit</button>
+                    <button class="pm-action-btn deep-dive" onclick="event.stopPropagation(); window.adminApp.viewProjectDetails('${p.id}')">Report</button>
+                </div>
+            `;
+
+            return `
+                <tr class="${isTrashed ? 'opacity-50' : ''}">
+                    <td>
+                        <div class="pm-table-project-info">
+                            <span class="pm-table-project-name">${p.name}</span>
+                            <span class="pm-table-project-id">${p.projectId}</span>
+                        </div>
+                    </td>
+                    <td><span class="pm-table-customer">${p.customerName}</span></td>
+                    <td><span class="version-tag">${p.jobType || 'N/A'}</span></td>
+                    <td><span class="status-badge ${statusClass}">${p.status}</span></td>
+                    <td>
+                        <div class="pm-table-timeline">
+                            <span class="pm-table-date-label">Delivery</span>
+                            <span class="font-bold text-slate-700">${deliveryDate}</span>
+                        </div>
+                    </td>
+                    <td class="text-right">${actions}</td>
+                </tr>
+            `;
+        }).join('');
+    },
+
+    updateProjectStats: () => {
+        const active = currentProjects.filter(p => !p.isDeleted);
+        const completed = active.filter(p => p.status === 'Completed');
+        const trashed = currentProjects.filter(p => !!p.isDeleted);
+
+        const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+        setEl('pm-stat-total', active.length);
+        setEl('pm-stat-active', active.length - completed.length);
+        setEl('pm-stat-completed', completed.length);
+        setEl('pm-stat-trash', trashed.length);
+
+        // Trash count badge
+        const trashCount = document.getElementById('pm-trash-count');
+        if (trashCount) {
+            trashCount.textContent = trashed.length;
+            trashCount.style.display = trashed.length > 0 ? 'inline-flex' : 'none';
+        }
+    },
+
+    toggleProjectTrash: () => {
+        isProjectTrashView = !isProjectTrashView;
+
+        const toggleBtn = document.getElementById('pm-trash-toggle-btn');
+        const toggleLabel = document.getElementById('pm-trash-toggle-label');
+        const trashBanner = document.getElementById('pm-trash-banner');
+        const filterBar = document.getElementById('pm-filter-bar');
+        const newBtn = document.getElementById('pm-new-project-btn');
+
+        if (isProjectTrashView) {
+            if (toggleBtn) toggleBtn.classList.add('active');
+            if (toggleLabel) toggleLabel.textContent = 'Active Projects';
+            if (trashBanner) trashBanner.style.display = 'flex';
+            if (filterBar) filterBar.style.display = 'none';
+            if (newBtn) newBtn.style.display = 'none';
+        } else {
+            if (toggleBtn) toggleBtn.classList.remove('active');
+            if (toggleLabel) toggleLabel.textContent = 'Trash';
+            if (trashBanner) trashBanner.style.display = 'none';
+            if (filterBar) filterBar.style.display = '';
+            if (newBtn) newBtn.style.display = '';
+        }
+
+        window.adminApp.filterProjects();
+    },
+
+    trashProject: (projectId) => {
+        window.adminApp.showConfirmModal(
+            "Move to Trash?",
+            "This project will be moved to the trash. You can restore it later.",
+            async () => {
+                const result = await DB.softDeleteProject(projectId);
+                if (result.error) alert('Error: ' + result.error);
+            }
+        );
+    },
+
+    restoreProject: async (projectId) => {
+        const result = await DB.restoreProject(projectId);
+        if (result.error) alert('Error restoring: ' + result.error);
+    },
+
+    permanentDeleteProject: (projectId) => {
+        window.adminApp.showConfirmModal(
+            "Permanently Delete?",
+            "This project will be permanently deleted. This cannot be undone.",
+            async () => {
+                const result = await DB.deleteProject(projectId);
+                if (result.error) alert('Error: ' + result.error);
+            }
+        );
+    },
+
+    editProject: (projectId) => {
+        window.adminApp.openAddProjectModal(projectId);
+    },
+
+    // === CONTRACT REVIEW ===
+    toggleContractReview: () => {
+        const section = document.getElementById('contract-review-section');
+        if (section) section.classList.toggle('open');
+    },
+
+    loadContractReview: async (projectId) => {
+        const project = currentProjects.find(p => p.id === projectId);
+        if (!project) return;
+
+        // Store current project ID for save
+        const section = document.getElementById('contract-review-section');
+        if (section) {
+            section.dataset.projectId = projectId;
+            section.classList.remove('open'); // Collapse on load
+        }
+
+        // Reset status
+        const status = document.getElementById('cr-save-status');
+        if (status) status.textContent = 'Loading...';
+
+        // Load saved data from Firestore
+        const result = await DB.getContractReview(projectId);
+        let reviewData = result.data || {};
+
+        // Auto-fill defaults if not present
+        if (!reviewData.reviewNo) reviewData.reviewNo = `CR-${project.projectId || projectId}`;
+        if (!reviewData.deliveryDate && project.expectedCompletion) reviewData.deliveryDate = project.expectedCompletion;
+        if (!reviewData.internalDate) reviewData.internalDate = new Date().toISOString().split('T')[0];
+
+        // Populate Header fields
+        const setVal = (id, val) => {
+            const el = document.getElementById(id);
+            if (el && val) el.value = val;
         };
 
-        const result = await DB.addProject(projectData);
-        if (result.error) {
-            alert('Error: ' + result.error);
-        } else {
-            window.adminApp.closeModal('add-project-modal');
+        setVal('cr-review-no', reviewData.reviewNo);
+        setVal('cr-internal-date', reviewData.internalDate);
+        setVal('cr-po-no', reviewData.poNo);
+        setVal('cr-delivery-date', reviewData.deliveryDate);
+        setVal('cr-important-instructions', reviewData.importantInstructions);
+
+        // Map old checklist format to new dynamic format if needed
+        let mappedChecklist = reviewData.checklistDynamic || {};
+
+        if (reviewData.checklist && Object.keys(mappedChecklist).length === 0) {
+            // Migration/fallback from old structure - optional based on how data was saved previously
+            // Assuming legacy items might need manual re-mapping if important, else start fresh
         }
+
+        // Render the dynamic checklist grid with current data mapping
+        window.adminApp.renderContractReview(mappedChecklist);
+
+        if (status) {
+            status.textContent = result.data ? '✓ Loaded from saved review' : '';
+            setTimeout(() => { if (status) status.textContent = ''; }, 3000);
+        }
+    },
+
+
+
+    printContractReview: () => {
+        const section = document.getElementById('contract-review-section');
+        if (section) section.classList.add('open');
+        // Populate print header date
+        const printDate = document.getElementById('cr-print-date');
+        if (printDate) {
+            printDate.textContent = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+        }
+        setTimeout(() => window.print(), 200);
+    },
+
+    renderProjectCards: (projects) => {
+        const grid = document.getElementById('project-grid');
+        const listView = document.getElementById('project-list-view');
+        if (!grid || !listView) return;
+
+        const mode = window.adminApp.projectViewMode || 'grid';
+
+        if (mode === 'list') {
+            grid.classList.add('hidden');
+            listView.classList.remove('hidden');
+            window.adminApp.renderProjectTable(projects);
+            return;
+        } else {
+            grid.classList.remove('hidden');
+            listView.classList.add('hidden');
+        }
+
+        if (projects.length === 0) {
+            const msg = isProjectTrashView ? 'Trash is empty.' : 'No projects found matching your filters.';
+            const sub = isProjectTrashView ? 'Deleted projects will appear here.' : 'Try adjusting your search or create a new project.';
+            grid.innerHTML = `
+                <div class="pm-empty-state">
+                    <div class="pm-empty-icon">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                    </div>
+                    <div class="pm-empty-title">${msg}</div>
+                    <div class="pm-empty-text">${sub}</div>
+                </div>
+            `;
+            return;
+        }
+
+        grid.innerHTML = projects.map(p => {
+            const statusClass = (p.status || 'draft').toLowerCase().replace(/\s+/g, '-');
+            const isTrashed = !!p.isDeleted;
+            const startDate = p.createdAt ? new Date(p.createdAt.seconds * 1000).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : 'N/A';
+            const deliveryDate = p.expectedCompletion ? new Date(p.expectedCompletion).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : 'N/A';
+
+            const isContractFiled = p.contractFiled || ['Approved', 'In Progress', 'Completed'].includes(p.status);
+            const contractStatusHtml = isContractFiled ?
+                '<span class="pm-c-contract-val"><svg style="width:13px;height:13px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg> Filed</span>' :
+                '<span class="pm-c-contract-val pending">Pending</span>';
+
+            const actionButtons = isTrashed ? `
+                <button class="pm-c-icon-btn" onclick="event.stopPropagation(); window.adminApp.restoreProject('${p.id}')" title="Restore">
+                    <svg style="width:16px;height:16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                </button>
+                <button class="pm-c-icon-btn trash" onclick="event.stopPropagation(); window.adminApp.permanentDeleteProject('${p.id}')" title="Delete Permanently">
+                    <svg style="width:16px;height:16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            ` : `
+                <button class="pm-c-icon-btn" onclick="event.stopPropagation(); window.adminApp.editProject('${p.id}')" title="Edit">
+                    <svg style="width:16px;height:16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                </button>
+                <button class="pm-c-icon-btn trash" onclick="event.stopPropagation(); window.adminApp.trashProject('${p.id}')" title="Trash">
+                    <svg style="width:16px;height:16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                </button>
+            `;
+
+            return `
+                <div class="pm-card-compact ${isTrashed ? 'trashed' : ''}">
+                    <div class="pm-c-accent ${statusClass}"></div>
+                    <div class="pm-c-body">
+                        <div class="pm-c-header">
+                            <div class="pm-c-title-group">
+                                <span class="pm-c-title">${p.name}</span>
+                                <span class="pm-c-subtitle">${p.customerName || 'N/A'}</span>
+                            </div>
+                            <span class="pm-c-id-pill">${p.projectId}</span>
+                        </div>
+                        <div class="pm-c-status-row">
+                            <span class="pm-c-label">Status</span>
+                            <span class="status-badge ${statusClass}">${p.status || 'Draft'}</span>
+                        </div>
+                    </div>
+                    <div class="pm-c-dates">
+                        <div class="pm-c-date-cell">
+                            <span class="pm-c-label">Start Date</span>
+                            <span class="pm-c-value">${startDate}</span>
+                        </div>
+                        <div class="pm-c-date-cell">
+                            <span class="pm-c-label">Delivery</span>
+                            <span class="pm-c-value">${deliveryDate}</span>
+                        </div>
+                    </div>
+                    <div class="pm-c-footer">
+                        <div class="pm-c-contract-status">
+                            <span class="pm-c-label">Contract</span>
+                            ${contractStatusHtml}
+                        </div>
+                        <div class="pm-c-actions">
+                            ${actionButtons}
+                            <button class="pm-c-primary-btn" onclick="event.stopPropagation(); window.adminApp.viewProjectDetails('${p.id}')">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+                                View Report
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    },
+
+    getStatusColorClass: (status) => {
+        switch (status) {
+            case 'Draft': return 'border-slate-300';
+            case 'Under Review': return 'border-amber-400';
+            case 'Approved': return 'border-blue-500';
+            case 'In Progress': return 'border-teal-500';
+            case 'Completed': return 'border-emerald-600';
+            default: return 'border-slate-200';
+        }
+    },
+
+    viewProjectDetails: async (id) => {
+        window.adminApp.currentEditingProjectId = id;
+        const project = currentProjects.find(p => p.id === id);
+        if (!project) return;
+
+        window.adminApp.switchView('project_detail');
+        window.adminApp.switchDeepDiveTab('review');
+
+        // Populate Basic Info
+        const idDisplay = document.getElementById('detail-project-id');
+        const nameDisplay = document.getElementById('detail-project-name');
+        const statusDisplay = document.getElementById('detail-project-status');
+
+        if (idDisplay) idDisplay.textContent = project.projectId;
+        if (nameDisplay) nameDisplay.textContent = project.name;
+        if (statusDisplay) {
+            const span = statusDisplay.querySelector('span');
+            if (span) span.textContent = project.status || 'Draft';
+            const statusCls = (project.status || 'Draft').toLowerCase().replace(/\s+/g, '-');
+            statusDisplay.className = `status-badge ${statusCls} flex items-center gap-1 group`;
+        }
+
+        // Side Info
+        const infoCustomer = document.getElementById('info-customer');
+        const infoJobType = document.getElementById('info-job-type');
+        const infoDrgSource = document.getElementById('info-drg-source');
+        const infoExpectedDate = document.getElementById('info-expected-date');
+        const infoNotes = document.getElementById('info-notes');
+
+        if (infoCustomer) infoCustomer.textContent = project.customerName || '-';
+        if (infoJobType) infoJobType.textContent = project.jobType || '-';
+        if (infoDrgSource) infoDrgSource.textContent = project.drawingSource || '-';
+        if (infoExpectedDate) infoExpectedDate.textContent = project.expectedCompletion || 'Not Set';
+        if (infoNotes) infoNotes.textContent = project.internalNotes || 'No internal notes.';
+
+
+
+        // Subscribe to Project Sub-collections (Files & Logs)
+        DB.subscribeToProjectFiles(id, (files) => {
+            window.adminApp.renderProjectFiles(files);
+        });
+
+        DB.subscribeToProjectAuditLogs(id, (logs) => {
+            window.adminApp.renderProjectAuditLogs(logs);
+        });
+
+        // Load Contract Review form for this project
+        window.adminApp.loadContractReview(id);
+    },
+
+    renderProgressDots: (project) => {
+        const stages = ['Intake', 'Planning', 'Design', 'Production', 'Quality', 'Delivery', 'Closure'];
+        const currentIdx = stages.indexOf(project.currentStage);
+        const container = document.getElementById('dd-progress-dots');
+        if (!container) return;
+
+        let html = '';
+        stages.forEach((stage, idx) => {
+            if (idx > 0) {
+                html += `<span class="dd-dot-line ${idx <= currentIdx ? 'completed' : ''}"></span>`;
+            }
+            let cls = 'dd-dot';
+            if (idx === currentIdx) cls += ' active';
+            else if (idx < currentIdx) cls += ' completed';
+            html += `<span class="${cls}" title="${stage}"></span>`;
+        });
+        container.innerHTML = html;
+    },
+
+    switchDeepDiveTab: (tabName) => {
+        // Update tab buttons
+        document.querySelectorAll('.dd-tab').forEach(t => {
+            t.classList.toggle('active', t.dataset.tab === tabName);
+        });
+        // Update panels
+        document.querySelectorAll('.dd-panel').forEach(p => {
+            p.classList.toggle('active', p.id === `dd-panel-${tabName}`);
+        });
+    },
+
+    renderStageAction: (project) => {
+        const stages = {
+            'Intake': {
+                description: 'Review initial metadata and drawing source requirements.',
+                buttons: [
+                    { label: 'Submit for Planning', class: 'btn-primary', action: `window.adminApp.transitionStage('${project.id}', 'Planning')` }
+                ]
+            },
+            'Planning': {
+                description: 'Define timelines, resources, and production strategy.',
+                buttons: [
+                    { label: 'Request Design Approval', class: 'btn-primary', action: `window.adminApp.submitApprovalRequest('${project.id}', 'Planning')` }
+                ]
+            },
+            'Design': {
+                description: 'Complete engineering designs and release drawings for production.',
+                buttons: [
+                    { label: 'Submit for Production', class: 'btn-primary', action: `window.adminApp.transitionStage('${project.id}', 'Production')` }
+                ]
+            },
+            'Production': {
+                description: 'Manufacturing phase. Track shop floor progress and machine utilization.',
+                buttons: [
+                    { label: 'Mark Production Complete', class: 'btn-primary', action: `window.adminApp.transitionStage('${project.id}', 'Quality')` }
+                ]
+            },
+            'Quality': {
+                description: 'Post-production inspection and regulatory compliance checks.',
+                buttons: [
+                    { label: 'Pass Quality Check', class: 'btn-primary', action: `window.adminApp.transitionStage('${project.id}', 'Delivery')` }
+                ]
+            },
+            'Delivery': {
+                description: 'Packaging, logistics, and customer handover.',
+                buttons: [
+                    { label: 'Mark as Delivered', class: 'btn-primary', action: `window.adminApp.transitionStage('${project.id}', 'Closure')` }
+                ]
+            },
+            'Closure': {
+                description: 'Final audit, documentation filing, and project completion.',
+                buttons: [
+                    { label: 'Close Project', class: 'btn-primary', action: `window.adminApp.completeProject('${project.id}')` }
+                ]
+            }
+        };
+
+        const config = stages[project.currentStage] || stages['Intake'];
+
+        const stagePill = document.getElementById('dd-stage-pill');
+        const stageDesc = document.getElementById('dd-stage-desc');
+        const stageActions = document.getElementById('dd-stage-actions');
+
+        if (stagePill) stagePill.textContent = project.currentStage;
+        if (stageDesc) stageDesc.textContent = config.description;
+        if (stageActions) {
+            stageActions.innerHTML = config.buttons.map(btn => `
+                <button class="btn ${btn.class} btn-sm" onclick="${btn.action}">${btn.label}</button>
+            `).join('');
+        }
+    },
+
+    transitionStage: async (projectId, nextStage) => {
+        const result = await DB.updateProject(projectId, { currentStage: nextStage }, `Transitioned to ${nextStage}`);
+        if (result.error) {
+            alert('Error transitioning stage: ' + result.error);
+        } else {
+            // Re-render handled by real-time subscription
+        }
+    },
+
+    renderProjectFiles: (files) => {
+        const body = document.getElementById('project-files-body');
+        if (!body) return;
+
+        if (files.length === 0) {
+            body.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-slate-400 italic">No files uploaded yet.</td></tr>';
+            return;
+        }
+
+        body.innerHTML = files.map(f => `
+            <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                <td class="p-3 font-medium text-slate-700">${f.name}</td>
+                <td class="p-3 text-slate-500">${f.category}</td>
+                <td class="p-3 text-center"><span class="version-tag">v${f.version}</span></td>
+                <td class="p-3 text-slate-500">${f.uploadedBy || 'System'}</td>
+                <td class="p-3 text-right">
+                    <button class="btn btn-ghost btn-sm text-teal-600" onclick="window.open('${f.url}')">View</button>
+                    <button class="btn btn-ghost btn-sm text-slate-400">History</button>
+                </td>
+            </tr>
+        `).join('');
+    },
+
+    renderProjectAuditLogs: (logs) => {
+        const container = document.getElementById('audit-log-container');
+        if (!container) return;
+
+        if (logs.length === 0) {
+            container.innerHTML = '<div class="text-center py-4 text-slate-400 italic">No audit history found.</div>';
+            return;
+        }
+
+        container.innerHTML = logs.map(l => {
+            const date = l.timestamp?.toDate ? l.timestamp.toDate() : new Date();
+            const timeStr = date.toLocaleDateString() + ' • ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            return `
+                <div class="dd-timeline-item">
+                    <div class="dd-timeline-title">${l.action}</div>
+                    <div class="dd-timeline-desc">${l.details}</div>
+                    <div class="dd-timeline-time">${timeStr} by ${l.user || 'System'}</div>
+                </div>
+            `;
+        }).join('');
     },
 
     moveProject: async (projectId, newStatus) => {
         const result = await DB.updateProjectStatus(projectId, newStatus);
         if (result.error) {
             alert('Error moving project: ' + result.error);
+        } else {
+            const isMilestone = ['Approved', 'In Progress', 'Completed'].includes(newStatus);
+            const detail = `Status moved to ${newStatus}${isMilestone ? ' (Contract Auto-filed)' : ''}`;
+            await DB.addAuditLog(projectId, 'Status Updated', detail);
         }
     },
 
     deleteProject: (projectId) => {
-        window.adminApp.showConfirmModal(
-            "Delete Project?",
-            "Permanently delete this project? This action cannot be undone.",
-            async () => {
-                try {
-                    const result = await DB.deleteProject(projectId);
-                    if (result.error) {
-                        alert('Error deleting project: ' + result.error);
-                    }
-                } catch (e) {
-                    console.error('Delete project failed:', e);
-                    alert('Failed to delete project. Please check your connection.');
-                }
-            }
-        );
+        window.adminApp.trashProject(projectId);
     },
 
     openAddOrderModal: () => {
         window.adminApp.openModal('add-order-modal');
+    },
+
+    toggleStatusMenu: (e) => {
+        e.stopPropagation();
+        const menu = document.getElementById('dd-status-menu');
+        if (menu) menu.classList.toggle('hidden');
+    },
+
+    updateProjectStatus: async (newStatus) => {
+        const id = window.adminApp.currentEditingProjectId;
+        if (!id) return;
+
+        const result = await DB.updateProjectStatus(id, newStatus);
+        if (result.error) {
+            alert('Error updating status: ' + result.error);
+        } else {
+            // UI update for badge
+            const statusDisplay = document.getElementById('detail-project-status');
+            if (statusDisplay) {
+                const span = statusDisplay.querySelector('span');
+                if (span) span.textContent = newStatus;
+                statusDisplay.className = `status-badge ${newStatus.toLowerCase().replace(/\s+/g, '-')} flex items-center gap-1 group`;
+            }
+            const menu = document.getElementById('dd-status-menu');
+            if (menu) menu.classList.add('hidden');
+
+            // Audit Log
+            const isMilestone = ['Approved', 'In Progress', 'Completed'].includes(newStatus);
+            const detail = `Status changed to ${newStatus}${isMilestone ? ' (Contract Auto-filed)' : ''}`;
+            await DB.addAuditLog(id, 'Status Updated', detail);
+        }
     },
 
     prepareAddOrder: () => {
@@ -709,6 +1357,71 @@ window.adminApp = {
         } else {
             window.adminApp.closeModal('add-delivery-modal');
         }
+    },
+
+    submitApprovalRequest: async (projectId, stage) => {
+        const result = await DB.submitApproval(projectId, stage, {
+            status: 'Approved', // For now, auto-approving or just recording
+            approver: 'Admin',
+            notes: `Auto-approved for ${stage} gate.`
+        });
+
+        if (result.error) {
+            alert('Approval error: ' + result.error);
+        } else {
+            // Transition to next stage automatically if approved
+            const stages = ['Intake', 'Planning', 'Design', 'Production', 'Quality', 'Delivery', 'Closure'];
+            const currentIdx = stages.indexOf(stage);
+            if (currentIdx < stages.length - 1) {
+                window.adminApp.transitionStage(projectId, stages[currentIdx + 1]);
+            }
+        }
+    },
+
+    completeProject: async (projectId) => {
+        const result = await DB.updateProject(projectId, {
+            status: 'Completed',
+            progress: 100
+        }, 'Project marked as Completed.');
+
+        if (result.error) {
+            alert('Error completing project: ' + result.error);
+        }
+    },
+
+    lockProject: async (projectId) => {
+        const project = currentProjects.find(p => p.id === projectId);
+        const newLockState = !project.isLocked;
+
+        const result = await DB.updateProject(projectId, { isLocked: newLockState }, newLockState ? 'Project Locked' : 'Project Unlocked');
+        if (result.error) {
+            alert('Error locking/unlocking project: ' + result.error);
+        }
+    },
+
+    openProjectSettings: () => {
+        alert('Project Settings coming soon!');
+    },
+
+    openUploadModal: () => {
+        // For now, a simple prompt mock to test functionality
+        const fileName = prompt("Enter file name (Mock Upload):", "spec_drawing_v1.pdf");
+        if (!fileName) return;
+
+        const category = prompt("Enter category:", "Technical Drawing");
+        const projectId = document.getElementById('detail-project-id')?.textContent; // Actually we need the internal ID
+
+        // We'll need the internal ID from the state since we are in the view
+        const activeProject = currentProjects.find(p => p.projectId === projectId);
+        if (!activeProject) return;
+
+        DB.addProjectFile(activeProject.id, {
+            name: fileName,
+            category: category || 'General',
+            url: '#', // Mock URL
+            version: 1,
+            uploadedBy: 'Admin'
+        });
     },
 
     // Modal Helpers
@@ -1654,13 +2367,14 @@ document.addEventListener('DOMContentLoaded', () => {
         refreshDashboard();
     });
 
-    // Load Projects for Kanban
+    // Load Projects for Kanban / Modern View
     DB.subscribeToProjects((projects) => {
         currentProjects = projects;
         const view = document.getElementById('view-project_management');
         if (view && !view.classList.contains('hidden')) {
-            renderKanban(projects);
+            window.adminApp.filterProjects();
         }
+        window.adminApp.updateProjectStats();
     });
 
     // Load Orders
@@ -1816,7 +2530,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (view === 'team_org') {
                     UI.renderMemberList(currentMembers);
                 } else if (view === 'project_management') {
-                    renderKanban(currentProjects);
+                    window.adminApp.filterProjects();
                 } else if (view === 'overview') {
                     refreshDashboard();
                 } else if (view === 'monitoring') {
@@ -1889,6 +2603,44 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (emailSpan) emailSpan.textContent = user.email;
 
+            // Subscribe to Projects
+            DB.subscribeToProjects((projects) => {
+                currentProjects = projects;
+
+                // Update Customer filter in Project Management
+                const customerFilter = document.getElementById('project-customer-filter');
+                if (customerFilter) {
+                    const customers = [...new Set(projects.map(p => p.customerName).filter(c => c))];
+                    const currentVal = customerFilter.value;
+                    customerFilter.innerHTML = '<option value="all">All Customers</option>' +
+                        customers.map(c => `<option value="${c}">${c}</option>`).join('');
+                    customerFilter.value = currentVal;
+                }
+
+                // Refresh UI based on active view
+                const activeView = UI.getActiveView();
+                if (activeView === 'project_management') {
+                    window.adminApp.filterProjects();
+                } else if (activeView === 'project_detail') {
+                    // Re-render detail view if the project exists
+                    const detailId = document.getElementById('detail-project-id')?.textContent;
+                    // Note: detailId might be the projectId (IES-...) not the Firebase doc id.
+                    // We need a way to track which internal ID is active.
+                    // Let's assume we can find it in currentProjects or via a global state.
+                    const activeProject = projects.find(p => p.projectId === detailId);
+                    if (activeProject) {
+
+
+                        // Update basic info too in case it changed
+                        const statusDisplay = document.getElementById('detail-project-status');
+                        if (statusDisplay) {
+                            statusDisplay.textContent = activeProject.status;
+                            statusDisplay.className = `status-badge ${activeProject.status?.toLowerCase().replace(' ', '-')}`;
+                        }
+                    }
+                }
+            });
+
             // Ensure dashboard is ready immediately
             refreshDashboard();
 
@@ -1899,4 +2651,411 @@ document.addEventListener('DOMContentLoaded', () => {
             if (dashDiv) dashDiv.style.display = 'none';
         }
     });
+});
+
+// --- Contract Review Logic ---
+
+const checklistItems = [
+    { id: 'item_1', label: 'Product Description' },
+    { id: 'item_2', label: 'BOM' },
+    { id: 'item_3', label: 'Qty' },
+    { id: 'item_4', label: 'Price Acceptance' },
+    { id: 'item_5', label: 'MOC' },
+    { id: 'item_6', label: 'Payment Terms' },
+    { id: 'item_7', label: 'Approved Drawing' },
+    { id: 'item_8', label: '3rd Party Inspection' },
+    { id: 'item_9', label: 'Delivery Date' },
+    { id: 'item_10', label: 'LD clause' }
+];
+
+window.adminApp.renderContractReview = (reviewData = {}) => {
+    const container = document.getElementById('cr-excel-checklist');
+    if (!container) return;
+
+    const data = reviewData || {};
+    let html = '';
+
+    const renderRow = (item, index) => {
+        const itemObj = data[item.id] || {};
+        const isCustom = item.isCustom;
+
+        let labelEl = item.label;
+        if (isCustom) {
+            labelEl = `<input type="text" class="cr-master-input cr-custom-label w-full font-bold px-3 py-2 text-slate-700" value="${itemObj.customLabel || ''}" data-item-id="${item.id}">`;
+        } else {
+            labelEl = `<span class="px-3 block w-full py-2 font-bold text-slate-700">${item.label}</span>`;
+        }
+
+        const req = itemObj.req || '';
+        const out = itemObj.out || '';
+
+        const cell = (type, val, currentVal, extraVal) => {
+            const isActive = type === 'out' && val === 'more' ? extraVal === 'true' : currentVal === val;
+            const activeClass = isActive ? `active-${val}` : '';
+            const tick = isActive ? '✓' : '○';
+
+            return `
+                <td class="p-0 select-none" onclick="window.adminApp.setReviewItem('${item.id}', '${type}', '${val}')">
+                    <div class="outcome-tile ${activeClass}" data-opt="${val}">
+                         <span class="cr-tick">${tick}</span>
+                    </div>
+                </td>
+            `;
+        };
+
+        const deleteBtn = isCustom ? `<button class="cr-item-delete-btn text-red-400 hover:text-red-600 px-3 flex-shrink-0" onclick="window.adminApp.removeReviewItem('${item.id}')" title="Remove Item"><svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>` : '';
+
+        return `
+            <tr class="cr-item-row" data-item-id="${item.id}" data-req-val="${req}" data-out-val="${out}" data-more-val="${itemObj.more || 'false'}">
+                <td class="cr-item-index text-center uppercase tracking-tighter">${index + 1}</td>
+                <td class="p-0">
+                    <div class="flex items-center h-full">
+                        <div class="flex-grow">${labelEl}</div>
+                        ${deleteBtn}
+                    </div>
+                </td>
+                ${cell('req', 'yes', req)}
+                ${cell('req', 'no', req)}
+                ${cell('out', 'ok', out)}
+                ${cell('out', 'nok', out)}
+                ${cell('out', 'na', out)}
+                ${cell('out', 'more', out, itemObj.more)}
+                <td class="p-0">
+                    <input type="text" class="cr-master-input w-full cr-remarks-input px-3 py-2 text-slate-600" value="${itemObj.remarks || ''}">
+                </td>
+            </tr>
+        `;
+    };
+
+    let currentIndex = 0;
+    checklistItems.forEach(item => {
+        html += renderRow(item, currentIndex++);
+    });
+
+    Object.keys(data).forEach(key => {
+        if (key.startsWith('custom_')) {
+            html += renderRow({ id: key, isCustom: true }, currentIndex++);
+        }
+    });
+
+    container.innerHTML = html;
+};
+
+
+window.adminApp.addCustomContractReviewItem = () => {
+    const tbody = document.getElementById('cr-excel-checklist');
+    if (!tbody) return;
+
+    const rowCount = tbody.querySelectorAll('.cr-item-row').length;
+    const newId = 'custom_' + Date.now();
+
+    const labelEl = `<input type="text" class="cr-master-input cr-custom-label w-full font-bold px-3 py-2 text-slate-700" value="" data-item-id="${newId}">`;
+
+    const cell = (type, val) => {
+        return `
+            <td class="p-0 select-none" onclick="window.adminApp.setReviewItem('${newId}', '${type}', '${val}')">
+                <div class="outcome-tile" data-opt="${val}">
+                    <span class="cr-tick">○</span>
+                </div>
+            </td>
+        `;
+    };
+
+    const deleteBtn = `<button class="cr-item-delete-btn text-red-400 hover:text-red-600 px-3 flex-shrink-0" onclick="window.adminApp.removeReviewItem('${newId}')" title="Remove Item"><svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>`;
+
+    const tr = document.createElement('tr');
+    tr.className = 'cr-item-row';
+    tr.dataset.itemId = newId;
+
+    tr.innerHTML = `
+        <td class="cr-item-index text-center uppercase tracking-tighter">${rowCount + 1}</td>
+        <td class="p-0">
+            <div class="flex items-center h-full">
+                <div class="flex-grow">${labelEl}</div>
+                ${deleteBtn}
+            </div>
+        </td>
+        ${cell('req', 'yes')}
+        ${cell('req', 'no')}
+        ${cell('out', 'ok')}
+        ${cell('out', 'nok')}
+        ${cell('out', 'na')}
+        ${cell('out', 'more')}
+        <td class="p-0">
+            <input type="text" class="cr-master-input w-full cr-remarks-input px-3 py-2 text-slate-600" value="">
+        </td>
+    `;
+    tr.dataset.moreVal = 'false';
+
+    tbody.appendChild(tr);
+};
+
+
+window.adminApp.removeReviewItem = (itemId) => {
+    const row = document.querySelector(`.cr-item-row[data-item-id="${itemId}"]`);
+    if (row) {
+        row.remove();
+        // Update indices
+        const indices = document.querySelectorAll('.cr-item-index');
+        indices.forEach((td, idx) => {
+            td.textContent = idx + 1;
+        });
+    }
+};
+
+window.adminApp.setReviewItem = (itemId, type, val) => {
+    const row = document.querySelector(`.cr-item-row[data-item-id="${itemId}"]`);
+    if (!row) return;
+
+    if (type === 'out' && val === 'more') {
+        // Toggle 'more' (Clarity) independently
+        const cellTd = row.children[7]; // 8th column (index 7) is 'more'
+        const tile = cellTd?.querySelector('.outcome-tile');
+        if (!tile) return;
+
+        const tickEl = tile.querySelector('.cr-tick');
+        const isActive = row.dataset.moreVal === 'true';
+
+        if (isActive) {
+            tile.classList.remove('active-more');
+            if (tickEl) tickEl.textContent = '○';
+            row.dataset.moreVal = 'false';
+        } else {
+            tile.classList.add('active-more');
+            if (tickEl) tickEl.textContent = '✓';
+            row.dataset.moreVal = 'true';
+        }
+        return;
+    }
+
+    const targetIdx = type === 'req' ? 2 : 4;
+    const optionsCount = type === 'req' ? 2 : 3; // For 'out', only OK, NOK, NA (indices 4, 5, 6)
+
+    for (let i = 0; i < optionsCount; i++) {
+        const cellTd = row.children[targetIdx + i];
+        const tile = cellTd.querySelector('.outcome-tile');
+        if (!tile) continue;
+
+        const opt = tile.dataset.opt;
+        const tickEl = tile.querySelector('.cr-tick');
+
+        if (opt === val) {
+            const isCurrentlyActive = row.dataset[`${type}Val`] === val;
+            if (isCurrentlyActive) {
+                // Toggle OFF
+                tile.classList.remove(`active-${val}`);
+                if (tickEl) tickEl.textContent = '○';
+                row.dataset[`${type}Val`] = '';
+            } else {
+                // Switch ON
+                tile.classList.add(`active-${val}`);
+                if (tickEl) tickEl.textContent = '✓';
+                row.dataset[`${type}Val`] = val;
+            }
+        } else {
+            // Force others OFF
+            tile.classList.remove(`active-${opt}`);
+            if (tickEl) tickEl.textContent = '○';
+        }
+    }
+};
+
+window.adminApp.loadContractReview = async (projectId) => {
+    const project = currentProjects.find(p => p.id === projectId);
+    if (!project) return;
+
+    const status = document.getElementById('cr-save-status');
+    if (status) status.textContent = 'Loading...';
+
+    try {
+        // Load from DB instead of project object!
+        const result = await DB.getContractReview(projectId);
+        const reviewData = result.data || {};
+
+        // Helper to safely set value
+        const setVal = (id, val) => {
+            const el = document.getElementById(id) || document.querySelector(`[data-field="${id}"]`);
+            if (el) el.value = val || '';
+        };
+
+        // Auto-fill defaults
+        const reviewNo = reviewData.reviewNo || `CR-${project.projectId || projectId}`;
+        const today = new Date().toISOString().split('T')[0];
+
+        // Customer Data
+        setVal('cr-po-no', reviewData.poNo || project.poNumber || '');
+        setVal('cr-date', reviewData.date || today);
+        setVal('cr-delivery-date', reviewData.deliveryDate || project.expectedCompletion || '');
+        setVal('cr-contact-person', reviewData.contactPerson || '');
+        setVal('cr-phone', reviewData.phone || '');
+
+        // Internal Order Data
+        setVal('cr-review-no', reviewNo);
+        setVal('cr-internal-date', reviewData.internalDate || today);
+        setVal('cr-accountability', reviewData.accountability || '');
+        setVal('cr-team', reviewData.team || '');
+        setVal('cr-team-leader', reviewData.teamLeader || '');
+        setVal('cr-members', reviewData.members || '');
+
+        // Instructions
+        setVal('cr-important-instructions', reviewData.instructions || reviewData.importantInstructions || '');
+
+        // 6M Grid
+        const mGrid = ['matl', 'machine', 'man', 'method', 'measure', 'tools'];
+        mGrid.forEach(key => {
+            const data = reviewData.sixM?.[key] || { cmt: '' };
+            setVal(`cmt-${key}`, data.cmt);
+        });
+
+        // Decisions
+        setVal('cr-decision-cap', reviewData.decisionCap || '');
+        setVal('cr-decision-oa', reviewData.decisionOa || '');
+        setVal('cr-prepared-by', reviewData.preparedBy || '');
+        setVal('cr-reviewed-by', reviewData.reviewedBy || '');
+        setVal('cr-approved-by', reviewData.approvedBy || '');
+
+        // Render Checklist Table
+        const checklistItems = reviewData.items || reviewData.checklistDynamic || {};
+        window.adminApp.renderContractReview(checklistItems);
+
+        // Initialize Search Components
+        setupMemberSearch('cr-search-accountability', 'search-input-inline', 'cr-accountability');
+        setupMemberSearch('cr-search-team-leader', 'search-input-inline', 'cr-team-leader');
+        setupMemberSearch('cr-search-members', 'search-input-inline', 'cr-members');
+        setupMemberSearch('cr-search-prepared', 'search-input-inline', 'cr-prepared-by');
+        setupMemberSearch('cr-search-reviewed', 'search-input-inline', 'cr-reviewed-by');
+        setupMemberSearch('cr-search-approved', 'search-input-inline', 'cr-approved-by');
+
+        if (status) {
+            status.textContent = result.data ? '✓ Loaded' : '';
+            setTimeout(() => { if (status) status.textContent = ''; }, 3000);
+        }
+    } catch (e) {
+        console.error("Error loading contract review:", e);
+        if (status) status.textContent = 'Error loading';
+    }
+};
+
+window.adminApp.saveContractReview = async (action) => {
+    const projectId = document.getElementById('detail-project-id')?.textContent;
+    const project = currentProjects.find(p => p.projectId === projectId);
+    if (!project) return;
+    const projectDocId = project.id;
+
+    // Helper to get value
+    const getVal = (id) => {
+        const el = document.getElementById(id) || document.querySelector(`[data-field="${id}"]`);
+        return el ? el.value : '';
+    };
+
+    const reviewData = {
+        status: action === 'finalize' ? 'Finalized' : 'Draft',
+        updatedAt: new Date().toISOString(),
+
+        // Customer Data
+        poNo: getVal('cr-po-no'),
+        date: getVal('cr-date'),
+        deliveryDate: getVal('cr-delivery-date'),
+        contactPerson: getVal('cr-contact-person'),
+        phone: getVal('cr-phone'),
+
+        // Internal Order Data
+        reviewNo: getVal('cr-review-no'),
+        internalDate: getVal('cr-internal-date'),
+        accountability: getVal('cr-accountability'),
+        team: getVal('cr-team'),
+        teamLeader: getVal('cr-team-leader'),
+        members: getVal('cr-members'),
+
+        // Instructions
+        instructions: getVal('cr-important-instructions'),
+        importantInstructions: getVal('cr-important-instructions'),
+
+        // 6M Grid
+        sixM: {},
+
+        // Decisions
+        decisionCap: getVal('cr-decision-cap'),
+        decisionOa: getVal('cr-decision-oa'),
+        preparedBy: getVal('cr-prepared-by'),
+        reviewedBy: getVal('cr-reviewed-by'),
+        approvedBy: getVal('cr-approved-by'),
+
+        items: {},
+        checklistDynamic: {}
+    };
+
+    const mGrid = ['matl', 'machine', 'man', 'method', 'measure', 'tools'];
+    mGrid.forEach(key => {
+        reviewData.sixM[key] = {
+            cmt: getVal(`cmt-${key}`)
+        };
+    });
+
+    // Gather Checklist Items
+    const rows = document.querySelectorAll('.cr-item-row');
+    rows.forEach(row => {
+        const id = row.dataset.itemId;
+        const customInput = row.querySelector('.cr-custom-label');
+        const customLabel = customInput ? customInput.value : '';
+        const remarks = row.querySelector('.cr-remarks-input')?.value || '';
+
+        const itemData = {
+            req: row.dataset.reqVal || '',
+            out: row.dataset.outVal || '',
+            more: row.dataset.moreVal || 'false',
+            remarks: remarks,
+            customLabel: customLabel
+        };
+
+        reviewData.items[id] = itemData;
+        reviewData.checklistDynamic[id] = itemData; // Backward compatibility
+    });
+
+    const statusSpan = document.getElementById('cr-save-status');
+    if (statusSpan) statusSpan.textContent = 'Saving...';
+
+    try {
+        const isFiled = action === 'finalize';
+
+        // Save to the actual subcollection
+        await DB.saveContractReview(projectDocId, reviewData);
+
+        // Update project with filed status
+        await DB.updateProject(projectDocId, {
+            contractFiled: isFiled
+        }, 'Contract Review ' + (isFiled ? 'Finalized' : 'Draft Saved'));
+
+        if (statusSpan) {
+            statusSpan.textContent = `Saved at ${new Date().toLocaleTimeString()}`;
+            setTimeout(() => statusSpan.textContent = '', 3000);
+        }
+        if (isFiled) {
+            alert('Contract Review Finalized!');
+            window.adminApp.moveProject(projectDocId, 'Planning');
+        }
+    } catch (e) {
+        console.error(e);
+        if (statusSpan) statusSpan.textContent = 'Error saving!';
+        alert('Failed to save review: ' + e.message);
+    }
+};
+
+// Initialize view on load
+document.addEventListener('DOMContentLoaded', () => {
+    // Close status menu on click outside
+    document.addEventListener('click', (e) => {
+        const menu = document.getElementById('dd-status-menu');
+        const badge = document.getElementById('detail-project-status');
+        if (menu && !menu.classList.contains('hidden')) {
+            if (!menu.contains(e.target) && !badge.contains(e.target)) {
+                menu.classList.add('hidden');
+            }
+        }
+    });
+
+    setTimeout(() => {
+        const savedMode = localStorage.getItem('projectViewMode') || 'grid';
+        window.adminApp.setProjectView(savedMode);
+    }, 100);
 });

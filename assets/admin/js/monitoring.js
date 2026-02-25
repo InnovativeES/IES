@@ -256,7 +256,7 @@ export const renderTable = (orders) => {
     }
 };
 
-export const handleAddOrder = () => {
+export const handleAddOrder = async () => {
     const form = document.getElementById('add-order-form');
     if (!form) return;
 
@@ -274,18 +274,50 @@ export const handleAddOrder = () => {
     const orderId = data.orderId;
     delete data.orderId;
 
-    const promise = orderId ? DB.updateOrder(orderId, data) : DB.addOrder(data);
+    const isNewOrder = !orderId;
+    const createProject = isNewOrder && document.getElementById('io-create-project')?.checked;
 
-    promise.then(res => {
+    try {
+        const res = orderId ? await DB.updateOrder(orderId, data) : await DB.addOrder(data);
+
         if (res.error) {
             alert("Error: " + res.error);
-        } else {
-            window.adminApp.closeModal('add-order-modal');
-            form.reset();
-            const hiddenId = document.getElementById('orderId-input');
-            if (hiddenId) hiddenId.value = '';
+            return;
         }
-    });
+
+        // Auto-create project if checkbox is ticked (new orders only)
+        if (createProject && data.description) {
+            try {
+                const projectData = {
+                    projectId: data.internalOrderNo || '',
+                    name: data.description,
+                    customerName: data.customer || '',
+                    jobType: data.department || 'CNC',
+                    drawingSource: 'Customer Supplied',
+                    expectedCompletion: data.deliveryDateActual || null,
+                    internalNotes: `Auto-created from Internal Order ${data.internalOrderNo || ''}`,
+                    internalOrderNo: data.internalOrderNo || '',
+                    poNo: data.poNo || '',
+                };
+
+                const projRes = await DB.addProject(projectData);
+                if (projRes.error) {
+                    console.error('Auto-create project failed:', projRes.error);
+                } else {
+                    console.log(`Project auto-created: ${projRes.projectId} from IO ${data.internalOrderNo}`);
+                }
+            } catch (projErr) {
+                console.error('Error auto-creating project:', projErr);
+            }
+        }
+
+        window.adminApp.closeModal('add-order-modal');
+        form.reset();
+        const hiddenId = document.getElementById('orderId-input');
+        if (hiddenId) hiddenId.value = '';
+    } catch (err) {
+        alert("Error: " + err.message);
+    }
 };
 
 export const populateForm = (order) => {
