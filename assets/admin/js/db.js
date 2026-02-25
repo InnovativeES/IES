@@ -1,4 +1,5 @@
-import { db } from "../../../firebase-config.js";
+import { db, storage } from "../../../firebase-config.js";
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 import {
     collection,
     addDoc,
@@ -182,6 +183,55 @@ export const addProjectFile = async (projectId, fileData) => {
     } catch (error) {
         console.error("Error adding project file:", error);
         return { id: null, error: error.message };
+    }
+};
+
+export const uploadProjectFile = async (projectId, file, uploadedBy) => {
+    try {
+        const fileRef = ref(storage, `projects/${projectId}/files/${Date.now()}_${file.name}`);
+        const metadata = {
+            contentType: file.type,
+        };
+        const snapshot = await uploadBytes(fileRef, file, metadata);
+        const url = await getDownloadURL(snapshot.ref);
+
+        const fileData = {
+            name: file.name,
+            url: url,
+            size: file.size,
+            type: file.type,
+            category: 'General', // Default category
+            uploadedBy: uploadedBy || 'Admin',
+            version: 1
+        };
+
+        return await addProjectFile(projectId, fileData);
+    } catch (error) {
+        console.error("Error uploading project file:", error);
+        return { id: null, error: error.message };
+    }
+};
+
+export const deleteProjectFile = async (projectId, fileId, fileUrl) => {
+    try {
+        // 1. Delete from Firebase Storage if URL is provided
+        if (fileUrl && fileUrl !== '#') {
+            try {
+                // Extracts the storage path from the URL
+                const storageRef = ref(storage, fileUrl);
+                await deleteObject(storageRef);
+            } catch (storageError) {
+                console.warn("Storage deletion failed or file not found:", storageError);
+                // Continue with Firestore deletion even if storage fails
+            }
+        }
+
+        // 2. Delete metadata from Firestore
+        await deleteDoc(doc(db, PROJECTS_COLLECTION, projectId, "files", fileId));
+        return { success: true, error: null };
+    } catch (error) {
+        console.error("Error deleting project file:", error);
+        return { success: false, error: error.message };
     }
 };
 

@@ -1050,8 +1050,10 @@ window.adminApp = {
                 <td class="p-3 text-center"><span class="version-tag">v${f.version}</span></td>
                 <td class="p-3 text-slate-500">${f.uploadedBy || 'System'}</td>
                 <td class="p-3 text-right">
-                    <button class="btn btn-ghost btn-sm text-teal-600" onclick="window.open('${f.url}')">View</button>
-                    <button class="btn btn-ghost btn-sm text-slate-400">History</button>
+                    <div class="flex justify-end gap-1">
+                        <button class="btn btn-ghost btn-sm text-teal-600" onclick="window.open('${f.url}')">View</button>
+                        <button class="btn btn-ghost btn-sm text-rose-500" onclick="window.adminApp.confirmDeleteFile('${f.id}', '${f.url}')">Delete</button>
+                    </div>
                 </td>
             </tr>
         `).join('');
@@ -1404,24 +1406,80 @@ window.adminApp = {
     },
 
     openUploadModal: () => {
-        // For now, a simple prompt mock to test functionality
-        const fileName = prompt("Enter file name (Mock Upload):", "spec_drawing_v1.pdf");
-        if (!fileName) return;
+        const fileInput = document.getElementById('project-file-input');
+        if (fileInput) fileInput.click();
+    },
 
-        const category = prompt("Enter category:", "Technical Drawing");
-        const projectId = document.getElementById('detail-project-id')?.textContent; // Actually we need the internal ID
+    handleFileSelection: async (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
 
-        // We'll need the internal ID from the state since we are in the view
-        const activeProject = currentProjects.find(p => p.projectId === projectId);
-        if (!activeProject) return;
+        // Validation: 500KB limit
+        const maxSize = 500 * 1024; // 500KB
+        if (file.size > maxSize) {
+            alert(`File is too large (${(file.size / 1024).toFixed(1)}KB). Max size is 500KB.`);
+            event.target.value = '';
+            return;
+        }
 
-        DB.addProjectFile(activeProject.id, {
-            name: fileName,
-            category: category || 'General',
-            url: '#', // Mock URL
-            version: 1,
-            uploadedBy: 'Admin'
-        });
+        const projectIdText = document.getElementById('detail-project-id')?.textContent;
+        // Search in currentProjects for the project with that ID
+        const activeProject = currentProjects.find(p => p.projectId === projectIdText);
+
+        if (!activeProject) {
+            alert("Error: Active project context not found.");
+            return;
+        }
+
+        const uploadBtn = event.target.parentElement.querySelector('button');
+        const originalHtml = uploadBtn ? uploadBtn.innerHTML : 'Upload';
+
+        try {
+            if (uploadBtn) {
+                uploadBtn.disabled = true;
+                uploadBtn.innerHTML = "Uploading...";
+            }
+
+            const result = await DB.uploadProjectFile(activeProject.id, file, 'Admin');
+
+            if (result.error) {
+                alert("Upload failed: " + result.error);
+            }
+        } catch (error) {
+            console.error("Upload Error:", error);
+            alert("Upload failed: " + error.message);
+        } finally {
+            if (uploadBtn) {
+                uploadBtn.disabled = false;
+                uploadBtn.innerHTML = originalHtml;
+            }
+            event.target.value = '';
+        }
+    },
+
+    confirmDeleteFile: async (fileId, fileUrl) => {
+        if (!confirm("Are you sure you want to permanently delete this file? This cannot be undone.")) return;
+
+        const projectIdText = document.getElementById('detail-project-id')?.textContent;
+        const activeProject = currentProjects.find(p => p.projectId === projectIdText);
+
+        if (!activeProject) {
+            alert("Error: Active project context not found.");
+            return;
+        }
+
+        try {
+            const result = await DB.deleteProjectFile(activeProject.id, fileId, fileUrl);
+            if (result.success) {
+                // Success message or toast could go here
+                console.log("File deleted successfully");
+            } else {
+                alert("Deletion failed: " + result.error);
+            }
+        } catch (error) {
+            console.error("Delete Error:", error);
+            alert("Deletion failed: " + error.message);
+        }
     },
 
     // Modal Helpers

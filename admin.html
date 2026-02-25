@@ -1834,6 +1834,8 @@
                     </div>
                     <!-- Panel: Files -->
                     <div id="dd-panel-files" class="dd-panel">
+                        <input type="file" id="project-file-input" style="display:none;"
+                            onchange="window.adminApp.handleFileSelection(event)">
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
                             <h3 style="font-size:1rem;font-weight:700;color:#0f172a;margin:0;">Files & Documents
                             </h3>
