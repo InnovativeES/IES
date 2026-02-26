@@ -1,0 +1,24 @@
+{
+  "name": "innovative-engineering-solutions",
+  "version": "1.0.0",
+  "description": "",
+  "main": "firebase-config.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/InnovativeES/IES.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/InnovativeES/IES/issues"
+  },
+  "homepage": "https://github.com/InnovativeES/IES#readme",
+  "dependencies": {
+    "puppeteer": "^24.37.5"
+  }
+}

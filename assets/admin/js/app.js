@@ -3,6 +3,7 @@ import * as UI from './ui.js';
 import * as DB from './db.js';
 import * as Charts from './charts.js';
 import * as Monitoring from './monitoring.js';
+import * as Inventory from './inventory.js';
 
 // App State
 let currentMembers = [];
@@ -11,6 +12,12 @@ let currentOrders = [];
 let isTrashView = false;
 let isProjectTrashView = false;
 let projectViewMode = localStorage.getItem('projectViewMode') || 'grid';
+let currentInventory = [];
+let currentTransactions = [];
+let inventoryUnsubscribe = null;
+let transactionUnsubscribe = null;
+let isInventoryTrashView = false;
+let currentInventoryTab = 'master';
 
 // Helper: Member Search Handling
 function setupMemberSearch(containerId, inputClass, hiddenInputId, onSelectChange) {
@@ -182,6 +189,12 @@ window.adminApp = {
     currentEditingProjectId: null,
     switchView: (viewName) => {
         UI.switchView(viewName);
+        if (viewName === 'inventory_management') {
+            window.adminApp.initInventory();
+        } else if (inventoryUnsubscribe) {
+            inventoryUnsubscribe();
+            inventoryUnsubscribe = null;
+        }
     },
 
     refreshDashboard: () => {
@@ -696,6 +709,528 @@ window.adminApp = {
 
     editProject: (projectId) => {
         window.adminApp.openAddProjectModal(projectId);
+    },
+
+    // === INVENTORY MANAGEMENT ===
+    initInventory: () => {
+        if (inventoryUnsubscribe) return;
+        inventoryUnsubscribe = Inventory.getInventory((items) => {
+            currentInventory = items;
+            window.adminApp.renderInventoryList(items);
+            window.adminApp.updateInventoryStats(items);
+        });
+    },
+
+    toggleInventoryTrash: () => {
+        isInventoryTrashView = !isInventoryTrashView;
+        const btn = document.getElementById('inventory-trash-btn');
+        const badge = document.querySelector('.pm-header-badge.inventory');
+
+        if (isInventoryTrashView) {
+            btn.classList.add('active');
+            btn.innerHTML = `
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 15l-3-3m0 0l3-3m-3 3h8M3 12a9 9 0 1118 0 9 9 0 01-18 0z" />
+                </svg>
+                <span>Back</span>
+            `;
+            if (badge) {
+                badge.textContent = '📦 Deleted Items (Trash)';
+                badge.classList.add('deleted');
+            }
+        } else {
+            btn.classList.remove('active');
+            btn.innerHTML = `
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                <span>Trash</span>
+            `;
+            if (badge) {
+                badge.textContent = 'Stock Control';
+                badge.classList.remove('deleted');
+            }
+        }
+        window.adminApp.renderInventoryList(currentInventory);
+    },
+
+    trashInventoryItem: async (id, name) => {
+        if (!confirm(`Move "${name}" to trash?`)) return;
+        const result = await Inventory.softDeleteInventoryItem(id);
+        if (result.error) alert('Error: ' + result.error);
+    },
+
+    restoreInventoryItem: async (id) => {
+        const result = await Inventory.restoreInventoryItem(id);
+        if (result.error) alert('Error: ' + result.error);
+    },
+
+    permanentDeleteInventoryItem: async (id, name) => {
+        if (!confirm(`Permanently delete "${name}"? This action cannot be undone.`)) return;
+        const result = await Inventory.permanentDeleteInventoryItem(id);
+        if (result.error) alert('Error: ' + result.error);
+    },
+
+
+
+    renderInventoryList: (items) => {
+        const body = document.getElementById('inventory-list-body');
+        const table = body.closest('table');
+        const headerRow = table ? table.querySelector('thead tr') : null;
+        if (!body) return;
+
+        // Filter items based on trash view
+        const displayItems = items.filter(item => !!item.isDeleted === isInventoryTrashView);
+
+        // Adjust Table Header for Trash View
+        if (headerRow) {
+            if (isInventoryTrashView) {
+                headerRow.innerHTML = `
+                    <th class="cr-emerald-bg">Item Details</th>
+                    <th class="cr-emerald-bg">Category</th>
+                    <th class="cr-emerald-bg">Last Stock</th>
+                    <th class="cr-emerald-bg">Deleted On</th>
+                    <th class="cr-emerald-bg text-right">Actions</th>
+                `;
+            } else {
+                headerRow.innerHTML = `
+                    <th class="cr-emerald-bg">Item Details</th>
+                    <th class="cr-emerald-bg">Category</th>
+                    <th class="cr-emerald-bg">Location</th>
+                    <th class="cr-emerald-bg text-center">Current Stock</th>
+                    <th class="cr-emerald-bg">Status</th>
+                    <th class="cr-emerald-bg text-right">Actions</th>
+                `;
+            }
+        }
+
+        if (displayItems.length === 0) {
+            const colspan = isInventoryTrashView ? 5 : 6;
+            body.innerHTML = `
+                <tr>
+                    <td colspan="${colspan}" class="p-12 text-center text-slate-400">
+                        <div class="flex flex-col items-center gap-2">
+                            <span class="text-2xl">${isInventoryTrashView ? '🗑️' : '📦'}</span>
+                            <p class="italic">No ${isInventoryTrashView ? 'deleted' : 'inventory'} items found.</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        body.innerHTML = displayItems.map(item => {
+            const isLow = item.currentStock <= item.minimumLevel && item.currentStock > 0;
+            const isOut = item.currentStock <= 0;
+
+            let statusBadge = `<span class="badge badge-success">In Stock</span>`;
+            if (isOut) statusBadge = `<span class="badge" style="background: #fef2f2; color: #ef4444; border: 1px solid #fee2e2;">Out of Stock</span>`;
+            else if (isLow) statusBadge = `<span class="badge badge-warning">Low Stock</span>`;
+
+            // Thumbnail Logic
+            let thumb = `
+                <div class="inventory-icon-placeholder">
+                    <span>${item.category === 'Tool' ? '🔧' : (item.category === 'Raw Material' ? '🏗️' : '📦')}</span>
+                </div>
+            `;
+            if (item.photoUrl) {
+                const safeName = (item.name || '').replace(/'/g, "\\'");
+                thumb = `<img src="${item.photoUrl}" class="inventory-thumb cursor-pointer hover:ring-2 hover:ring-teal-500 transition-all" alt="${item.name}" onclick="event.stopPropagation(); window.adminApp.openPhotoViewer('${item.photoUrl}', '${safeName}')">`;
+            }
+
+            if (isInventoryTrashView) {
+                return `
+                    <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                        <td class="p-3">
+                            <div class="flex items-center gap-3">
+                                ${thumb}
+                                <div>
+                                    <div class="font-bold text-slate-700">${item.name}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="p-3 text-slate-500 font-medium">${item.category}</td>
+                        <td class="p-3 text-slate-700 font-bold">${item.currentStock} ${item.unit}</td>
+                        <td class="p-3 text-slate-400 text-xs">${item.updatedAt ? new Date(item.updatedAt.seconds * 1000).toLocaleDateString() : 'Recently'}</td>
+                        <td class="p-3 text-right">
+                            <div class="flex justify-end gap-2">
+                                <button class="btn btn-ghost btn-sm text-green-600" onclick="window.adminApp.restoreInventoryItem('${item.id}')" title="Restore">Restore</button>
+                                <button class="btn btn-ghost btn-sm text-red-600" onclick="window.adminApp.permanentDeleteInventoryItem('${item.id}', '${item.name}')" title="Delete Permanently">Delete</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }
+
+            return `
+                <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                    <td class="p-3">
+                        <div class="flex items-center gap-3">
+                            ${thumb}
+                            <div>
+                                <div class="font-bold text-slate-700">${item.name}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="p-3 text-slate-500 font-medium">${item.category}</td>
+                    <td class="p-3 text-slate-500">${item.location || '-'}</td>
+                    <td class="p-3 text-center">
+                        <div class="font-bold text-slate-700 text-lg">${item.currentStock}</div>
+                        <div class="text-[10px] text-slate-400 uppercase font-bold">${item.unit}</div>
+                    </td>
+                    <td class="p-3">${statusBadge}</td>
+                    <td class="p-3 text-right">
+                        <div class="flex justify-end gap-2">
+                            <button class="pm-c-primary-btn" onclick='window.adminApp.openAdjustStockModal("${item.id}")'>🔄 Adjust</button>
+                            <button class="action-btn delete" onclick="window.adminApp.trashInventoryItem('${item.id}', '${item.name}')" title="Move to Trash">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    },
+
+    updateInventoryStats: (items) => {
+        const total = items.length;
+        const low = items.filter(i => i.currentStock <= i.minimumLevel).length;
+
+        const setEl = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = val;
+        };
+
+        setEl('inv-stat-total', total);
+        setEl('inv-stat-low', low);
+        // More stats can be added if price is tracked
+    },
+
+    openAddInventoryModal: () => {
+        const form = document.getElementById('add-inventory-form');
+        if (form) form.reset();
+
+        // Populate Order ID dropdown (Internal Orders)
+        const orderSelect = form.querySelector('select[name="orderId"]');
+        if (orderSelect) {
+            const internalOrders = window.adminApp.getCurrentOrders ? window.adminApp.getCurrentOrders() : [];
+            orderSelect.innerHTML = '<option value="">-- No Order ID --</option>' +
+                internalOrders.map(o => {
+                    const id = o.internalOrderNo || o.id;
+                    return `<option value="${id}">${id} - ${o.customer || 'Order'}</option>`;
+                }).join('');
+        }
+
+        // Hide photo section initially
+        const photoSection = document.getElementById('inv-photo-section');
+        if (photoSection) photoSection.classList.add('hidden');
+
+        // Reset preview
+        const preview = document.getElementById('inv-photo-preview');
+        const placeholder = document.getElementById('inv-photo-preview-placeholder');
+        if (preview) preview.classList.add('hidden');
+        if (placeholder) placeholder.classList.remove('hidden');
+
+        window.adminApp.openModal('add-inventory-modal');
+    },
+
+    onInventoryCategoryChange: (category) => {
+        const photoSection = document.getElementById('inv-photo-section');
+        if (!photoSection) return;
+
+        if (category === 'Tool') {
+            photoSection.classList.remove('hidden');
+        } else {
+            photoSection.classList.add('hidden');
+        }
+    },
+
+    handleInventoryPhotoSelect: (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        // Validation: 1MB limit
+        if (file.size > 1024 * 1024) {
+            alert("File too large. Max size is 1MB.");
+            event.target.value = '';
+            return;
+        }
+
+        // Preview
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const preview = document.getElementById('inv-photo-preview');
+            const placeholder = document.getElementById('inv-photo-preview-placeholder');
+            if (preview) {
+                preview.src = e.target.result;
+                preview.classList.remove('hidden');
+            }
+            if (placeholder) placeholder.classList.add('hidden');
+        };
+        reader.readAsDataURL(file);
+    },
+
+    handleAddInventoryItem: async (event) => {
+        event.preventDefault();
+        const formData = new FormData(event.target);
+
+        const itemData = {
+            name: formData.get('name'),
+            price: parseFloat(formData.get('price')) || 0,
+            category: formData.get('category'),
+            unit: formData.get('unit'),
+            currentStock: parseInt(formData.get('currentStock')) || 0,
+            minimumLevel: parseInt(formData.get('minimumLevel')) || 0,
+            location: formData.get('location') || '',
+            orderId: formData.get('orderId') || null
+        };
+
+        const submitBtn = event.target.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+
+        try {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = "Saving...";
+
+            const { id, error } = await Inventory.addInventoryItem(itemData);
+
+            if (error) throw new Error(error);
+
+            // If it's a tool and has a photo selected
+            const photoInput = document.getElementById('inv-photo-input');
+            if (itemData.category === 'Tool' && photoInput.files[0]) {
+                submitBtn.innerHTML = "Uploading Photo...";
+                const photoResult = await Inventory.uploadToolPhoto(id, photoInput.files[0]);
+                if (photoResult.error) {
+                    alert("Item saved, but photo upload failed: " + photoResult.error);
+                }
+            }
+
+            window.adminApp.closeModal('add-inventory-modal');
+        } catch (err) {
+            alert("Failed to add item: " + err.message);
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
+    },
+
+    openAdjustStockModal: (itemId) => {
+        const item = currentInventory.find(i => i.id === itemId);
+        if (!item) return;
+
+        const form = document.getElementById('adjust-stock-form');
+        if (form) {
+            form.reset();
+            // Set default price from item
+            const priceInput = form.querySelector('input[name="price"]');
+            if (priceInput) priceInput.value = item.price || 0;
+        }
+
+        document.getElementById('adjust-item-id').value = item.id;
+        document.getElementById('adjust-item-name').value = item.name;
+        document.getElementById('adjust-item-name-text').textContent = item.name;
+        document.getElementById('adjust-current-stock-text').textContent = `${item.currentStock} ${item.unit}`;
+
+        // Populate Order ID dropdown
+        const orderSelect = document.getElementById('adjust-project-select');
+        if (orderSelect) {
+            const internalOrders = window.adminApp.getCurrentOrders ? window.adminApp.getCurrentOrders() : [];
+            orderSelect.innerHTML = '<option value="">-- No Order ID --</option>' +
+                internalOrders.map(o => {
+                    const id = o.internalOrderNo || o.id;
+                    return `<option value="${id}">${id} - ${o.customer || 'Order'}</option>`;
+                }).join('');
+        }
+
+        // Hide project section by default (only for OUT)
+        document.getElementById('adjust-project-section').classList.add('hidden');
+
+        window.adminApp.openModal('adjust-stock-modal');
+    },
+
+    onStockActionChange: (action) => {
+        const projectSection = document.getElementById('adjust-project-section');
+        if (projectSection) {
+            if (action === 'OUT') {
+                projectSection.classList.remove('hidden');
+            } else {
+                projectSection.classList.add('hidden');
+            }
+        }
+    },
+
+    handleAdjustStock: async (event) => {
+        event.preventDefault();
+        const formData = new FormData(event.target);
+
+        const itemId = formData.get('itemId');
+        const itemName = formData.get('itemName');
+        const type = formData.get('type');
+        const quantity = parseInt(formData.get('quantity'));
+        const reason = formData.get('reason');
+        const orderId = formData.get('orderId'); // Renamed from projectId
+        const unitPrice = parseFloat(formData.get('price')) || 0;
+        const performedBy = formData.get('performedBy') || 'Admin';
+
+        const submitBtn = document.getElementById('adjust-stock-submit');
+        const originalText = submitBtn.innerHTML;
+
+        try {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = "Updating...";
+
+            // Get category for transaction record
+            const item = currentInventory.find(i => i.id === itemId);
+            const category = item ? (item.category || 'General') : 'General';
+
+            const result = await Inventory.updateStock(itemId, itemName, type, quantity, reason, orderId, unitPrice, performedBy, category);
+            if (!result.success) throw new Error(result.error);
+
+            window.adminApp.closeModal('adjust-stock-modal');
+        } catch (err) {
+            alert("Update failed: " + err.message);
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
+    },
+
+    switchInventoryTab: (tab) => {
+        currentInventoryTab = tab;
+        const masterView = document.getElementById('subview-inventory-master');
+        const ledgerView = document.getElementById('subview-inventory-ledger');
+        const masterTabs = document.querySelectorAll('#tab-inventory-master');
+        const ledgerTabs = document.querySelectorAll('#tab-inventory-ledger');
+        const masterActions = document.getElementById('inventory-master-actions');
+        const ledgerActions = document.getElementById('inventory-ledger-actions');
+
+        if (tab === 'master') {
+            masterView.classList.remove('hidden');
+            ledgerView.classList.add('hidden');
+            masterTabs.forEach(t => t.classList.add('active'));
+            ledgerTabs.forEach(t => t.classList.remove('active'));
+            masterActions.classList.remove('hidden');
+            ledgerActions.classList.add('hidden');
+        } else {
+            masterView.classList.add('hidden');
+            ledgerView.classList.remove('hidden');
+            masterTabs.forEach(t => t.classList.remove('active'));
+            ledgerTabs.forEach(t => t.classList.add('active'));
+            masterActions.classList.add('hidden');
+            ledgerActions.classList.remove('hidden');
+            window.adminApp.loadInventoryTransactions();
+        }
+
+        // Apply current filters to the new tab
+        window.adminApp.filterInventory();
+    },
+
+    printInventoryLedger: () => {
+        const printDate = document.getElementById('ledger-print-date');
+        if (printDate) printDate.textContent = new Date().toLocaleString();
+
+        window.print();
+    },
+
+    toggleInventoryTransactions: () => {
+        window.adminApp.switchInventoryTab('ledger');
+    },
+
+    loadInventoryTransactions: async () => {
+        // Use a persistent listener for transactions if not already set
+        if (!transactionUnsubscribe) {
+            transactionUnsubscribe = Inventory.getInventoryTransactions((transactions) => {
+                currentTransactions = transactions;
+                window.adminApp.renderInventoryTransactions(transactions);
+            });
+        }
+    },
+
+    renderInventoryTransactions: (transactions) => {
+        const body = document.getElementById('inventory-ledger-body');
+        if (!body) return;
+
+        if (!transactions || transactions.length === 0) {
+            body.innerHTML = '<tr><td colspan="9" class="p-8 text-center text-slate-400 italic">No transactions found.</td></tr>';
+            return;
+        }
+
+        body.innerHTML = transactions.map(t => {
+            const date = t.timestamp?.toDate ? t.timestamp.toDate() : (t.timestamp?.seconds ? new Date(t.timestamp.seconds * 1000) : new Date());
+            const formattedDate = date.toLocaleDateString();
+            const formattedTime = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            const unitPrice = t.unitPrice || 0;
+            const totalCost = t.totalCost || (t.quantity * unitPrice);
+
+            return `
+                <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                    <td class="p-3">
+                        <div class="text-slate-800 font-bold text-xs">${formattedDate}</div>
+                        <div class="text-slate-400 text-[10px] uppercase">${formattedTime}</div>
+                    </td>
+                    <td class="p-3 font-medium text-slate-700">${t.itemName}</td>
+                    <td class="p-3 text-slate-500 font-medium text-xs">${t.category || 'General'}</td>
+                    <td class="p-3"><span class="inv-trans-type ${t.type.toLowerCase()}">${t.type}</span></td>
+                    <td class="p-3 text-center font-bold ${t.type === 'IN' ? 'text-green-600' : 'text-red-600'}">${t.type === 'IN' ? '+' : '-'}${t.quantity}</td>
+                    <td class="p-3 font-mono text-slate-600 text-xs">₹${unitPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                    <td class="p-3 font-bold text-slate-800 text-xs">₹${totalCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                    <td class="p-3 text-slate-500 text-xs truncate max-w-[150px]" title="${t.reason || ''}">${t.reason || '-'}</td>
+                    <td class="p-3 text-teal-600 font-bold text-xs">${t.orderId || '-'}</td>
+                </tr>
+            `;
+        }).join('');
+    },
+
+    filterInventory: () => {
+        const searchTerm = document.getElementById('inv-search')?.value.toLowerCase();
+        const categoryFilter = document.getElementById('inv-category-filter')?.value;
+        const statusFilter = document.getElementById('inv-status-filter')?.value;
+
+        if (currentInventoryTab === 'master') {
+            const filteredItems = currentInventory.filter(item => {
+                const matchesSearch = !searchTerm ||
+                    item.name.toLowerCase().includes(searchTerm) ||
+                    (item.location && item.location.toLowerCase().includes(searchTerm)) ||
+                    (item.lastReason && item.lastReason.toLowerCase().includes(searchTerm));
+
+                const matchesCategory = categoryFilter === 'all' || item.category === categoryFilter;
+
+                let matchesStatus = true;
+                if (statusFilter !== 'all') {
+                    const isLow = item.currentStock <= item.minimumLevel;
+                    if (statusFilter === 'In Stock') matchesStatus = item.currentStock > 0 && !isLow;
+                    else if (statusFilter === 'Low Stock') matchesStatus = isLow && item.currentStock > 0;
+                    else if (statusFilter === 'Out of Stock') matchesStatus = item.currentStock === 0;
+                }
+
+                return matchesSearch && matchesCategory && matchesStatus;
+            });
+            window.adminApp.renderInventoryList(filteredItems);
+        } else {
+            const filteredTrans = currentTransactions.filter(t => {
+                const matchesSearch = !searchTerm ||
+                    t.itemName.toLowerCase().includes(searchTerm) ||
+                    (t.reason && t.reason.toLowerCase().includes(searchTerm)) ||
+                    (t.orderId && t.orderId.toLowerCase().includes(searchTerm));
+
+                const matchesCategory = categoryFilter === 'all' || t.category === categoryFilter;
+
+                return matchesSearch && matchesCategory;
+            });
+            window.adminApp.renderInventoryTransactions(filteredTrans);
+        }
+    },
+
+    openPhotoViewer: (url, name) => {
+        const img = document.getElementById('inventory-viewer-img');
+        const title = document.getElementById('inventory-viewer-title');
+        if (img) img.src = url;
+        if (title) title.textContent = name || 'Item Detail';
+        window.adminApp.openModal('inventory-image-viewer');
     },
 
     // === CONTRACT REVIEW ===
@@ -1498,6 +2033,13 @@ window.adminApp = {
             modal.classList.remove('active');
             // Wait for transition to finish before hiding
             setTimeout(() => modal.classList.add('hidden'), 300);
+        }
+    },
+
+    toggleSidebarGroup: (header) => {
+        const group = header.parentElement;
+        if (group) {
+            group.classList.toggle('collapsed');
         }
     },
 
@@ -3115,5 +3657,12 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
         const savedMode = localStorage.getItem('projectViewMode') || 'grid';
         window.adminApp.setProjectView(savedMode);
+
+        // Handle initial view logic
+        const activeView = UI.getActiveView();
+        if (activeView === 'inventory_management') {
+            console.log("Auto-initializing inventory on load");
+            window.adminApp.initInventory();
+        }
     }, 100);
 });

@@ -321,80 +321,121 @@
             </div>
 
             <nav class="sidebar-nav">
-                <ul class="nav-list">
-                    <li class="nav-item">
-                        <a href="#" class="nav-link active" data-view="overview">
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                            </svg>
-                            Dashboard
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="#" class="nav-link" data-view="monitoring">
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                            </svg>
-                            Internal Orders
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="#" class="nav-link" data-view="pending_assignment">
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                            </svg>
-                            Pending Assignment
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="#" class="nav-link" data-view="delivery_report">
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                            Delivery Report
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="#" class="nav-link" data-view="team_org">
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                            </svg>
-                            Team &amp; Organization
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="#" class="nav-link" data-view="reports">
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                            Daily Reports
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="#" class="nav-link" data-view="inventory_management">
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                            </svg>
-                            Inventory Management
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="#" class="nav-link" data-view="project_management">
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                            </svg>
-                            Project Management
-                        </a>
-                    </li>
-                </ul>
+                <div class="sidebar-group">
+                    <div class="sidebar-group-header" onclick="window.adminApp.toggleSidebarGroup(this)">
+                        <span>General</span>
+                        <svg class="group-toggle-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </div>
+                    <ul class="nav-list">
+                        <li class="nav-item">
+                            <a href="#" class="nav-link active" data-view="overview">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                                </svg>
+                                Dashboard
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="sidebar-group">
+                    <div class="sidebar-group-header" onclick="window.adminApp.toggleSidebarGroup(this)">
+                        <span>Operations</span>
+                        <svg class="group-toggle-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </div>
+                    <ul class="nav-list">
+                        <li class="nav-item">
+                            <a href="#" class="nav-link" data-view="monitoring">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                                </svg>
+                                Internal Orders
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#" class="nav-link" data-view="pending_assignment">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                                </svg>
+                                Pending Assignment
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#" class="nav-link" data-view="delivery_report">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                Delivery Report
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="sidebar-group">
+                    <div class="sidebar-group-header" onclick="window.adminApp.toggleSidebarGroup(this)">
+                        <span>Planning & Assets</span>
+                        <svg class="group-toggle-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </div>
+                    <ul class="nav-list">
+                        <li class="nav-item">
+                            <a href="#" class="nav-link" data-view="project_management">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                                </svg>
+                                Project Management
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#" class="nav-link" data-view="inventory_management">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                </svg>
+                                Inventory Management
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="sidebar-group">
+                    <div class="sidebar-group-header" onclick="window.adminApp.toggleSidebarGroup(this)">
+                        <span>Management</span>
+                        <svg class="group-toggle-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </div>
+                    <ul class="nav-list">
+                        <li class="nav-item">
+                            <a href="#" class="nav-link" data-view="team_org">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                                </svg>
+                                Team &amp; Organization
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#" class="nav-link" data-view="reports">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                Daily Reports
+                            </a>
+                        </li>
+                    </ul>
+                </div>
             </nav>
 
             <div class="sidebar-footer">
@@ -981,18 +1022,185 @@
                     </div>
                 </section>
 
-                <!-- View: Inventory Management (Coming Soon) -->
+                <!-- View: Inventory Management -->
                 <section id="view-inventory_management" class="view-section hidden">
-                    <div class="coming-soon-container">
-                        <div class="coming-soon-icon">📦</div>
-                        <h1 class="coming-soon-title">Inventory Management</h1>
-                        <p class="coming-soon-text">
-                            We're building a powerful inventory tracking system to help you manage raw materials,
-                            stock levels, and supplier orders with ease.
-                        </p>
-                        <div
-                            class="inline-flex items-center px-6 py-3 rounded-full bg-teal-50 text-teal-700 font-bold border border-teal-100">
-                            🚀 Launching Soon
+                    <!-- Header Bar -->
+                    <div class="pm-header inventory-header">
+                        <div class="pm-header-title">
+                            <div style="display: flex; align-items: center; gap: 1rem;">
+                                <h2>📦 Inventory Management</h2>
+                                <span class="pm-header-badge inventory">Stock Control</span>
+                            </div>
+                        </div>
+                        <div class="pm-header-actions">
+                            <!-- MASTER ACTIONS -->
+                            <div id="inventory-master-actions" class="flex gap-2">
+                                <button id="inventory-trash-btn" class="pm-trash-toggle"
+                                    onclick="window.adminApp.toggleInventoryTrash()">
+                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                    <span>Trash</span>
+                                </button>
+                                <button class="btn btn-primary" onclick="window.adminApp.openAddInventoryModal()">
+                                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M12 4v16m8-8H4" />
+                                    </svg>
+                                    Add New Item
+                                </button>
+                            </div>
+
+                            <!-- LEDGER ACTIONS -->
+                            <div id="inventory-ledger-actions" class="flex gap-2 hidden">
+                                <button class="btn btn-secondary" onclick="window.adminApp.printInventoryLedger()">
+                                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                    </svg>
+                                    Print Ledger
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SHARED FILTERS & TABS -->
+                    <div class="pm-stats-ribbon inventory-stats">
+                        <div class="pm-stat-card">
+                            <div class="pm-stat-icon total">📦</div>
+                            <div>
+                                <div class="pm-stat-value" id="inv-stat-total">0</div>
+                                <div class="pm-stat-label">Total Items</div>
+                            </div>
+                        </div>
+                        <div class="pm-stat-card">
+                            <div class="pm-stat-icon alert">⚠️</div>
+                            <div>
+                                <div class="pm-stat-value text-red-600" id="inv-stat-low">0</div>
+                                <div class="pm-stat-label">Low Stock</div>
+                            </div>
+                        </div>
+                        <div class="pm-stat-card">
+                            <div class="pm-stat-icon val">💰</div>
+                            <div>
+                                <div class="pm-stat-value" id="inv-stat-value">₹0</div>
+                                <div class="pm-stat-label">Total Value</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="pm-filter-bar inventory-filters" style="margin-bottom: 0.5rem;">
+                        <div class="filter-group">
+                            <label class="filter-label">Search Inventory & History</label>
+                            <input type="text" id="inv-search" class="filter-input" placeholder="Name, ID or Bin..."
+                                oninput="window.adminApp.filterInventory()">
+                        </div>
+                        <div class="filter-group">
+                            <label class="filter-label">Category</label>
+                            <select id="inv-category-filter" class="filter-input"
+                                onchange="window.adminApp.filterInventory()">
+                                <option value="all">All Categories</option>
+                                <option value="Raw Material">Raw Material</option>
+                                <option value="Consumable">Consumable</option>
+                                <option value="Tool">Tool</option>
+                                <option value="Fastener">Fastener</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label class="filter-label">Status</label>
+                            <select id="inv-status-filter" class="filter-input"
+                                onchange="window.adminApp.filterInventory()">
+                                <option value="all">All Status</option>
+                                <option value="In Stock">In Stock</option>
+                                <option value="Low Stock">Low Stock</option>
+                                <option value="Out of Stock">Out of Stock</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="tabs inventory-sub-tabs" style="margin-bottom: 1.5rem; padding: 0 1rem;">
+                        <button id="tab-inventory-master" class="tab-btn active"
+                            onclick="window.adminApp.switchInventoryTab('master')">Item Master</button>
+                        <button id="tab-inventory-ledger" class="tab-btn"
+                            onclick="window.adminApp.switchInventoryTab('ledger')">Transaction Ledger</button>
+                    </div>
+
+                    <!-- SUBVIEW: ITEM MASTER -->
+                    <div id="subview-inventory-master">
+
+                        <!-- Inventory Master Table -->
+                        <div class="pm-table-container inventory-table-container">
+                            <table class="pm-table inventory-table">
+                                <thead class="cr-emerald-header">
+                                    <tr>
+                                        <th class="cr-emerald-bg">Item Details</th>
+                                        <th class="cr-emerald-bg">Category</th>
+                                        <th class="cr-emerald-bg">Location</th>
+                                        <th class="cr-emerald-bg text-center">Current Stock</th>
+                                        <th class="cr-emerald-bg">Status</th>
+                                        <th class="cr-emerald-bg text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="inventory-list-body">
+                                    <tr>
+                                        <td colspan="6" class="p-12 text-center text-slate-400">
+                                            <div class="flex flex-col items-center gap-3">
+                                                <div
+                                                    class="animate-pulse bg-slate-100 w-12 h-12 rounded-full flex items-center justify-center">
+                                                    📦</div>
+                                                <span>Loading inventory master...</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- SUBVIEW: TRANSACTION LEDGER -->
+                    <div id="subview-inventory-ledger" class="hidden">
+                        <div class="pm-table-container" id="inventory-ledger-print-area">
+                            <!-- Print Header (Hidden on screen) -->
+                            <div class="print-only"
+                                style="display: none; margin-bottom: 2rem; border-bottom: 2px solid #059669; padding-bottom: 1rem;">
+                                <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+                                    <div>
+                                        <h1
+                                            style="font-size: 24px; color: #059669; font-weight: 800; margin-bottom: 0.25rem;">
+                                            INVENTORY TRANSACTION LEDGER</h1>
+                                        <p style="color: #64748b; font-size: 14px;">Innovative Engineering Solutions -
+                                            Asset Management</p>
+                                    </div>
+                                    <div style="text-align: right;">
+                                        <p style="font-size: 12px; color: #94a3b8;">Report Generated: <span
+                                                id="ledger-print-date"></span></p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <table class="pm-table">
+                                <thead class="cr-emerald-header sticky top-0 z-10">
+                                    <tr>
+                                        <th class="cr-emerald-bg">Timestamp</th>
+                                        <th class="cr-emerald-bg">Item</th>
+                                        <th class="cr-emerald-bg">Category</th>
+                                        <th class="cr-emerald-bg">Type</th>
+                                        <th class="cr-emerald-bg text-center">Qty</th>
+                                        <th class="cr-emerald-bg">Cost / Unit</th>
+                                        <th class="cr-emerald-bg">Total value</th>
+                                        <th class="cr-emerald-bg">Reason</th>
+                                        <th class="cr-emerald-bg">Order ID</th>
+                                        <th class="cr-emerald-bg">By</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="inventory-ledger-body">
+                                    <tr>
+                                        <td colspan="9" class="p-12 text-center text-slate-400">Loading ledger data...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </section>
@@ -2543,6 +2751,254 @@
 
 
 
+    <!-- ============================================
+         MODAL: Add Inventory Item
+         ============================================ -->
+    <div id="add-inventory-modal" class="modal hidden">
+        <div class="modal-backdrop" onclick="window.adminApp.closeModal('add-inventory-modal')"></div>
+        <div class="modal-content" style="max-width: 500px; padding: 0; overflow: hidden; border-radius: 16px;">
+            <div class="modal-header cr-emerald-header" style="padding: 1.25rem 1.5rem;">
+                <h3 class="modal-title"
+                    style="color: white; font-weight: 800; letter-spacing: 0.025em; display: flex; align-items: center; gap: 0.75rem;">
+                    <span>📦</span> ADD NEW INVENTORY ITEM
+                </h3>
+                <button class="modal-close" onclick="window.adminApp.closeModal('add-inventory-modal')"
+                    style="color: white; opacity: 0.8; transition: opacity 0.2s;">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 24px; height: 24px;">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <form id="add-inventory-form" onsubmit="window.adminApp.handleAddInventoryItem(event)"
+                style="background: white;">
+                <div class="modal-body" style="padding: 1.5rem; max-height: 70vh; overflow-y: auto;">
+                    <div class="space-y-4">
+                        <div class="form-group">
+                            <label class="form-label"
+                                style="font-size: 0.7rem; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; display: block; text-align: center;">Item
+                                Name</label>
+                            <input type="text" name="name" class="form-input" required
+                                style="height: 48px; border-radius: 10px; border: 1px solid #e2e8f0; padding: 0 1rem; font-weight: 600;"
+                                placeholder="e.g. M20 Stainless Bolt">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label"
+                                style="font-size: 0.7rem; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; display: block; text-align: center;">Unit
+                                Price / Cost</label>
+                            <input type="number" name="price" class="form-input" step="0.01"
+                                style="height: 48px; border-radius: 10px; border: 1px solid #e2e8f0; padding: 0 1rem; text-align: center; font-weight: 700; color: #059669;"
+                                placeholder="0.00">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="form-group">
+                                <label class="form-label"
+                                    style="font-size: 0.7rem; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; display: block; text-align: center;">Category</label>
+                                <select name="category" class="form-input"
+                                    style="height: 48px; border-radius: 10px; font-weight: 600;" required
+                                    onchange="window.adminApp.onInventoryCategoryChange(this.value)">
+                                    <option value="Raw Material">Raw Material</option>
+                                    <option value="Component">Component</option>
+                                    <option value="Tool">Tool / Equipment</option>
+                                    <option value="Consumable">Consumable</option>
+                                    <option value="Fastener">Fastener</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label"
+                                    style="font-size: 0.7rem; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; display: block; text-align: center;">Unit</label>
+                                <input type="text" name="unit" class="form-input" required
+                                    style="height: 48px; border-radius: 10px; border: 1px solid #e2e8f0; padding: 0 1rem; text-align: center;"
+                                    placeholder="Nos, Kg, Pkts">
+                            </div>
+                        </div>
+
+                        <!-- Tool Photo Section (Conditional) -->
+                        <div id="inv-photo-section" class="form-group hidden">
+                            <label class="form-label"
+                                style="font-size: 0.7rem; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; display: block; text-align: center;">Tool
+                                Photo (Max 1MB)</label>
+                            <div class="inventory-preview-container"
+                                onclick="document.getElementById('inv-photo-input').click()"
+                                style="border-radius: 12px; height: 140px; border: 2px dashed #cbd5e1; background: #f8fafc; cursor: pointer; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+                                <input type="file" id="inv-photo-input" class="hidden" accept="image/*"
+                                    onchange="window.adminApp.handleInventoryPhotoSelect(event)">
+                                <div id="inv-photo-preview-placeholder" class="text-center">
+                                    <span style="font-size: 2rem;">📸</span>
+                                    <p class="text-[10px] text-slate-400 mt-2 font-bold uppercase tracking-wider">Click
+                                        to upload photo</p>
+                                </div>
+                                <img id="inv-photo-preview" class="inventory-preview-img hidden"
+                                    style="width: 100%; height: 100%; object-fit: cover;">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="form-group">
+                                <label class="form-label"
+                                    style="font-size: 0.7rem; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; display: block; text-align: center;">Initial
+                                    Stock</label>
+                                <input type="number" name="currentStock" class="form-input"
+                                    style="height: 48px; border-radius: 10px; text-align: center; font-weight: 700;"
+                                    value="0" min="0">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label"
+                                    style="font-size: 0.7rem; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; display: block; text-align: center;">Min
+                                    level (Alert)</label>
+                                <input type="number" name="minimumLevel" class="form-input"
+                                    style="height: 48px; border-radius: 10px; text-align: center; font-weight: 700; color: #ef4444;"
+                                    value="5" min="0">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label"
+                                style="font-size: 0.7rem; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; display: block; text-align: center;">Initially
+                                Link to Order ID</label>
+                            <select name="orderId" class="form-input"
+                                style="height: 48px; border-radius: 10px; font-weight: 600;">
+                                <option value="">-- No Order ID --</option>
+                                <!-- Will be populated by JS -->
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label"
+                                style="font-size: 0.7rem; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; display: block; text-align: center;">Storage
+                                Location (Bin/Rack)</label>
+                            <input type="text" name="location" class="form-input"
+                                style="height: 48px; border-radius: 10px; border: 1px solid #e2e8f0; padding: 0 1rem;"
+                                placeholder="e.g. Rack A-04">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer"
+                    style="padding: 1.25rem 1.5rem; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 1rem;">
+                    <button type="button" class="btn btn-secondary"
+                        onclick="window.adminApp.closeModal('add-inventory-modal')"
+                        style="height: 44px; padding: 0 1.5rem; border-radius: 10px;">Cancel</button>
+                    <button type="submit" class="btn btn-primary"
+                        style="height: 44px; padding: 0 2rem; border-radius: 10px; font-weight: 700;">Add Item</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ============================================
+         MODAL: Adjust Stock (In/Out)
+         ============================================ -->
+    <div id="adjust-stock-modal" class="modal hidden">
+        <div class="modal-backdrop" onclick="window.adminApp.closeModal('adjust-stock-modal')"></div>
+        <div class="modal-content" style="max-width: 450px; padding: 0; overflow: hidden; border-radius: 16px;">
+            <div class="modal-header cr-emerald-header" style="padding: 1.25rem 1.5rem;">
+                <h3 class="modal-title"
+                    style="color: white; font-weight: 800; letter-spacing: 0.025em; display: flex; align-items: center; gap: 0.75rem;">
+                    <span>🔄</span> ADJUST STOCK LEVEL
+                </h3>
+                <button class="modal-close" onclick="window.adminApp.closeModal('adjust-stock-modal')"
+                    style="color: white; opacity: 0.8;">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 24px; height: 24px;">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <form id="adjust-stock-form" onsubmit="window.adminApp.handleAdjustStock(event)" style="background: white;">
+                <input type="hidden" name="itemId" id="adjust-item-id">
+                <input type="hidden" name="itemName" id="adjust-item-name">
+                <div class="modal-body" style="padding: 1.5rem;">
+                    <div id="adjust-item-display"
+                        style="margin-bottom: 1.5rem; padding: 1.25rem; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                        <div
+                            style="font-size: 0.65rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.075em; margin-bottom: 0.5rem;">
+                            Item Selected</div>
+                        <div class="font-bold text-slate-800" id="adjust-item-name-text"
+                            style="font-size: 1.125rem; line-height: 1.2;">-</div>
+                        <div style="font-size: 0.8125rem; color: #64748b; margin-top: 0.25rem;">Current Stock: <span
+                                id="adjust-current-stock-text" class="font-bold text-teal-600">0</span></div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4 mb-5">
+                        <div class="form-group">
+                            <label class="form-label"
+                                style="font-size: 0.7rem; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; display: block; text-align: center;">Action
+                                Type</label>
+                            <select name="type" class="form-input"
+                                style="height: 44px; border-radius: 10px; font-weight: 600;" required
+                                onchange="window.adminApp.onStockActionChange(this.value)">
+                                <option value="IN">ADD (+ Stock In)</option>
+                                <option value="OUT">USE (- Stock Out)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label"
+                                style="font-size: 0.7rem; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; display: block; text-align: center;">Quantity</label>
+                            <input type="number" name="quantity" class="form-input"
+                                style="height: 44px; border-radius: 10px; text-align: center; font-weight: 700; font-size: 1rem;"
+                                min="1" required>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4 mb-5">
+                        <div class="form-group">
+                            <label class="form-label"
+                                style="font-size: 0.7rem; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; display: block; text-align: center;">Cost
+                                per Unit</label>
+                            <input type="number" name="price" step="0.01" class="form-input"
+                                style="height: 44px; border-radius: 10px; text-align: center; font-weight: 700; color: #059669;"
+                                placeholder="0.00">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label"
+                                style="font-size: 0.7rem; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; display: block; text-align: center;">Performed
+                                By</label>
+                            <input type="text" name="performedBy" class="form-input"
+                                style="height: 44px; border-radius: 10px; padding: 0 1rem;" placeholder="Name/Inits">
+                        </div>
+                    </div>
+
+                    <div class="form-group mb-5">
+                        <label class="form-label"
+                            style="font-size: 0.7rem; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; display: block; text-align: center;">Reason
+                            / Reference</label>
+                        <input type="text" name="reason" class="form-input"
+                            style="height: 44px; border-radius: 10px; padding: 0 1rem;"
+                            placeholder="e.g. Purchase Invoice #1234, Maintenance">
+                    </div>
+
+                    <!-- Order ID Linking (Conditional) -->
+                    <div id="adjust-project-section" class="form-group hidden">
+                        <label class="form-label"
+                            style="font-size: 0.7rem; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; display: block; text-align: center;">Link
+                            to Order ID (Optional)</label>
+                        <select name="orderId" id="adjust-project-select" class="form-input"
+                            style="height: 44px; border-radius: 10px;">
+                            <option value="">-- No Order ID --</option>
+                            <!-- Order IDs will be injected here -->
+                        </select>
+                        <p
+                            style="font-size: 0.65rem; color: #94a3b8; margin-top: 0.5rem; font-style: italic; text-align: center;">
+                            Tracks material usage against a specific Order.</p>
+                    </div>
+                </div>
+                <div class="modal-footer"
+                    style="padding: 1.25rem 1.5rem; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 1rem;">
+                    <button type="button" class="btn btn-secondary"
+                        onclick="window.adminApp.closeModal('adjust-stock-modal')"
+                        style="height: 44px; padding: 0 1.25rem; border-radius: 10px;">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="adjust-stock-submit"
+                        style="height: 44px; padding: 0 1.5rem; border-radius: 10px; font-weight: 700;">Update
+                        Stock</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
     <!-- Confirmation Modal -->
     <div id="confirm-modal" class="modal">
         <div class="modal-overlay" onclick="window.adminApp.closeModal('confirm-modal')"></div>
@@ -2562,6 +3018,28 @@
                 <button id="confirm-yes-btn" class="btn btn-primary"
                     style="background: #ef4444 !important; border-color: #ef4444;">Yes, Proceed</button>
             </div>
+        </div>
+    </div>
+
+    <!-- ============================================
+         MODAL: Inventory Image Viewer
+         ============================================ -->
+    <div id="inventory-image-viewer" class="modal hidden" style="z-index: 10000;">
+        <div class="modal-backdrop" onclick="window.adminApp.closeModal('inventory-image-viewer')"
+            style="background: rgba(0,0,0,0.9);"></div>
+        <div class="modal-content"
+            style="max-width: 90vw; max-height: 90vh; background: transparent; box-shadow: none; border: none; padding: 0; display: flex; flex-direction: column; align-items: center; overflow: visible !important;">
+            <div id="inventory-viewer-title"
+                style="color: white; font-size: 1.25rem; font-weight: 700; margin-bottom: 1rem; text-shadow: 0 2px 4px rgba(0,0,0,0.5); text-align: center;">
+            </div>
+            <button class="modal-close" onclick="window.adminApp.closeModal('inventory-image-viewer')"
+                style="position: absolute; top: 10px; right: 10px; color: white; background: rgba(255,255,255,0.25); border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.4); z-index: 100; transition: all 0.2s;">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 28px; height: 28px;">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+            <img id="inventory-viewer-img" src="" alt="Inventory Detail"
+                style="max-width: 100%; max-height: 85vh; object-fit: contain; border-radius: 8px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);">
         </div>
     </div>
 

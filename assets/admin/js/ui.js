@@ -85,7 +85,11 @@ export const setupNavigation = () => {
         link.addEventListener('click', (e) => {
             e.preventDefault();
             const view = link.getAttribute('data-view');
-            switchView(view);
+            if (window.adminApp && window.adminApp.switchView) {
+                window.adminApp.switchView(view);
+            } else {
+                switchView(view);
+            }
         });
     });
 };

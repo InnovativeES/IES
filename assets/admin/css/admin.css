@@ -637,6 +637,65 @@ h4 {
     opacity: 1;
 }
 
+/* Sidebar Grouping & Collapsible Sections */
+.sidebar-group {
+    margin-bottom: 0.5rem;
+}
+
+.sidebar-group-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1.125rem;
+    cursor: pointer;
+    font-size: 0.65rem;
+    font-weight: 800;
+    color: var(--slate-500);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+
+.sidebar-group-header:hover {
+    color: var(--slate-300);
+}
+
+.group-toggle-icon {
+    width: 12px;
+    height: 12px;
+    transition: transform 0.3s ease;
+    opacity: 0.5;
+}
+
+.sidebar-group.collapsed .group-toggle-icon {
+    transform: rotate(-90deg);
+}
+
+.sidebar-group.collapsed .nav-list {
+    display: none;
+}
+
+/* Hide headers in collapsed sidebar */
+.sidebar-collapsed .sidebar-group-header {
+    display: none;
+}
+
+.sidebar-collapsed .sidebar-group {
+    margin-bottom: 0.25rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    padding-bottom: 0.25rem;
+}
+
+.sidebar-collapsed .sidebar-group:last-child {
+    border-bottom: none;
+}
+
+.sidebar-collapsed .sidebar-group.collapsed .nav-list {
+    display: block;
+    /* Always show icons when collapsed */
+}
+
 .sidebar-footer {
     padding: 1.25rem;
     border-top: 1px solid var(--sidebar-border);
