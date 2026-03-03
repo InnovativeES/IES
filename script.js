@@ -142,7 +142,7 @@ function initScrollAnimations() {
     const animatableElements = document.querySelectorAll(
         '.service-card, .feature-item, .infra-card, .portfolio-item, .gallery-item, ' +
         '.about-content, .about-image, .contact-info, .contact-form-wrapper, ' +
-        '.process-step'
+        '.process-step, .rp-card, .rp-flow-item, .rp-bottom'
     );
 
     animatableElements.forEach(el => {

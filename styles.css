@@ -911,8 +911,9 @@ h6 {
     content: '';
     position: absolute;
     inset: 0;
-    background: url('assets/capabilities-bg.png') center/cover no-repeat;
-    opacity: 0.25;
+    background:
+        radial-gradient(ellipse at 15% 50%, rgba(16, 185, 129, 0.08) 0%, transparent 50%),
+        radial-gradient(ellipse at 85% 30%, rgba(59, 130, 246, 0.05) 0%, transparent 40%);
     pointer-events: none;
 }
 
@@ -1768,6 +1769,343 @@ textarea {
 .animate-on-scroll.animated {
     opacity: 1;
     transform: translateY(0);
+}
+
+/* ==========================================
+   RAPID PROTOTYPING SECTION
+   ========================================== */
+.rapid-proto {
+    background: linear-gradient(135deg, var(--gray-900), var(--primary-900));
+    padding: var(--space-20) 0;
+    position: relative;
+    overflow: hidden;
+}
+
+.rapid-proto::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(ellipse at 15% 50%, rgba(16, 185, 129, 0.08) 0%, transparent 50%),
+        radial-gradient(ellipse at 85% 30%, rgba(59, 130, 246, 0.05) 0%, transparent 40%);
+    pointer-events: none;
+}
+
+/* --- Header --- */
+.rp-header {
+    text-align: center;
+    margin-bottom: var(--space-12);
+    position: relative;
+    z-index: 1;
+}
+
+.rp-tag {
+    display: inline-block;
+    font-size: var(--text-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--primary-400);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    padding: var(--space-1) var(--space-4);
+    border-radius: var(--radius-full);
+    margin-bottom: var(--space-4);
+}
+
+.rp-header h2 {
+    font-family: var(--font-display);
+    font-size: var(--text-4xl);
+    font-weight: 800;
+    color: var(--white);
+    margin-bottom: var(--space-3);
+}
+
+.rp-accent {
+    color: var(--primary-400);
+}
+
+.rp-subtitle {
+    font-size: var(--text-lg);
+    color: var(--gray-400);
+    margin-bottom: var(--space-6);
+}
+
+.rp-desc {
+    font-size: var(--text-base);
+    color: var(--gray-500);
+    max-width: 720px;
+    margin: 0 auto;
+    line-height: 1.7;
+}
+
+/* --- Capabilities Grid --- */
+.rp-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+    margin-bottom: var(--space-12);
+    position: relative;
+    z-index: 1;
+}
+
+@media (min-width: 640px) {
+    .rp-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (min-width: 1024px) {
+    .rp-grid {
+        grid-template-columns: repeat(5, 1fr);
+    }
+}
+
+.rp-card {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius-xl);
+    padding: var(--space-6) var(--space-5);
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    transition: all var(--transition-base);
+}
+
+.rp-card:hover {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: var(--primary-500);
+    transform: translateY(-4px);
+}
+
+.rp-card-accent {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 40px;
+    height: 3px;
+    background: linear-gradient(90deg, var(--primary-400), var(--primary-600));
+    border-radius: 0 0 2px 2px;
+}
+
+.rp-card h4 {
+    font-size: var(--text-sm);
+    font-weight: 700;
+    color: var(--white);
+    margin-bottom: var(--space-2);
+    margin-top: var(--space-2);
+}
+
+.rp-card p {
+    font-size: var(--text-xs);
+    color: var(--gray-500);
+    line-height: 1.5;
+}
+
+/* --- Process Flow --- */
+.rp-flow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-10);
+    position: relative;
+    z-index: 1;
+}
+
+.rp-flow-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.rp-flow-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: var(--radius-full);
+    background: var(--primary-600);
+    color: var(--white);
+    font-family: var(--font-display);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.rp-flow-item>span:last-child {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--gray-300);
+}
+
+.rp-flow-arrow {
+    color: var(--gray-600);
+    font-size: var(--text-lg);
+    padding: 0 var(--space-1);
+}
+
+/* --- Bottom Bar --- */
+.rp-bottom {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-6);
+    padding: var(--space-8) var(--space-6);
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius-2xl);
+    position: relative;
+    z-index: 1;
+}
+
+@media (min-width: 768px) {
+    .rp-bottom {
+        flex-direction: row;
+        justify-content: space-between;
+    }
+}
+
+.rp-strengths {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--space-2) var(--space-5);
+}
+
+.rp-strengths span {
+    font-size: var(--text-xs);
+    font-weight: 500;
+    color: var(--gray-400);
+    white-space: nowrap;
+}
+
+.rp-btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+/* --- Credibility Metrics Strip --- */
+.rp-metrics {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-6);
+    margin-bottom: var(--space-10);
+    padding: var(--space-5) var(--space-4);
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius-xl);
+    position: relative;
+    z-index: 1;
+    flex-wrap: wrap;
+}
+
+.rp-metric {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 0 var(--space-4);
+}
+
+.rp-metric:not(:last-child) {
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.rp-metric-value {
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
+    font-weight: 800;
+    color: var(--primary-400);
+    letter-spacing: -0.01em;
+}
+
+.rp-metric-label {
+    font-size: var(--text-xs);
+    font-weight: 500;
+    color: var(--gray-500);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+/* --- Card Icons --- */
+.rp-card-icon {
+    width: 32px;
+    height: 32px;
+    margin: var(--space-2) auto var(--space-3);
+    color: var(--primary-400);
+    opacity: 0.8;
+    transition: opacity var(--transition-base);
+}
+
+.rp-card:hover .rp-card-icon {
+    opacity: 1;
+}
+
+.rp-card-icon svg {
+    width: 100%;
+    height: 100%;
+}
+
+/* Card micro-enhancements */
+.rp-card:hover {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: var(--primary-500);
+    transform: translateY(-6px);
+    box-shadow: 0 12px 32px rgba(16, 185, 129, 0.12);
+}
+
+/* Improved paragraph contrast */
+.rp-desc {
+    font-size: var(--text-base);
+    color: var(--gray-400);
+    max-width: 720px;
+    margin: 0 auto;
+    line-height: 1.7;
+}
+
+.rp-card p {
+    font-size: var(--text-xs);
+    color: var(--gray-400);
+    line-height: 1.5;
+}
+
+/* Process flow small text */
+.rp-flow-item small {
+    font-size: var(--text-xs);
+    color: var(--gray-500);
+    font-weight: 400;
+}
+
+/* --- Bottom CTA & Tagline --- */
+.rp-bottom-cta {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-3);
+    flex-shrink: 0;
+}
+
+.rp-tagline {
+    font-family: var(--font-display);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--gray-300);
+    font-style: italic;
+    margin: 0;
+}
+
+/* --- Compatibility Line --- */
+.rp-compat {
+    text-align: center;
+    font-size: var(--text-xs);
+    color: var(--gray-600);
+    margin-top: var(--space-6);
+    position: relative;
+    z-index: 1;
+    letter-spacing: 0.02em;
 }
 
 /* ==========================================
