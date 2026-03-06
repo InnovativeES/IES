@@ -74,16 +74,41 @@
 }
 
 /* === HEADER BAR === */
-.pm-header {
+.pm-header,
+.dd-header,
+.inventory-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: white;
+    background: linear-gradient(135deg, #059669 0%, #065f46 100%) !important;
     padding: 1rem 1.5rem;
     border-radius: 14px;
-    border: 1px solid #e2e8f0;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    border: 1px solid #065f46;
+    box-shadow: 0 4px 12px rgba(5, 150, 105, 0.15);
     margin-bottom: 1.5rem;
+    color: #ffffff !important;
+}
+
+.pm-header-title h2,
+.dd-project-name,
+.inventory-header h2 {
+    color: #ffffff !important;
+}
+
+
+.pm-header-badges {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.pm-header .badge {
+    background: rgba(255, 255, 255, 0.15) !important;
+    backdrop-filter: blur(4px);
+    color: #ffffff !important;
+    border: 1px solid rgba(255, 255, 255, 0.3) !important;
+    font-size: 0.65rem;
+    padding: 0.25rem 0.75rem;
+    font-weight: 700;
 }
 
 .pm-header-title {
@@ -97,18 +122,6 @@
     font-weight: 700;
     color: #0f172a;
     margin: 0;
-}
-
-.pm-header-badge {
-    padding: 0.3rem 0.75rem;
-    font-size: 0.625rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    background: #f0fdfa;
-    color: #0d9488;
-    border-radius: 20px;
-    border: 1px solid #ccfbf1;
 }
 
 .pm-header-actions {
@@ -245,7 +258,7 @@
 /* === PROJECT CARDS === */
 .pm-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(450px, 1fr));
     gap: 1.25rem;
     padding-bottom: 2rem;
     flex: 1;
@@ -272,7 +285,7 @@
 }
 
 .pm-card-accent {
-    height: 6px;
+    height: 5px;
     width: 100%;
 }
 
@@ -305,12 +318,19 @@
 }
 
 .pm-card-id {
-    font-size: 0.625rem;
+    font-family: 'JetBrains Mono', 'SF Mono', 'Monaco', monospace;
+    font-size: 0.65rem;
     font-weight: 700;
-    color: #94a3b8;
+    color: #475569;
+    background: #f1f5f9;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    border: 1px solid #e2e8f0;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
-    margin-bottom: 0.25rem;
+    letter-spacing: 0.05em;
+    display: inline-flex;
+    align-items: center;
+    margin-bottom: 0.5rem;
 }
 
 .pm-card-label {
@@ -514,13 +534,16 @@
 }
 
 .pm-table-project-id {
-    font-family: 'SF Mono', 'Monaco', monospace;
+    font-family: 'JetBrains Mono', 'SF Mono', 'Monaco', monospace;
     font-size: 0.7rem;
-    color: #94a3b8;
+    font-weight: 700;
+    color: #475569;
     background: #f1f5f9;
-    padding: 2px 6px;
-    border-radius: 4px;
-    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 6px;
+    border: 1px solid #e2e8f0;
+    display: inline-flex;
+    align-items: center;
     width: fit-content;
 }
 
@@ -585,12 +608,16 @@
 .pm-trash-banner {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.875rem 1.25rem;
-    background: linear-gradient(135deg, #fef2f2 0%, #fff1f2 100%);
+    justify-content: space-between;
+    background: #fff1f2;
     border: 1px solid #fecaca;
     border-radius: 12px;
-    margin-bottom: 1.25rem;
+    padding: 1rem 1.5rem;
+    margin-bottom: 1.5rem;
+    color: #991b1b;
+    font-weight: 700;
+    font-size: 0.85rem;
+    box-shadow: 0 2px 8px rgba(153, 27, 27, 0.05);
 }
 
 .pm-trash-banner-icon {
@@ -642,31 +669,31 @@
 .status-badge.draft {
     background: #f1f5f9;
     color: #475569;
-    border-color: transparent;
+    border-color: #e2e8f0;
 }
 
 .status-badge.under-review {
-    background: #fef3c7;
+    background: #fffbeb;
     color: #b45309;
-    border-color: transparent;
+    border-color: #fde68a;
 }
 
 .status-badge.approved {
     background: #eff6ff;
-    color: #2563eb;
-    border-color: transparent;
+    color: #1e40af;
+    border-color: #bfdbfe;
 }
 
 .status-badge.in-progress {
-    background: #ccfbf1;
-    color: #0f766e;
-    border-color: transparent;
+    background: #f0fdf4;
+    color: #166534;
+    border-color: #bbf7d0;
 }
 
 .status-badge.completed {
     background: #ecfdf5;
-    color: #059669;
-    border-color: transparent;
+    color: #065f46;
+    border-color: #a7f3d0;
 }
 
 .status-badge:hover {
@@ -1120,17 +1147,8 @@
 }
 
 /* --- Compact Header --- */
-.dd-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 1rem 1.5rem;
-    background: white;
-    border-bottom: 1px solid #e2e8f0;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-}
+/* Styles moved to unified header section above */
+
 
 .dd-header-left {
     display: flex;
@@ -1158,11 +1176,18 @@
 }
 
 .dd-project-id {
-    font-size: 0.65rem;
+    font-family: 'JetBrains Mono', 'SF Mono', 'Monaco', monospace;
+    font-size: 0.7rem;
     font-weight: 700;
-    color: #94a3b8;
+    color: #475569;
+    background: #f1f5f9;
+    padding: 0.25rem 0.625rem;
+    border-radius: 6px;
+    border: 1px solid #e2e8f0;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.05em;
+    display: inline-flex;
+    align-items: center;
 }
 
 .dd-project-name {
@@ -1586,17 +1611,16 @@
 .cr-emerald-header,
 .cr-emerald-bg {
     background: linear-gradient(135deg, #059669 0%, #065f46 100%) !important;
-    /* Airy light mint/emerald tint */
+    /* Rich Emerald Gradient */
     color: #ffffff !important;
-    /* Deep forest green text for high contrast */
+    /* White text for high contrast on dark emerald */
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     font-size: 0.75rem;
     padding: 12px 16px !important;
     text-shadow: none !important;
-    border: 1px solid #bbf7d0 !important;
-    /* Very subtle emerald border */
+    border: 1px solid #065f46 !important;
 }
 
 .cr-sub-header-bg {
@@ -1769,6 +1793,10 @@
     align-items: center;
     justify-content: center;
     font-size: 1rem;
+}
+
+.cr-radio-cell.outcome-tile:hover {
+    background: #f8fafc;
 }
 
 .cr-radio-cell.inactive {
@@ -2082,8 +2110,9 @@
 /* Print Styles */
 @media print {
     @page {
-        size: A4 landscape;
-        margin: 6mm 10mm;
+        size: A4 portrait;
+        margin: 10mm;
+        /* Balanced 10mm margins for all sides */
     }
 
     body * {
@@ -2110,6 +2139,8 @@
     /* Show print header, hide screen title */
     .cr-print-header {
         display: block !important;
+        margin-top: 2rem !important;
+        /* Move heading 2 spaces down */
     }
 
     .cr-modern-container>.flex.items-center.justify-between {
@@ -2136,9 +2167,10 @@
         gap: 0 !important;
     }
 
-    /* Fuse cards */
+    /* Spacing to fill vertical page height perfectly */
     .cr-modern-container {
-        gap: 0 !important;
+        gap: 65px !important;
+        /* Increased from 50px */
         padding: 0 !important;
         margin: 0 !important;
     }
@@ -2149,7 +2181,7 @@
         border: none !important;
         box-shadow: none !important;
         background: white !important;
-        margin: 0 !important;
+        margin: 0 0 40px 0 !important;
         padding: 0 !important;
     }
 
@@ -2164,26 +2196,28 @@
     .cr-card-table th,
     .cr-card-table td {
         border: 1px solid #555 !important;
-        padding: 2px 4px !important;
-        font-size: 8.5pt !important;
-        line-height: 1.25 !important;
+        padding: 12px 10px !important;
+        /* Increased vertical padding */
+        font-size: 11pt !important;
+        line-height: 1.4 !important;
     }
 
-    /* Section headers */
+    /* Section headers — emerald theme for print */
     .cr-emerald-bg {
-        color: black !important;
-        background: #e9e9e9 !important;
+        color: white !important;
+        background: #059669 !important;
         background-image: none !important;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
-        padding: 3px 6px !important;
-        font-size: 8pt !important;
+        padding: 8px 14px !important;
+        font-size: 10.5pt !important;
         font-weight: 700 !important;
+        white-space: nowrap !important;
     }
 
     .cr-emerald-header td {
-        padding: 2px 4px !important;
-        font-size: 8pt !important;
+        padding: 6px 10px !important;
+        font-size: 10pt !important;
     }
 
     /* Hide decorative SVG icons in headers */
@@ -2200,7 +2234,7 @@
     }
 
     .cr-tick {
-        font-size: 9pt !important;
+        font-size: 14pt !important;
     }
 
     .cr-radio-cell {
@@ -2209,13 +2243,13 @@
     }
 
     .cr-item-row td {
-        padding: 1px 4px !important;
+        padding: 5px 10px !important;
     }
 
     /* Checklist labels — remove bulky py-2 */
     .cr-item-row span.px-3 {
-        padding: 1px 4px !important;
-        font-size: 8.5pt !important;
+        padding: 5px 10px !important;
+        font-size: 11pt !important;
     }
 
     .cr-item-index {
@@ -2228,26 +2262,29 @@
     .cr-master-select {
         border: none !important;
         background: transparent !important;
-        padding: 1px 3px !important;
-        font-size: 8.5pt !important;
+        padding: 5px 6px !important;
+        font-size: 11pt !important;
         height: auto !important;
         min-height: 0 !important;
     }
 
     .cr-master-label {
-        padding: 2px 4px !important;
-        font-size: 8.5pt !important;
+        padding: 6px 10px !important;
+        font-size: 9.5pt !important;
         font-weight: 700 !important;
+        text-transform: uppercase !important;
+        white-space: nowrap !important;
     }
 
-    /* Textarea — capped height */
+    /* Textarea — taller to fill space */
     .cr-master-textarea,
     textarea {
-        min-height: 0 !important;
+        min-height: 150px !important;
+        /* Increased from 120px */
         height: auto !important;
-        max-height: 65px !important;
-        font-size: 8pt !important;
-        padding: 2px 4px !important;
+        max-height: 250px !important;
+        font-size: 11pt !important;
+        padding: 10px 12px !important;
         border: none !important;
         resize: none !important;
         overflow: hidden !important;
@@ -2260,16 +2297,16 @@
 
     /* Radio buttons */
     .cr-radio {
-        width: 10px !important;
-        height: 10px !important;
+        width: 18px !important;
+        height: 18px !important;
         margin: 0 auto !important;
     }
 
     /* Text inputs in table */
     .cr-card-table input[type="text"] {
         border: none !important;
-        padding: 1px 3px !important;
-        font-size: 8.5pt !important;
+        padding: 5px 6px !important;
+        font-size: 10.5pt !important;
         background: transparent !important;
     }
 
@@ -2334,8 +2371,41 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    transition: box-shadow 0.25s ease, transform 0.25s ease;
+    min-height: 285px;
+    /* Increased further to accommodate DRG line without clipping */
+    transition: all 0.25s ease;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+/* Status-based Background Colors */
+.pm-card-compact.st-draft {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+}
+
+.pm-card-compact.st-under-review {
+    background: #fffbeb;
+    border-color: #fef3c7;
+}
+
+.pm-card-compact.st-approved {
+    background: #eff6ff;
+    border-color: #dbeafe;
+}
+
+.pm-card-compact.st-in-progress {
+    background: #f0fdfa;
+    border-color: #ccfbf1;
+}
+
+.pm-card-compact.st-completed {
+    background: #f0fdf4;
+    border-color: #dcfce7;
+}
+
+.pm-card-compact.st-planning {
+    background: #f5f3ff;
+    border-color: #ede9fe;
 }
 
 .pm-card-compact:hover {
@@ -2377,8 +2447,10 @@
 
 /* Inner body */
 .pm-c-body {
-    padding: 1.25rem 1.25rem 1rem;
+    padding: 1.25rem 1.25rem 0.5rem;
     flex: 1;
+    display: flex;
+    flex-direction: column;
 }
 
 /* Header row: name + ID pill */
@@ -2402,14 +2474,34 @@
     font-weight: 700;
     color: #0f172a;
     line-height: 1.3;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    word-break: break-word;
 }
 
 .pm-c-subtitle {
     font-size: 0.8rem;
     color: #64748b;
+    margin-bottom: 0.25rem;
+}
+
+.pm-c-id-group {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.4rem;
+    flex-shrink: 0;
+    margin-left: 0.75rem;
+}
+
+.pm-c-drg {
+    font-size: 0.72rem;
+    font-weight: 640;
+    color: #475569;
+    background: #f1f5f9;
+    padding: 2px 8px;
+    border-radius: 4px;
+    width: fit-content;
+    letter-spacing: 0.02em;
+    border: 1px solid #e2e8f0;
 }
 
 .pm-c-id-pill {
@@ -2421,8 +2513,6 @@
     border-radius: 6px;
     padding: 0.2rem 0.5rem;
     white-space: nowrap;
-    flex-shrink: 0;
-    margin-left: 0.75rem;
     letter-spacing: 0.02em;
 }
 
@@ -2432,6 +2522,19 @@
     align-items: center;
     gap: 0.5rem;
     margin-bottom: 1rem;
+}
+
+.pm-c-type-badge {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #6366f1;
+    background: #eef2ff;
+    border: 1px solid #c7d2fe;
+    border-radius: 6px;
+    padding: 0.15rem 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-left: auto;
 }
 
 .pm-c-label {
@@ -2480,7 +2583,10 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.75rem 1.25rem;
+    padding: 1rem 1.25rem;
+    /* Increased padding */
+    margin-top: auto;
+    /* Push to bottom */
 }
 
 .pm-c-contract-status {
@@ -2704,12 +2810,12 @@
         width: 100% !important;
     }
 
-    #view-inventory_management,
-    #view-inventory_management * {
+    #view-inventory_management:not(.hidden),
+    #view-inventory_management:not(.hidden) * {
         visibility: visible !important;
     }
 
-    #view-inventory_management {
+    #view-inventory_management:not(.hidden) {
         display: block !important;
         padding: 0 !important;
     }
@@ -2758,7 +2864,7 @@
     }
 
     @page {
-        size: A4 landscape;
+        size: A4 portrait;
         margin: 1cm;
     }
 }

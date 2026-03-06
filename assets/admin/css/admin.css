@@ -1735,7 +1735,7 @@ tr.row-deleted td:first-child {
     align-items: center;
     justify-content: center;
     /* Center the title */
-    background: var(--primary-600);
+    background: linear-gradient(135deg, #059669 0%, #065f46 100%) !important;
     /* Brand Color Background */
     min-height: 50px;
     position: relative;
@@ -2744,7 +2744,7 @@ tr.row-deleted td:first-child {
 /* === PRINT STYLES === */
 @media print {
     @page {
-        size: A4 landscape;
+        size: A4 portrait;
         margin: 0.5cm;
     }
 
@@ -2986,7 +2986,7 @@ tr.row-deleted td:first-child {
 
 /* === PURPLE THEME MODALS & BUTTONS === */
 .modal-header.purple-theme {
-    background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+    background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%) !important;
 }
 
 .modal-header.purple-theme .modal-title {
@@ -4403,9 +4403,9 @@ tr.row-deleted {
         background: transparent !important;
     }
 
-    /* Force all text to black */
-    .cr-gateway-container *,
-    #view-project_detail[data-pm-theme="dark"] * {
+    /* Force all text to black (except emerald headers) */
+    .cr-gateway-container *:not(.cr-emerald-bg):not(.cr-emerald-header),
+    #view-project_detail[data-pm-theme="dark"] *:not(.cr-emerald-bg):not(.cr-emerald-header) {
         color: black !important;
     }
 

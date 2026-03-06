@@ -104,7 +104,7 @@ export const renderTable = (orders) => {
 
         let matchesSearch = true;
         if (searchTerm) {
-            const searchStr = `${order.internalOrderNo} ${order.customer} ${order.description} ${order.poNo}`.toLowerCase();
+            const searchStr = `${order.internalOrderNo} ${order.customer} ${order.description} ${order.poNo} ${order.drawingNo || ''}`.toLowerCase();
             matchesSearch = searchStr.includes(searchTerm);
         }
 
@@ -169,6 +169,7 @@ export const renderTable = (orders) => {
 
         if (!isTrashMode) {
             if (status === 'DELIVERED') tr.className = 'row-delivered';
+            else if (status === 'PARTIALLY DELIVERED' || status === 'PORTION DELIVERED') tr.className = 'row-partially-delivered';
             else if (status === 'PENDING') tr.className = 'row-pending';
         } else {
             tr.className = 'row-deleted';
@@ -184,7 +185,9 @@ export const renderTable = (orders) => {
             statusHtml = `<span class="badge ${badgeClass}">${status || '-'}</span>`;
         } else {
             const statusVal = order.status || 'Pending';
-            const badgeClass = statusVal === 'Delivered' ? 'status-delivered' : 'status-pending';
+            let badgeClass = 'status-pending';
+            if (statusVal === 'Delivered') badgeClass = 'status-delivered';
+            else if (statusVal === 'Partially Delivered' || statusVal === 'Portion Delivered') badgeClass = 'status-partial text-blue-600 bg-blue-50 border border-blue-200'; // Define a distinctive style
             statusHtml = `<span class="status-badge ${badgeClass}">${statusVal}</span>`;
         }
 
@@ -268,8 +271,22 @@ export const handleAddOrder = async () => {
         data.total = (parseFloat(data.qty) * parseFloat(data.saleValueEa)).toFixed(2);
     }
 
-    // Auto-determine status from DC No
-    data.status = (data.dcNo && data.dcNo.trim() !== '') ? 'Delivered' : 'Pending';
+    // Auto-determine status from DC No and Qty
+    const dcNo = data.dcNo ? data.dcNo.trim() : '';
+    if (dcNo) {
+        const orderedQty = parseFloat(data.qty) || 0;
+        const deliveredQty = parseFloat(data.deliveryQty) || 0;
+        if (deliveredQty >= orderedQty && orderedQty > 0) {
+            data.status = 'Delivered';
+        } else if (deliveredQty > 0) {
+            data.status = 'Partially Delivered';
+        } else {
+            // If they entered a DC No but didn't enter a delivery qty, default to Delivered for legacy compatibility
+            data.status = 'Delivered';
+        }
+    } else {
+        data.status = 'Pending';
+    }
 
     const orderId = data.orderId;
     delete data.orderId;
@@ -337,12 +354,30 @@ export const populateForm = (order) => {
         }
     });
 
-    // Update the visible status display based on DC No
+    // Update the visible status display based on DC No and Qty
     const statusDisplay = document.getElementById('order-status-display');
     const statusHidden = form.querySelector('[name="status"]');
     const hasDC = order.dcNo && order.dcNo.trim() !== '';
-    if (statusDisplay) statusDisplay.value = hasDC ? '🟢 Delivered' : '🟡 Pending';
-    if (statusHidden) statusHidden.value = hasDC ? 'Delivered' : 'Pending';
+    let autoStatus = 'Pending';
+    let displayHtml = '🟡 Pending';
+
+    if (hasDC) {
+        const orderedQty = parseFloat(order.qty) || 0;
+        const deliveredQty = parseFloat(order.deliveryQty) || 0;
+        if (deliveredQty >= orderedQty && orderedQty > 0) {
+            autoStatus = 'Delivered';
+            displayHtml = '🟢 Delivered';
+        } else if (deliveredQty > 0) {
+            autoStatus = 'Partially Delivered';
+            displayHtml = '🔵 Partially Delivered';
+        } else {
+            autoStatus = 'Delivered';
+            displayHtml = '🟢 Delivered';
+        }
+    }
+
+    if (statusDisplay) statusDisplay.value = displayHtml;
+    if (statusHidden) statusHidden.value = autoStatus;
 
     window.adminApp.openAddOrderModal();
 };

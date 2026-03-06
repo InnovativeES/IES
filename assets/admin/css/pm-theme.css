@@ -42,9 +42,7 @@
 
     #view-project_management .pm-header,
     #view-project_detail .dd-header {
-        background-color: var(--pm-card-bg);
         border-color: var(--pm-border);
-        box-shadow: var(--pm-shadow);
     }
 
     #view-project_management .pm-header-title h2,
@@ -121,8 +119,8 @@
         color: black !important;
     }
 
-    #view-project_management *,
-    #view-project_detail * {
+    #view-project_management *:not(.cr-emerald-bg):not(.cr-emerald-header),
+    #view-project_detail *:not(.cr-emerald-bg):not(.cr-emerald-header) {
         background-color: transparent !important;
         color: black !important;
         border-color: #cbd5e1 !important;

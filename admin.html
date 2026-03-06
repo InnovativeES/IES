@@ -1597,19 +1597,19 @@
                                 <!-- Top actions/Title -->
                                 <div class="cr-print-header" style="display: none;">
                                     <div
-                                        style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0f172a; padding-bottom: 6px; margin-bottom: 8px;">
+                                        style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #0f172a; padding-bottom: 12px; margin-bottom: 20px;">
                                         <div>
                                             <div
-                                                style="font-size: 14pt; font-weight: 800; color: #0f172a; letter-spacing: 0.02em;">
+                                                style="font-size: 24pt; font-weight: 800; color: #0f172a; letter-spacing: 0.02em;">
                                                 INNOVATIVE ENGINEERING SOLUTIONS</div>
                                             <div
-                                                style="font-size: 7pt; color: #64748b; letter-spacing: 0.05em; margin-top: 1px;">
+                                                style="font-size: 11pt; color: #64748b; letter-spacing: 0.05em; margin-top: 4px;">
                                                 PRECISION • QUALITY • DELIVERY</div>
                                         </div>
                                         <div style="text-align: right;">
-                                            <div style="font-size: 11pt; font-weight: 700; color: #0f172a;">Contract
+                                            <div style="font-size: 20pt; font-weight: 700; color: #0f172a;">Contract
                                                 Review</div>
-                                            <div style="font-size: 7pt; color: #64748b;" id="cr-print-date"></div>
+                                            <div style="font-size: 11pt; color: #64748b;" id="cr-print-date"></div>
                                         </div>
                                     </div>
                                 </div>
@@ -1621,7 +1621,7 @@
                                             class="text-xs font-bold text-slate-500 uppercase tracking-widest px-2">Order
                                             No</span>
                                         <input type="text" id="cr-review-no"
-                                            class="bg-white border border-slate-300 rounded px-3 py-1 text-sm font-bold text-emerald-700 w-32 outline-none focus:border-emerald-500"
+                                            class="bg-white border border-slate-300 rounded px-3 py-1 text-sm font-bold text-emerald-700 w-44 outline-none focus:border-emerald-500"
                                             readonly>
                                     </div>
                                 </div>
@@ -1682,8 +1682,8 @@
                                                         class="cr-master-input"></td>
                                             </tr>
                                             <tr>
-                                                <td colspan="2" class="cr-master-label">Date</td>
-                                                <td colspan="2" class="p-0"><input type="date" id="cr-date"
+                                                <td colspan="2" class="cr-master-label">Drg No</td>
+                                                <td colspan="2" class="p-0"><input type="text" id="cr-drawing-no"
                                                         class="cr-master-input"></td>
                                                 <td colspan="2" class="cr-master-label">Accountability/PL</td>
                                                 <td colspan="3" class="p-0">
@@ -1695,6 +1695,15 @@
                                                         <input type="hidden" id="cr-accountability">
                                                     </div>
                                                 </td>
+                                            </tr>
+                                            <tr>
+                                                <td colspan="2" class="cr-master-label">Date</td>
+                                                <td colspan="2" class="p-0"><input type="date" id="cr-date"
+                                                        class="cr-master-input"></td>
+                                                <td colspan="2" class="cr-master-label">IO Number</td>
+                                                <td colspan="3" class="p-0"><input type="text" id="cr-io-number"
+                                                        class="cr-master-input" readonly
+                                                        style="color: #059669; font-weight: 700;"></td>
                                             </tr>
                                             <tr>
                                                 <td colspan="2" class="cr-master-label">Delivery date</td>
@@ -2326,111 +2335,128 @@
                 </button>
             </div>
             <form id="add-delivery-form" onsubmit="event.preventDefault(); window.adminApp.submitDeliveryForm()">
-                <div class="modal-body compact">
+                <div class="modal-body compact modal-2col-layout">
                     <input type="hidden" id="delivery-orderId-input" name="orderId">
 
-                    <!-- Section: Order Lookup -->
-                    <div class="inline-section-label purple-theme">Order Lookup</div>
-                    <div class="modal-list-view">
-                        <div class="list-row">
-                            <div class="form-group">
-                                <label class="form-label">IO No <span
-                                        style="font-weight: 400; color: var(--slate-400);">(type to
-                                        auto-fill)</span></label>
-                                <input type="text" id="delivery-io-lookup" name="internalOrderNo" class="form-input"
-                                    placeholder="e.g. 202526-530" list="delivery-io-suggestions"
-                                    oninput="window.adminApp.lookupOrderForDelivery(this.value)">
-                                <datalist id="delivery-io-suggestions"></datalist>
+                    <!-- LEFT COLUMN -->
+                    <div class="modal-col-left">
+                        <!-- Section: Order Lookup -->
+                        <div class="w-full">
+                            <div class="inline-section-label purple-theme">Order Lookup</div>
+                            <div class="modal-list-view">
+                                <div class="list-row">
+                                    <div class="form-group">
+                                        <label class="form-label">IO No <span
+                                                style="font-weight: 400; color: var(--slate-400);">(type to
+                                                auto-fill)</span></label>
+                                        <input type="text" id="delivery-io-lookup" name="internalOrderNo"
+                                            class="form-input" placeholder="e.g. 202526-530"
+                                            list="delivery-io-suggestions"
+                                            oninput="window.adminApp.lookupOrderForDelivery(this.value)">
+                                        <datalist id="delivery-io-suggestions"></datalist>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Section: Delivery Details -->
+                        <div class="w-full">
+                            <div class="inline-section-label purple-theme">Delivery Details</div>
+                            <div class="modal-list-view">
+                                <div class="list-row list-row-2col">
+                                    <div class="form-group">
+                                        <label class="form-label">Date *</label>
+                                        <input type="date" name="date" class="form-input" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Customer *</label>
+                                        <input type="text" name="customer" class="form-input" required
+                                            placeholder="Customer Name">
+                                    </div>
+                                </div>
+                                <div class="list-row">
+                                    <div class="form-group">
+                                        <label class="form-label">Drawing No</label>
+                                        <input type="text" name="drawingNo" class="form-input" placeholder="Drg No">
+                                    </div>
+                                </div>
+                                <div class="list-row">
+                                    <div class="form-group">
+                                        <label class="form-label">Description</label>
+                                        <input type="text" name="description" class="form-input"
+                                            placeholder="Description">
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Section: Delivery Details -->
-                    <div class="inline-section-label purple-theme">Delivery Details</div>
-                    <div class="modal-list-view">
-                        <div class="list-row list-row-2col">
-                            <div class="form-group">
-                                <label class="form-label">Date *</label>
-                                <input type="date" name="date" class="form-input" required>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Customer *</label>
-                                <input type="text" name="customer" class="form-input" required
-                                    placeholder="Customer Name">
+                    <!-- RIGHT COLUMN -->
+                    <div class="modal-col-right">
+                        <!-- Section: Values & Logistics -->
+                        <div class="w-full">
+                            <div class="inline-section-label purple-theme">Values & Logistics</div>
+                            <div class="modal-list-view">
+                                <div class="list-row list-row-3col">
+                                    <div class="form-group">
+                                        <label class="form-label">Quantity</label>
+                                        <input type="number" name="qty" class="form-input" min="0" id="del-qty">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Unit</label>
+                                        <input type="text" name="qtyUnit" class="form-input" value="Nos"
+                                            list="unit-suggestions-del" placeholder="e.g. Nos, Kgs">
+                                        <datalist id="unit-suggestions-del">
+                                            <option value="Nos">
+                                            <option value="Kgs">
+                                            <option value="mm">
+                                            <option value="Mtrs">
+                                            <option value="Sets">
+                                            <option value="Lots">
+                                        </datalist>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">DC No</label>
+                                        <input type="text" name="dcNo" class="form-input" placeholder="DC Number">
+                                    </div>
+                                </div>
+                                <div class="list-row list-row-2col">
+                                    <div class="form-group">
+                                        <label class="form-label">Delivery Value</label>
+                                        <input type="number" name="total" class="form-input" min="0" step="0.01"
+                                            id="del-total" placeholder="Total Value">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Labour Cost</label>
+                                        <input type="number" name="labourCost" class="form-input" min="0"
+                                            placeholder="Cost">
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                        <div class="list-row">
-                            <div class="form-group">
-                                <label class="form-label">Drawing No</label>
-                                <input type="text" name="drawingNo" class="form-input" placeholder="Drg No">
-                            </div>
-                        </div>
-                        <div class="list-row">
-                            <div class="form-group">
-                                <label class="form-label">Description</label>
-                                <input type="text" name="description" class="form-input" placeholder="Description">
-                            </div>
-                        </div>
-                    </div>
 
-                    <!-- Section: Values & Logistics -->
-                    <div class="inline-section-label purple-theme">Values & Logistics</div>
-                    <div class="modal-list-view">
-                        <div class="list-row list-row-3col">
-                            <div class="form-group">
-                                <label class="form-label">Quantity</label>
-                                <input type="number" name="qty" class="form-input" min="0" id="del-qty">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Unit</label>
-                                <input type="text" name="qtyUnit" class="form-input" value="Nos"
-                                    list="unit-suggestions-del" placeholder="e.g. Nos, Kgs">
-                                <datalist id="unit-suggestions-del">
-                                    <option value="Nos">
-                                    <option value="Kgs">
-                                    <option value="mm">
-                                    <option value="Mtrs">
-                                    <option value="Sets">
-                                    <option value="Lots">
-                                </datalist>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">DC No</label>
-                                <input type="text" name="dcNo" class="form-input" placeholder="DC Number">
-                            </div>
-                        </div>
-                        <div class="list-row list-row-2col">
-                            <div class="form-group">
-                                <label class="form-label">Delivery Value</label>
-                                <input type="number" name="total" class="form-input" min="0" step="0.01" id="del-total"
-                                    placeholder="Total Value">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Labour Cost</label>
-                                <input type="number" name="labourCost" class="form-input" min="0" placeholder="Cost">
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Section: Department -->
-                    <div class="inline-section-label purple-theme">Department & Manpower</div>
-                    <div class="modal-list-view">
-                        <div class="list-row list-row-2col">
-                            <div class="form-group">
-                                <label class="form-label">Department</label>
-                                <select name="department" class="form-input">
-                                    <option value="">Select Dept</option>
-                                    <option value="Fab">Fab</option>
-                                    <option value="CNC">CNC</option>
-                                    <option value="VMC">VMC</option>
-                                    <option value="Turning">Turning</option>
-                                    <option value="Assembly">Assembly</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Manpower</label>
-                                <input type="number" name="manpower" class="form-input" min="0"
-                                    placeholder="Daily Value (₹)">
+                        <!-- Section: Department -->
+                        <div class="w-full">
+                            <div class="inline-section-label purple-theme">Department & Manpower</div>
+                            <div class="modal-list-view">
+                                <div class="list-row list-row-2col">
+                                    <div class="form-group">
+                                        <label class="form-label">Department</label>
+                                        <select name="department" class="form-input">
+                                            <option value="">Select Dept</option>
+                                            <option value="Fab">Fab</option>
+                                            <option value="CNC">CNC</option>
+                                            <option value="VMC">VMC</option>
+                                            <option value="Turning">Turning</option>
+                                            <option value="Assembly">Assembly</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Manpower</label>
+                                        <input type="number" name="manpower" class="form-input" min="0"
+                                            placeholder="Daily Value (₹)">
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

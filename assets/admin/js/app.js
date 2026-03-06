@@ -562,9 +562,18 @@ window.adminApp = {
             const isDeleted = !!p.isDeleted;
             if (isProjectTrashView !== isDeleted) return false;
 
+            // Cross-reference drawing number for search
+            let drgNo = p.drawingNo || '';
+            if (!drgNo && window.adminApp.getCurrentOrders) {
+                const orders = window.adminApp.getCurrentOrders();
+                const matchingOrder = orders.find(o => o.internalOrderNo === p.projectId);
+                if (matchingOrder) drgNo = matchingOrder.drawingNo || '';
+            }
+
             const matchesSearch = (p.name?.toLowerCase().includes(searchTerm) ||
                 p.projectId?.toLowerCase().includes(searchTerm) ||
-                p.customerName?.toLowerCase().includes(searchTerm));
+                p.customerName?.toLowerCase().includes(searchTerm) ||
+                drgNo.toLowerCase().includes(searchTerm));
             const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
             const matchesType = typeFilter === 'all' || p.jobType === typeFilter;
 
@@ -602,6 +611,17 @@ window.adminApp = {
             const isTrashed = !!p.isDeleted;
             const deliveryDate = p.expectedCompletion ? new Date(p.expectedCompletion).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : 'N/A';
 
+            // Cross-reference Drawing No if missing
+            let drgNo = p.drawingNo || '';
+            if (!drgNo && window.adminApp.getCurrentOrders) {
+                const orders = window.adminApp.getCurrentOrders();
+                const matchingOrder = orders.find(o => o.internalOrderNo === p.projectId);
+                if (matchingOrder) drgNo = matchingOrder.drawingNo || '';
+            }
+
+            const displayDrg = drgNo ? `<span class="pm-table-project-drg text-xs font-semibold px-2 py-0.5 rounded ml-2" style="background: var(--brand-50); color: var(--brand-700); border: 1px solid var(--brand-200);">DRG: ${drgNo}</span>` : '';
+
+
             const actions = isTrashed ? `
                 <button class="pm-action-btn restore-btn" onclick="event.stopPropagation(); window.adminApp.restoreProject('${p.id}')">Restore</button>
                 <button class="pm-action-btn" style="color:#ef4444;" onclick="event.stopPropagation(); window.adminApp.permanentDeleteProject('${p.id}')">Delete</button>
@@ -617,7 +637,10 @@ window.adminApp = {
                     <td>
                         <div class="pm-table-project-info">
                             <span class="pm-table-project-name">${p.name}</span>
-                            <span class="pm-table-project-id">${p.projectId}</span>
+                            <div class="flex items-center mt-1">
+                                <span class="pm-table-project-id">${p.projectId}</span>
+                                ${displayDrg}
+                            </div>
                         </div>
                     </td>
                     <td><span class="pm-table-customer">${p.customerName}</span></td>
@@ -1338,7 +1361,9 @@ window.adminApp = {
         }
 
         grid.innerHTML = projects.map(p => {
-            const statusClass = (p.status || 'draft').toLowerCase().replace(/\s+/g, '-');
+            const rawStatus = p.status || 'Draft';
+            const statusClass = rawStatus.toLowerCase().replace(/\s+/g, '-');
+            const statusSlug = `st-${statusClass}`;
             const isTrashed = !!p.isDeleted;
             const startDate = p.createdAt ? new Date(p.createdAt.seconds * 1000).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : 'N/A';
             const deliveryDate = p.expectedCompletion ? new Date(p.expectedCompletion).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : 'N/A';
@@ -1346,7 +1371,12 @@ window.adminApp = {
             const isContractFiled = p.contractFiled || ['Approved', 'In Progress', 'Completed'].includes(p.status);
             const contractStatusHtml = isContractFiled ?
                 '<span class="pm-c-contract-val"><svg style="width:13px;height:13px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg> Filed</span>' :
-                '<span class="pm-c-contract-val pending">Pending</span>';
+                `<span class="pm-c-contract-val pending">${rawStatus}</span>`;
+
+            // NEW: Fetch Drawing Number from Internal Order if missing on project
+            const allOrders = window.adminApp.getCurrentOrders ? window.adminApp.getCurrentOrders() : [];
+            const matchingOrder = allOrders.find(o => o.internalOrderNo === p.projectId);
+            const displayDrg = p.drawingNo || (matchingOrder ? matchingOrder.drawingNo : '');
 
             const actionButtons = isTrashed ? `
                 <button class="pm-c-icon-btn" onclick="event.stopPropagation(); window.adminApp.restoreProject('${p.id}')" title="Restore">
@@ -1365,7 +1395,7 @@ window.adminApp = {
             `;
 
             return `
-                <div class="pm-card-compact ${isTrashed ? 'trashed' : ''}">
+                <div class="pm-card-compact ${statusSlug} ${isTrashed ? 'trashed' : ''}">
                     <div class="pm-c-accent ${statusClass}"></div>
                     <div class="pm-c-body">
                         <div class="pm-c-header">
@@ -1373,11 +1403,15 @@ window.adminApp = {
                                 <span class="pm-c-title">${p.name}</span>
                                 <span class="pm-c-subtitle">${p.customerName || 'N/A'}</span>
                             </div>
-                            <span class="pm-c-id-pill">${p.projectId}</span>
+                            <div class="pm-c-id-group">
+                                <span class="pm-c-id-pill">${p.projectId}</span>
+                                ${displayDrg ? `<span class="pm-c-drg">DRG: ${displayDrg}</span>` : ''}
+                            </div>
                         </div>
                         <div class="pm-c-status-row">
                             <span class="pm-c-label">Status</span>
                             <span class="status-badge ${statusClass}">${p.status || 'Draft'}</span>
+                            ${p.jobType ? `<span class="pm-c-type-badge">${p.jobType}</span>` : ''}
                         </div>
                     </div>
                     <div class="pm-c-dates">
@@ -3482,8 +3516,13 @@ window.adminApp.loadContractReview = async (projectId) => {
         const reviewNo = reviewData.reviewNo || `CR-${project.projectId || projectId}`;
         const today = new Date().toISOString().split('T')[0];
 
-        // Customer Data
-        setVal('cr-po-no', reviewData.poNo || project.poNumber || '');
+        // Find matching internal order for auto-population
+        const allOrders = window.adminApp.getCurrentOrders ? window.adminApp.getCurrentOrders() : [];
+        const matchingOrder = allOrders.find(o => o.internalOrderNo === project.projectId);
+
+        // Customer Data — pull from saved review, then matching internal order, then project
+        setVal('cr-po-no', reviewData.poNo || (matchingOrder ? matchingOrder.poNo : '') || project.poNumber || '');
+        setVal('cr-drawing-no', reviewData.drawingNo || (matchingOrder ? matchingOrder.drawingNo : '') || project.drawingNo || '');
         setVal('cr-date', reviewData.date || today);
         setVal('cr-delivery-date', reviewData.deliveryDate || project.expectedCompletion || '');
         setVal('cr-contact-person', reviewData.contactPerson || '');
@@ -3491,6 +3530,7 @@ window.adminApp.loadContractReview = async (projectId) => {
 
         // Internal Order Data
         setVal('cr-review-no', reviewNo);
+        setVal('cr-io-number', project.projectId || '');
         setVal('cr-internal-date', reviewData.internalDate || today);
         setVal('cr-accountability', reviewData.accountability || '');
         setVal('cr-team', reviewData.team || '');
@@ -3554,6 +3594,7 @@ window.adminApp.saveContractReview = async (action) => {
 
         // Customer Data
         poNo: getVal('cr-po-no'),
+        drawingNo: getVal('cr-drawing-no'),
         date: getVal('cr-date'),
         deliveryDate: getVal('cr-delivery-date'),
         contactPerson: getVal('cr-contact-person'),
