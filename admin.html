@@ -368,6 +368,15 @@
                             </a>
                         </li>
                         <li class="nav-item">
+                            <a href="#" class="nav-link" data-view="daily_roster">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                Daily Roster
+                            </a>
+                        </li>
+                        <li class="nav-item">
                             <a href="#" class="nav-link" data-view="delivery_report">
                                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -1222,6 +1231,10 @@
                                 </svg>
                                 <input type="week" id="delivery-week-picker"
                                     class="text-sm bg-transparent border-none focus:outline-none text-slate-700 font-medium">
+                                <div class="w-px h-4 bg-slate-200 mx-2"></div>
+                                <input type="month" id="delivery-month-picker"
+                                    class="text-sm bg-transparent border-none focus:outline-none text-slate-700 font-medium"
+                                    title="Filter by Month">
                             </div>
                             <span id="delivery-week-range"
                                 class="text-sm text-slate-500 font-medium bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm hidden"></span>
@@ -2090,6 +2103,120 @@
 
                 </section>
 
+                <!-- ============================================
+                     VIEW: Daily Roster
+                     ============================================ -->
+                <section id="view-daily_roster" class="view-section hidden">
+                    <!-- Header Bar -->
+                    <div class="wf-header">
+                        <div class="wf-header-left">
+                            <h2 class="wf-title">
+                                <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                                    style="vertical-align: middle;">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                Daily Roster
+                            </h2>
+                            <div class="wf-controls">
+                                <div class="wf-control-group">
+                                    <label class="wf-label">Date</label>
+                                    <input type="date" id="wf-date-picker" class="form-input wf-date-input">
+                                </div>
+                                <div class="wf-control-group">
+                                    <label class="wf-label">Department</label>
+                                    <select id="wf-dept-filter" class="form-input wf-dept-select">
+                                        <option value="All">All Departments</option>
+                                        <option value="Fab">Fab</option>
+                                        <option value="CNC">CNC</option>
+                                        <option value="VMC">VMC</option>
+                                        <option value="Turning">Turning</option>
+                                        <option value="Assembly">Assembly</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="wf-header-right">
+                            <button class="btn wf-btn-copy" onclick="window.adminApp.wfCopyPreviousDay()"
+                                title="Copy Previous Day">
+                                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                </svg>
+                                Copy Prev Day
+                            </button>
+                            <button class="btn wf-btn-add" onclick="window.adminApp.wfOpenAssignModal()">
+                                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 4v16m8-8H4" />
+                                </svg>
+                                Add Assignment
+                            </button>
+                            <button class="btn wf-btn-save" onclick="window.adminApp.wfSaveAll()">
+                                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M5 13l4 4L19 7" />
+                                </svg>
+                                Save
+                            </button>
+                            <button class="btn wf-btn-print" onclick="window.adminApp.wfPrint()">
+                                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                </svg>
+                                Print
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Unassigned Orders Alert -->
+                    <div id="wf-unassigned-alert" class="wf-alert hidden">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span id="wf-unassigned-count">0 pending orders</span> not yet assigned today
+                    </div>
+
+                    <!-- Roster Table -->
+                    <div class="wf-table-wrap">
+                        <table class="wf-table" id="wf-roster-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:3%" class="text-center">#</th>
+                                    <th style="width:15%">Employee & Timing</th>
+                                    <th style="width:7%" class="text-center">IO No</th>
+                                    <th style="width:7%" class="text-center">Drawing</th>
+                                    <th style="width:12%">Description</th>
+                                    <th style="width:8%">Customer</th>
+                                    <th style="width:5%" class="text-center">Qty</th>
+                                    <th style="width:7%" class="text-right">Prod. Value</th>
+                                    <th style="width:8%" class="text-right">Total Overhead</th>
+                                    <th style="width:4%" class="text-center">MP</th>
+                                    <th style="width:8%">Assigned With</th>
+                                    <th style="width:8%" class="text-center">Work Duration</th>
+                                    <th style="width:5%" class="text-center">Status</th>
+                                    <th style="width:3%" class="text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="wf-roster-body">
+                                <tr class="wf-empty-row">
+                                    <td colspan="14" style="text-align:center; padding:2.5rem; color:#94a3b8;">No
+                                        assignments for this date. Click <strong>"Add Assignment"</strong> to get
+                                        started.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Supervisor Notes -->
+                    <div class="wf-notes-section">
+                        <label class="wf-notes-label">Supervisor Notes</label>
+                        <textarea id="wf-supervisor-notes" class="wf-notes-input" rows="2"
+                            placeholder="General notes for today's roster (e.g., Machine 3 under maintenance)..."></textarea>
+                    </div>
+                </section>
+
             </main>
         </div>
     </div>
@@ -2198,15 +2325,26 @@
                                     <div class="production-cost-label">Target Production Cost</div>
                                     <div class="list-row list-row-2col">
                                         <div class="form-group">
-                                            <label class="form-label" style="color: #475569;">In-house Value</label>
+                                            <label class="form-label" style="color: #475569;">In-house (Unit)</label>
                                             <input type="number" name="prodValueEa" class="form-input" min="0"
-                                                step="0.01" placeholder="In-house">
+                                                step="0.01" placeholder="In-house per Unit" id="order-prod-unit">
                                         </div>
                                         <div class="form-group">
-                                            <label class="form-label" style="color: #475569;">Outsource
-                                                Value</label>
+                                            <label class="form-label" style="color: #475569;">Total In-house</label>
+                                            <input type="text" name="prodValueTotal" class="form-input computed"
+                                                id="order-prod-total" readonly placeholder="Total In-house">
+                                        </div>
+                                    </div>
+                                    <div class="list-row list-row-2col" style="margin-top: 0.5rem;">
+                                        <div class="form-group">
+                                            <label class="form-label" style="color: #475569;">Outsource (Unit)</label>
                                             <input type="number" name="outsourceValue" class="form-input" min="0"
-                                                step="0.01" placeholder="Outsource">
+                                                step="0.01" placeholder="Outsource per Unit" id="order-outsource-unit">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" style="color: #475569;">Total Outsource</label>
+                                            <input type="text" name="outsourceValueTotal" class="form-input computed"
+                                                id="order-outsource-total" readonly placeholder="Total Outsource">
                                         </div>
                                     </div>
                                 </div>
@@ -2570,10 +2708,15 @@
                                 </select>
                             </div>
                         </div>
-                        <div class="list-row">
+                        <div class="list-row list-row-2col">
                             <div class="form-group">
                                 <label class="form-label">Joining Date</label>
                                 <input type="date" name="joiningDate" class="form-input">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Daily Overhead (₹)</label>
+                                <input type="number" name="overheads" class="form-input" placeholder="e.g. 500" min="0"
+                                    step="0.01">
                             </div>
                         </div>
                     </div>

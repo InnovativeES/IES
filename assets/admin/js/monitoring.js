@@ -245,6 +245,14 @@ export const renderTable = (orders) => {
             <td>${actionsHtml}</td>
         `;
 
+        // Add Double-Click to Edit
+        tr.style.cursor = 'pointer';
+        tr.addEventListener('dblclick', () => {
+            if (!isTrashMode) {
+                window.adminApp.editOrder(order.id);
+            }
+        });
+
         tbody.appendChild(tr);
     });
 
@@ -267,8 +275,11 @@ export const handleAddOrder = async () => {
     const data = Object.fromEntries(formData.entries());
 
     // Auto-calculate Total based on Sale Value
-    if (data.qty && data.saleValueEa) {
-        data.total = (parseFloat(data.qty) * parseFloat(data.saleValueEa)).toFixed(2);
+    if (data.qty) {
+        const qty = parseFloat(data.qty) || 0;
+        if (data.saleValueEa) data.total = (qty * parseFloat(data.saleValueEa)).toFixed(2);
+        if (data.prodValueEa) data.prodValueTotal = (qty * parseFloat(data.prodValueEa)).toFixed(2);
+        if (data.outsourceValue) data.outsourceValueTotal = (qty * parseFloat(data.outsourceValue)).toFixed(2);
     }
 
     // Auto-determine status from DC No and Qty
@@ -379,7 +390,45 @@ export const populateForm = (order) => {
     if (statusDisplay) statusDisplay.value = displayHtml;
     if (statusHidden) statusHidden.value = autoStatus;
 
+    // Trigger calculation for all cost fields
+    calculateOrderCosts();
+
     window.adminApp.openAddOrderModal();
+};
+
+export const setupCostCalculation = () => {
+    const qtyInput = document.getElementById('order-qty');
+    const saleInput = document.getElementById('order-value');
+    const prodInput = document.getElementById('order-prod-unit');
+    const outsourceInput = document.getElementById('order-outsource-unit');
+
+    if (!qtyInput) return;
+
+    const inputs = [qtyInput, saleInput, prodInput, outsourceInput];
+    inputs.forEach(input => {
+        if (input) {
+            input.addEventListener('input', calculateOrderCosts);
+        }
+    });
+};
+
+const calculateOrderCosts = () => {
+    const qty = parseFloat(document.getElementById('order-qty')?.value) || 0;
+    const saleUnit = parseFloat(document.getElementById('order-value')?.value) || 0;
+    const prodUnit = parseFloat(document.getElementById('order-prod-unit')?.value) || 0;
+    const outsourceUnit = parseFloat(document.getElementById('order-outsource-unit')?.value) || 0;
+
+    const totalSale = (qty * saleUnit).toFixed(2);
+    const totalProd = (qty * prodUnit).toFixed(2);
+    const totalOutsource = (qty * outsourceUnit).toFixed(2);
+
+    const totalSaleEl = document.getElementById('order-total');
+    const totalProdEl = document.getElementById('order-prod-total');
+    const totalOutsourceEl = document.getElementById('order-outsource-total');
+
+    if (totalSaleEl) totalSaleEl.value = totalSale;
+    if (totalProdEl) totalProdEl.value = totalProd;
+    if (totalOutsourceEl) totalOutsourceEl.value = totalOutsource;
 };
 
 /**
@@ -547,25 +596,34 @@ export const setDeliveryTrashMode = (mode) => {
     isDeliveryTrashMode = mode;
 };
 
-export const renderDeliveryReport = async (weekValue) => {
-    // weekValue format: "2024-W05"
-    if (!weekValue) return;
+export const renderDeliveryReport = async (weekValue, monthValue) => {
+    let startDate, endDate, rangeText;
 
-    const [year, week] = weekValue.split('-W');
-    const simpleWeek = parseInt(week, 10);
+    if (weekValue) {
+        const [year, week] = weekValue.split('-W');
+        const simpleWeek = parseInt(week, 10);
+        const jan1 = new Date(year, 0, 1);
+        const dayOffset = jan1.getDay() <= 4 ? jan1.getDay() - 1 : jan1.getDay() - 8;
+        startDate = new Date(year, 0, 1 + (simpleWeek - 1) * 7 - dayOffset);
+        endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + 6);
 
-    // Calculate date range for the selected week
-    const jan1 = new Date(year, 0, 1);
-    const dayOffset = jan1.getDay() <= 4 ? jan1.getDay() - 1 : jan1.getDay() - 8;
-    const startOfWeek = new Date(year, 0, 1 + (simpleWeek - 1) * 7 - dayOffset);
-    const endOfWeek = new Date(startOfWeek);
-    endOfWeek.setDate(startOfWeek.getDate() + 6);
+        const options = { month: 'short', day: '2-digit' };
+        rangeText = `${startDate.toLocaleDateString('en-IN', options)} - ${endDate.toLocaleDateString('en-IN', options)}`;
+    } else if (monthValue) {
+        const [year, month] = monthValue.split('-').map(Number);
+        startDate = new Date(year, month - 1, 1);
+        endDate = new Date(year, month, 0);
+
+        rangeText = startDate.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+    } else {
+        return;
+    }
 
     // Update range display
     const rangeEl = document.getElementById('delivery-week-range');
     if (rangeEl) {
-        const options = { month: 'short', day: '2-digit' };
-        rangeEl.textContent = `${startOfWeek.toLocaleDateString('en-IN', options)} - ${endOfWeek.toLocaleDateString('en-IN', options)}`;
+        rangeEl.textContent = rangeText;
         rangeEl.classList.remove('hidden');
     }
 
@@ -574,8 +632,8 @@ export const renderDeliveryReport = async (weekValue) => {
     tbody.innerHTML = '<tr><td colspan="16" class="text-center py-8">Loading report data...</td></tr>';
 
     // Fetch Daily Stats
-    const startDateStr = startOfWeek.toISOString().slice(0, 10);
-    const endDateStr = endOfWeek.toISOString().slice(0, 10);
+    const startDateStr = startDate.toISOString().slice(0, 10);
+    const endDateStr = endDate.toISOString().slice(0, 10);
 
     let dailyStats = {};
     try {
@@ -585,8 +643,8 @@ export const renderDeliveryReport = async (weekValue) => {
     }
 
     // Normalize start/end times
-    startOfWeek.setHours(0, 0, 0, 0);
-    endOfWeek.setHours(23, 59, 59, 999);
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(23, 59, 59, 999);
 
     // Filter Delivered Orders
     let orders = [];
@@ -602,8 +660,8 @@ export const renderDeliveryReport = async (weekValue) => {
         orders = window.adminApp.getCurrentOrders ? window.adminApp.getCurrentOrders() : [];
     }
 
-    console.log("Render Delivery Report:", { weekValue, mode: isDeliveryTrashMode ? 'Trash' : 'Active', totalOrders: orders.length });
-    console.log("Week Range:", { start: startOfWeek.toString(), end: endOfWeek.toString() });
+    console.log("Render Delivery Report:", { weekValue, monthValue, mode: isDeliveryTrashMode ? 'Trash' : 'Active', totalOrders: orders.length });
+    console.log("Range:", { start: startDate.toString(), end: endDate.toString() });
 
     const reportOrders = orders.filter(o => {
         // Strict separation: ONLY show explicitly tagged delivery reports
@@ -621,7 +679,7 @@ export const renderDeliveryReport = async (weekValue) => {
         const localOrderDate = new Date(y, m - 1, d);
         localOrderDate.setHours(0, 0, 0, 0);
 
-        const inRange = localOrderDate >= startOfWeek && localOrderDate <= endOfWeek;
+        const inRange = localOrderDate >= startDate && localOrderDate <= endDate;
 
         if (o.entryType === 'delivery_report') {
             console.log("Checking Entry:", {

@@ -600,3 +600,106 @@ export const subscribeToProjectAuditLogs = (projectId, callback) => {
         callback(logs);
     });
 };
+
+// === DAILY ROSTER MANAGEMENT ===
+const DAILY_ROSTER_COLLECTION = "daily_workflows";
+
+/**
+ * Save or update a daily workflow for a specific date + department.
+ * Uses composite ID "YYYY-MM-DD_Department" for fast lookups.
+ */
+export const saveWorkflow = async (date, department, assignments, supervisorNotes = '') => {
+    try {
+        const docId = `${date}_${department}`;
+        const docRef = doc(db, DAILY_ROSTER_COLLECTION, docId);
+        const existing = await getDoc(docRef);
+
+        const payload = {
+            date,
+            department,
+            assignments,
+            supervisorNotes,
+            updatedAt: serverTimestamp()
+        };
+
+        if (existing.exists()) {
+            await updateDoc(docRef, payload);
+        } else {
+            await setDoc(docRef, { ...payload, createdAt: serverTimestamp() });
+        }
+
+        return { success: true, id: docId };
+    } catch (error) {
+        console.error("Error saving workflow:", error);
+        return { error: error.message };
+    }
+};
+
+/**
+ * Get a single workflow document for a date + department.
+ */
+export const getWorkflow = async (date, department) => {
+    try {
+        const docId = `${date}_${department}`;
+        const docRef = doc(db, DAILY_ROSTER_COLLECTION, docId);
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+            return { data: { id: snap.id, ...snap.data() }, error: null };
+        }
+        return { data: null, error: null };
+    } catch (error) {
+        console.error("Error getting workflow:", error);
+        return { data: null, error: error.message };
+    }
+};
+
+/**
+ * Subscribe to all workflow documents for a given date (all departments).
+ */
+export const subscribeToWorkflows = (date, callback) => {
+    const q = query(
+        collection(db, DAILY_ROSTER_COLLECTION),
+        where("date", "==", date)
+    );
+    return onSnapshot(q, (snapshot) => {
+        const workflows = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        callback(workflows);
+    });
+};
+
+/**
+ * Get all workflow documents for a given date (all departments) synchronously.
+ */
+export const getWorkflowsForDate = async (date) => {
+    try {
+        const q = query(
+            collection(db, DAILY_ROSTER_COLLECTION),
+            where("date", "==", date)
+        );
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (error) {
+        console.error("Error getting workflows for date:", error);
+        return [];
+    }
+};
+
+/**
+ * Remove a specific employee's assignment from a workflow document.
+ */
+export const deleteWorkflowAssignment = async (workflowId, employeeId) => {
+    try {
+        const docRef = doc(db, DAILY_ROSTER_COLLECTION, workflowId);
+        const snap = await getDoc(docRef);
+        if (!snap.exists()) return { error: "Workflow not found" };
+
+        const data = snap.data();
+        const updatedAssignments = (data.assignments || []).filter(a => a.employeeId !== employeeId);
+
+        await updateDoc(docRef, { assignments: updatedAssignments, updatedAt: serverTimestamp() });
+        return { success: true };
+    } catch (error) {
+        console.error("Error deleting assignment:", error);
+        return { error: error.message };
+    }
+};

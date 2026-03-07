@@ -44,7 +44,8 @@ export const switchView = (viewName) => {
             'monitoring': 'Internal Orders',
             'team_org': 'Team & Organization',
             'project_management': 'Project Management',
-            'project_detail': 'Project Deep Dive & Workflow'
+            'project_detail': 'Project Deep Dive & Workflow',
+            'daily_roster': 'Daily Roster'
         };
 
         const pageTitle = document.getElementById('page-title');
@@ -62,6 +63,11 @@ export const switchView = (viewName) => {
         if (viewName === 'monitoring') {
             if (window.adminApp?.renderMonitoring) {
                 window.adminApp.renderMonitoring();
+            }
+        }
+        if (viewName === 'daily_roster') {
+            if (window.adminApp?.renderWorkflowView) {
+                window.adminApp.renderWorkflowView();
             }
         }
     }

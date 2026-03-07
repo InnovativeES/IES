@@ -4,6 +4,7 @@ import * as DB from './db.js';
 import * as Charts from './charts.js';
 import * as Monitoring from './monitoring.js';
 import * as Inventory from './inventory.js';
+import * as Workflow from './workflow.js';
 
 // App State
 let currentMembers = [];
@@ -195,6 +196,9 @@ window.adminApp = {
             inventoryUnsubscribe();
             inventoryUnsubscribe = null;
         }
+        if (viewName === 'daily_roster') {
+            Workflow.initWorkflowView();
+        }
     },
 
     refreshDashboard: () => {
@@ -382,6 +386,7 @@ window.adminApp = {
         setField('section', member.section || member.department);
         setField('status', member.status);
         setField('joiningDate', member.joiningDate);
+        setField('overheads', member.overheads || '');
 
         // Populate Roles
         window.adminApp.selectedRoles.clear();
@@ -448,6 +453,7 @@ window.adminApp = {
 
             status: formData.get('status') || 'Active',
             joiningDate: formData.get('joiningDate') || '',
+            overheads: parseFloat(formData.get('overheads')) || 0,
             reportingManagerId: formData.get('reportingManager') || null
         };
 
@@ -2322,6 +2328,23 @@ window.adminApp = {
         }
     },
 
+    // Workflow accessors
+    getCurrentMembers: () => currentMembers,
+    getCurrentOrders: () => currentOrders,
+
+    // Daily Roster
+    renderWorkflowView: () => Workflow.initWorkflowView(),
+    wfOpenAssignModal: () => Workflow.openAssignModal(),
+    wfConfirmAssign: () => Workflow.confirmAssign(),
+    wfUpdateRow: (idx, field, value) => Workflow.updateRow(idx, field, value),
+    wfEditRow: (idx) => Workflow.editRow(idx),
+    wfFilterTeam: (val) => Workflow.filterTeam(val),
+    wfRemoveRow: (idx) => Workflow.removeRow(idx),
+    wfSaveAll: () => Workflow.saveAll(),
+    wfCopyPreviousDay: () => Workflow.copyPreviousDay(),
+    wfPrint: () => Workflow.printWorksheet(),
+    wfCalculateProdValue: () => Workflow.calculateProdValue(),
+
     setPageSize: (size) => {
         Monitoring.setPageSize(size);
     },
@@ -2340,7 +2363,76 @@ window.adminApp = {
     },
 
     printDeliveryReport: () => {
-        window.print();
+        const tableHtml = document.getElementById('delivery-report-table')?.outerHTML || '';
+        const totalItems = document.getElementById('report-total-items')?.textContent || '0';
+        const totalValue = document.getElementById('report-total-value')?.textContent || '₹0';
+        const totalManpower = document.getElementById('report-total-manpower')?.textContent || '0';
+        const dateRangeText = document.getElementById('delivery-week-range')?.textContent || 'Delivery Report';
+
+        const printWindow = window.open('', '_blank');
+        const html = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Delivery Report Print</title>
+                <style>
+                    body { font-family: Arial, sans-serif; padding: 20px; color: #000; }
+                    .header { text-align: center; margin-bottom: 20px; }
+                    .header h1 { margin: 0; font-size: 24px; color: #333; }
+                    .header p { margin: 5px 0; color: #666; font-weight: bold; text-transform: uppercase;}
+                    .summary { display: flex; justify-content: space-around; margin-bottom: 20px; padding: 15px; background: #f8f9fa; border: 1px solid #e2e8f0; border-radius: 8px;}
+                    .stat { text-align: center; }
+                    .stat-label { font-size: 12px; text-transform: uppercase; color: #64748b; font-weight: bold;}
+                    .stat-value { font-size: 22px; font-weight: bold; margin-top: 5px; color: #0f172a;}
+                    table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 10px; table-layout: fixed; word-wrap: break-word;}
+                    th, td { border: 1px solid #cbd5e1; padding: 8px 6px; text-align: left; vertical-align: middle;}
+                    th { background-color: #f1f5f9; font-weight: bold; color: #334155; text-transform: uppercase; font-size: 10px;}
+                    .text-center { text-align: center; }
+                    
+                    /* Hide internal UI buttons and Action column */
+                    .no-print, th:last-child, td:last-child { display: none !important; }
+                    button, .btn { display: none !important; }
+
+                    @media print {
+                        @page { size: A4 landscape; margin: 10mm; }
+                        body { padding: 0; }
+                        .summary { background: #f8f9fa !important; border-color: #cbd5e1 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                        th { background-color: #f1f5f9 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>Delivery Report</h1>
+                    <p>${dateRangeText}</p>
+                </div>
+                <div class="summary">
+                    <div class="stat">
+                        <div class="stat-label">Delivered Items</div>
+                        <div class="stat-value">${totalItems}</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-label">Total Value</div>
+                        <div class="stat-value">${totalValue}</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-label">Total Manpower</div>
+                        <div class="stat-value">${totalManpower}</div>
+                    </div>
+                </div>
+                ${tableHtml}
+                <script>
+                    window.onload = () => {
+                        setTimeout(() => {
+                            window.print();
+                        }, 500);
+                    };
+                </script>
+            </body>
+            </html>
+        `;
+        printWindow.document.write(html);
+        printWindow.document.close();
     },
 
     saveManpower: (date, value) => {
@@ -2775,56 +2867,78 @@ window.adminApp = {
     },
 
     generateAndSaveReport: async () => {
-        const pendingOrders = currentOrders.filter(o => o.status === 'Pending' && !o.deleted);
-
-        // Build report data
         const today = new Date();
         const dateStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
 
-        const totalOrders = pendingOrders.length || 0;
-        const urgent = pendingOrders.filter(o => (o.priority || '').toLowerCase() === 'urgent').length || 0;
-        const assigned = pendingOrders.filter(o => o.assignedTo && o.assignedTo.length > 0).length || 0;
-        const unassigned = totalOrders - assigned;
+        // 1. Active Internal Orders (Excluding delivered and trash)
+        const activeOrdersSnapshot = currentOrders.filter(o =>
+            o.status !== 'Delivered' && !o.deleted && o.entryType !== 'delivery_report'
+        ).map(o => ({
+            id: o.id || '',
+            internalOrderNo: o.internalOrderNo || '',
+            drawingNo: o.drawingNo || '',
+            description: o.description || '',
+            customer: o.customer || '',
+            qty: o.qty || '',
+            qtyUnit: o.qtyUnit || '',
+            priority: o.priority || 'normal',
+            status: o.status || 'Pending',
+            estimatedCompletion: o.estimatedCompletion || ''
+        }));
 
-        // Employee workload
-        const workload = {};
-        pendingOrders.forEach(o => {
-            (o.assignedTo || []).forEach(id => {
-                const name = currentMembers.find(m => m.id === id)?.name || id || 'Unknown';
-                workload[name] = (workload[name] || 0) + 1;
-            });
-        });
+        // 2. Pending Assignments (Subset of active with no members assigned)
+        const pendingAssignmentsSnapshot = currentOrders.filter(o =>
+            o.status === 'Pending' && !o.deleted && (!o.assignedTo || o.assignedTo.length === 0)
+        ).map(o => ({
+            id: o.id || '',
+            internalOrderNo: o.internalOrderNo || '',
+            drawingNo: o.drawingNo || '',
+            description: o.description || '',
+            customer: o.customer || '',
+            priority: o.priority || 'normal',
+            estimatedCompletion: o.estimatedCompletion || ''
+        }));
 
-        // Orders snapshot for detailed view - ensure NO undefined values
-        const ordersSnapshot = pendingOrders.map(o => {
-            const assignedNames = (o.assignedTo || []).map(id =>
-                currentMembers.find(m => m.id === id)?.name || id
-            ).join(', ') || 'Unassigned';
+        // 3. Today's Delivery Report
+        const deliverySnapshot = currentOrders.filter(o =>
+            o.status === 'Delivered' && o.deliveryDateActual === dateStr && o.entryType === 'delivery_report'
+        ).map(o => ({
+            internalOrderNo: o.internalOrderNo || '',
+            customer: o.customer || '',
+            description: o.description || '',
+            drawingNo: o.drawingNo || '',
+            deliveryQty: o.deliveryQty || o.qty || 0,
+            dcNo: o.dcNo || '-',
+            total: o.total || 0
+        }));
 
-            return {
-                id: o.id || '',
-                internalOrderNo: o.internalOrderNo || '',
-                drawingNo: o.drawingNo || '',
-                description: o.description || '',
-                customer: o.customer || '',
-                qty: o.qty || '',
-                qtyUnit: o.qtyUnit || '',
-                priority: o.priority || 'normal',
-                assignedTo: o.assignedTo || [],
-                assignedNames: assignedNames,
-                remarks: o.remarks || '',
-                estimatedCompletion: o.estimatedCompletion || ''
-            };
-        });
+        // 4. Daily Roster (Today's workflow from all departments)
+        const rosterData = await DB.getWorkflowsForDate(dateStr);
+        const rosterSnapshot = rosterData.map(wf => ({
+            department: wf.department,
+            assignments: (wf.assignments || []).map(a => ({
+                employeeName: a.employeeName,
+                employeeNo: a.employeeNo,
+                tasks: (a.tasks || []).map(t => ({
+                    orderNo: t.orderNo,
+                    description: t.description,
+                    status: t.status,
+                    workDuration: `${t.workStart || ''} to ${t.workEnd || ''}`
+                }))
+            })),
+            notes: wf.supervisorNotes || ''
+        }));
 
         const reportData = {
-            date: dateStr || '',
-            totalOrders: totalOrders || 0,
-            urgent: urgent || 0,
-            assigned: assigned || 0,
-            unassigned: unassigned || 0,
-            workload: workload || {},
-            ordersSnapshot: ordersSnapshot || [],
+            date: dateStr,
+            totalOrders: activeOrdersSnapshot.length,
+            urgent: activeOrdersSnapshot.filter(o => o.priority === 'urgent').length,
+            assigned: activeOrdersSnapshot.length - pendingAssignmentsSnapshot.length,
+            unassigned: pendingAssignmentsSnapshot.length,
+            activeOrdersSnapshot,
+            pendingAssignmentsSnapshot,
+            deliverySnapshot,
+            rosterSnapshot,
             generatedAt: new Date().toISOString()
         };
 
@@ -2852,88 +2966,189 @@ window.adminApp = {
         const reportHTML = `
             <html>
             <head>
-                <title>Pending Orders Report - ${displayDate}</title>
+                <title>IES Groups - Daily Report - ${displayDate}</title>
                 <style>
-                    body { font-family: Arial, sans-serif; padding: 20px; }
-                    h1 { text-align: center; color: #1e293b; }
-                    .summary { display: flex; gap: 20px; margin-bottom: 20px; }
-                    .stat-box { background: #f1f5f9; padding: 15px; border-radius: 8px; flex: 1; text-align: center; }
-                    .stat-box h3 { margin: 0; font-size: 24px; color: #0d9488; }
-                    .stat-box p { margin: 5px 0 0; color: #64748b; }
-                    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                    th, td { border: 1px solid #e2e8f0; padding: 8px; text-align: left; font-size: 12px; }
-                    th { background: #1e293b; color: white; }
-                    .urgent { background: #fef2f2; }
-                    .workload { margin-top: 20px; }
-                    .workload-item { padding: 8px 0; border-bottom: 1px solid #e2e8f0; }
+                    body { font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; color: #1e293b; line-height: 1.5; }
+                    .header { text-align: center; border-bottom: 2px solid #0d9488; padding-bottom: 10px; margin-bottom: 20px; }
+                    .header h1 { margin: 0; color: #0d9488; font-size: 24px; text-transform: uppercase; }
+                    .header p { margin: 5px 0 0; color: #64748b; font-weight: bold; }
+                    
+                    .section-title { background: #f1f5f9; padding: 8px 12px; border-left: 4px solid #0d9488; margin: 25px 0 15px; font-size: 16px; font-bold; text-transform: uppercase; }
+                    
+                    .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 25px; }
+                    .stat-box { background: white; border: 1px solid #e2e8f0; padding: 12px; border-radius: 8px; text-align: center; }
+                    .stat-box h3 { margin: 0; font-size: 20px; color: #0d9488; }
+                    .stat-box p { margin: 4px 0 0; font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: bold; }
+                    
+                    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; table-layout: fixed; }
+                    th, td { border: 1px solid #e2e8f0; padding: 8px 10px; text-align: left; font-size: 11px; word-wrap: break-word; }
+                    th { background: #f8fafc; color: #475569; font-weight: bold; text-transform: uppercase; border-bottom: 2px solid #e2e8f0; }
+                    
+                    .badge { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; }
+                    .badge-urgent { background: #fef2f2; color: #ef4444; }
+                    .badge-normal { background: #f1f5f9; color: #64748b; }
+                    
+                    .roster-card { border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 15px; page-break-inside: avoid; }
+                    .roster-header { background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 6px 12px; font-weight: bold; font-size: 12px; color: #0d9488; }
+                    .roster-body { padding: 10px; }
+                    
+                    .footer { margin-top: 40px; font-size: 10px; color: #94a3b8; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 10px; }
+                    @media print {
+                        .page-break { page-break-before: always; }
+                        body { padding: 0; }
+                    }
                 </style>
             </head>
             <body>
-                <h1>📋 IES Groups - Pending Orders Report</h1>
-                <p style="text-align: center; color: #64748b;">${displayDate}</p>
-                
-                <div class="summary">
-                    <div class="stat-box"><h3>${report.totalOrders}</h3><p>Total Pending</p></div>
-                    <div class="stat-box"><h3 style="color: #ef4444;">${report.urgent}</h3><p>Urgent</p></div>
-                    <div class="stat-box"><h3 style="color: #22c55e;">${report.assigned}</h3><p>Assigned</p></div>
-                    <div class="stat-box"><h3 style="color: #f59e0b;">${report.unassigned}</h3><p>Unassigned</p></div>
+                <div class="header">
+                    <h1>Innovative Engineering Solutions Groups</h1>
+                    <p>Daily Operations Report - ${displayDate}</p>
                 </div>
 
-                <h2>Employee Workload</h2>
-                <div class="workload">
-                    ${Object.entries(report.workload || {}).map(([name, count]) =>
-            `<div class="workload-item"><strong>${name}</strong>: ${count} orders</div>`
-        ).join('')}
-                    ${Object.keys(report.workload || {}).length === 0 ? '<p>No assignments</p>' : ''}
+                <div class="summary-grid">
+                    <div class="stat-box"><h3>${report.totalOrders}</h3><p>Active Orders</p></div>
+                    <div class="stat-box"><h3>${report.unassigned}</h3><p>Unassigned</p></div>
+                    <div class="stat-box"><h3>${report.urgent}</h3><p>Urgent Items</p></div>
+                    <div class="stat-box"><h3>${report.deliverySnapshot?.length || 0}</h3><p>Items Delivered</p></div>
                 </div>
 
-                <h2>Order Details</h2>
+                <!-- SECTION 1: DAILY ROSTER -->
+                <div class="section-title">1. Daily Roster (Work Assignments)</div>
+                ${(report.rosterSnapshot || []).length > 0 ? (report.rosterSnapshot || []).map(dept => `
+                    <div class="roster-card">
+                        <div class="roster-header">${dept.department} Division</div>
+                        <div class="roster-body">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th style="width: 25%;">Employee</th>
+                                        <th style="width: 15%;">Order No</th>
+                                        <th>Task Description</th>
+                                        <th style="width: 15%;">Status</th>
+                                        <th style="width: 15%;">Duration</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${dept.assignments.map(a => `
+                                        ${a.tasks.map((t, idx) => `
+                                            <tr>
+                                                ${idx === 0 ? `<td rowspan="${a.tasks.length}"><strong>${a.employeeName}</strong><br><small>${a.employeeNo}</small></td>` : ''}
+                                                <td>${t.orderNo || '-'}</td>
+                                                <td>${t.description}</td>
+                                                <td style="text-align:center;">${t.status}</td>
+                                                <td style="text-align:center;">${t.workDuration}</td>
+                                            </tr>
+                                        `).join('')}
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                            ${dept.notes ? `<p style="font-size: 11px; color: #64748b; font-style: italic;"><strong>Note:</strong> ${dept.notes}</p>` : ''}
+                        </div>
+                    </div>
+                `).join('') : '<p style="text-align:center; color:#94a3b8; font-size:12px;">No roster data recorded for today.</p>'}
+
+                <div class="page-break"></div>
+
+                <!-- SECTION 2: DELIVERY REPORT -->
+                <div class="section-title">2. Items Delivered Today</div>
+                ${(report.deliverySnapshot || []).length > 0 ? `
                 <table>
                     <thead>
                         <tr>
-                            <th>Priority</th>
-                            <th>Order ID</th>
-                            <th>Customer</th>
+                            <th style="width: 12%;">Order No</th>
+                            <th style="width: 20%;">Customer</th>
                             <th>Description</th>
-                            <th>Drg No</th>
-                            <th>Qty</th>
-                            <th>Unit</th>
-                            <th>Due Date</th>
-                            <th>Assigned To</th>
-                            <th>Remarks</th>
+                            <th style="width: 15%;">Drawing No</th>
+                            <th style="width: 10%; text-align:right;">Qty</th>
+                            <th style="width: 12%;">DC No</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${(report.ordersSnapshot || []).map(o => {
-            const dueDate = o.estimatedCompletion
-                ? new Date(o.estimatedCompletion).toLocaleDateString('en-IN')
-                : '-';
-            return `
-                            <tr class="${o.priority === 'urgent' ? 'urgent' : ''}">
-                                <td>${o.priority === 'urgent' ? '🔴 Urgent' : '⚪ Normal'}</td>
-                                <td>${o.internalOrderNo || o.id}</td>
-                                <td>${o.customer || '-'}</td>
-                                <td>${o.description || '-'}</td>
-                                <td>${o.drawingNo || '-'}</td>
-                                <td>${o.qty || '-'}</td>
-                                <td>${o.qtyUnit || '-'}</td>
-                                <td>${dueDate}</td>
-                                <td>${o.assignedNames || 'Unassigned'}</td>
-                                <td>${o.remarks || '-'}</td>
+                        ${report.deliverySnapshot.map(o => `
+                            <tr>
+                                <td><strong>${o.internalOrderNo}</strong></td>
+                                <td>${o.customer}</td>
+                                <td>${o.description}</td>
+                                <td>${o.drawingNo}</td>
+                                <td style="text-align:right;">${o.deliveryQty}</td>
+                                <td>${o.dcNo}</td>
                             </tr>
-                        `;
-        }).join('')}
+                        `).join('')}
+                    </tbody>
+                </table>
+                ` : '<p style="text-align:center; color:#94a3b8; font-size:12px;">No deliveries recorded today.</p>'}
+
+                <!-- SECTION 3: PENDING ASSIGNMENTS -->
+                <div class="section-title">3. Pending Assignments (Priority Action)</div>
+                ${(report.pendingAssignmentsSnapshot || []).length > 0 ? `
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 10%;">Priority</th>
+                            <th style="width: 15%;">Order No</th>
+                            <th style="width: 20%;">Customer</th>
+                            <th>Description</th>
+                            <th style="width: 15%;">Target Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${report.pendingAssignmentsSnapshot.map(o => `
+                            <tr>
+                                <td style="text-align:center;"><span class="badge badge-${o.priority.toLowerCase()}">${o.priority.toUpperCase()}</span></td>
+                                <td><strong>${o.internalOrderNo || o.id}</strong></td>
+                                <td>${o.customer}</td>
+                                <td>${o.description}</td>
+                                <td>${o.estimatedCompletion ? new Date(o.estimatedCompletion).toLocaleDateString('en-IN') : '-'}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                ` : '<p style="text-align:center; color:#94a3b8; font-size:12px;">All pending orders have been assigned.</p>'}
+
+                <div class="page-break"></div>
+
+                <!-- SECTION 4: FULL INTERNAL ORDER STATUS -->
+                <div class="section-title">4. Active Internal Orders (Backlog)</div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 12%;">Order No</th>
+                            <th style="width: 15%;">Customer</th>
+                            <th>Description</th>
+                            <th style="width: 15%;">Drawing No</th>
+                            <th style="width: 10%; text-align:right;">Qty</th>
+                            <th style="width: 12%;">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${(report.activeOrdersSnapshot || []).map(o => `
+                            <tr>
+                                <td><strong>${o.internalOrderNo}</strong></td>
+                                <td>${o.customer}</td>
+                                <td>${o.description}</td>
+                                <td>${o.drawingNo}</td>
+                                <td style="text-align:right;">${o.qty} ${o.qtyUnit}</td>
+                                <td style="text-align:center;"><span class="badge badge-normal">${o.status}</span></td>
+                            </tr>
+                        `).join('')}
                     </tbody>
                 </table>
 
-                <script>window.print();</script>
+                <div class="footer">
+                    Report generated on ${new Date(report.generatedAt).toLocaleString('en-IN')} | IES Groups Management System
+                </div>
             </body>
             </html>
         `;
 
-        const printWindow = window.open('', '_blank');
-        printWindow.document.write(reportHTML);
-        printWindow.document.close();
+        const printWin = window.open('', '', 'width=1000,height=800');
+        printWin.document.write(reportHTML);
+        printWin.document.close();
+
+        // Wait for fonts/images and then print
+        setTimeout(() => {
+            printWin.print();
+        }, 500);
     },
 
     checkAutoGenerateReport: async () => {
@@ -2952,7 +3167,7 @@ window.adminApp = {
         const getTimePart = (type) => parts.find(p => p.type === type).value;
 
         const hours = parseInt(getTimePart('hour'));
-        const todayStr = `${getTimePart('year')}-${getTimePart('month')}-${getTimePart('day')}`;
+        const todayStr = `${getTimePart('year')} -${getTimePart('month')} -${getTimePart('day')} `;
 
         // Check if it's past 7 PM IST (19:00)
         if (hours >= 19) {
@@ -3017,10 +3232,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!orders || orders.length < 5) {
             console.log("Injecting Mock Orders for Demo...");
             const mockOrders = Array.from({ length: 15 }).map((_, i) => ({
-                id: `mock-${i}`,
-                internalOrderNo: `2026-02-${500 + i}`,
+                id: `mock - ${i} `,
+                internalOrderNo: `2026-02 - ${500 + i} `,
                 customer: ['Baliga', 'Bray Controls', 'Flowserve', 'L&T'][Math.floor(Math.random() * 4)],
-                description: `Machining of ${['Valve Body', 'Flange', 'Shaft', 'Housing'][Math.floor(Math.random() * 4)]}`,
+                description: `Machining of ${['Valve Body', 'Flange', 'Shaft', 'Housing'][Math.floor(Math.random() * 4)]} `,
                 date: new Date(Date.now() - Math.floor(Math.random() * 86400000 * 3)).toISOString().split('T')[0], // Last 3 days
                 delDate: new Date(Date.now() + Math.floor(Math.random() * 86400000 * 10)).toISOString().split('T')[0],
                 status: 'Pending',
@@ -3208,7 +3423,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const weekPicker = document.getElementById('delivery-week-picker');
     if (weekPicker) {
         weekPicker.addEventListener('change', (e) => {
+            const monthPicker = document.getElementById('delivery-month-picker');
+            if (monthPicker) monthPicker.value = ''; // Clear month if week is picked
             Monitoring.renderDeliveryReport(e.target.value);
+        });
+    }
+
+    const deliveryMonthPicker = document.getElementById('delivery-month-picker');
+    if (deliveryMonthPicker) {
+        deliveryMonthPicker.addEventListener('change', (e) => {
+            const weekPicker = document.getElementById('delivery-week-picker');
+            if (weekPicker) weekPicker.value = ''; // Clear week if month is picked
+            Monitoring.renderDeliveryReport(undefined, e.target.value);
         });
     }
 
@@ -3247,7 +3473,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const customers = [...new Set(projects.map(p => p.customerName).filter(c => c))];
                     const currentVal = customerFilter.value;
                     customerFilter.innerHTML = '<option value="all">All Customers</option>' +
-                        customers.map(c => `<option value="${c}">${c}</option>`).join('');
+                        customers.map(c => `< option value = "${c}" > ${c}</option > `).join('');
                     customerFilter.value = currentVal;
                 }
 
@@ -3269,7 +3495,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const statusDisplay = document.getElementById('detail-project-status');
                         if (statusDisplay) {
                             statusDisplay.textContent = activeProject.status;
-                            statusDisplay.className = `status-badge ${activeProject.status?.toLowerCase().replace(' ', '-')}`;
+                            statusDisplay.className = `status - badge ${activeProject.status?.toLowerCase().replace(' ', '-')} `;
                         }
                     }
                 }
@@ -3315,9 +3541,9 @@ window.adminApp.renderContractReview = (reviewData = {}) => {
 
         let labelEl = item.label;
         if (isCustom) {
-            labelEl = `<input type="text" class="cr-master-input cr-custom-label w-full font-bold px-3 py-2 text-slate-700" value="${itemObj.customLabel || ''}" data-item-id="${item.id}">`;
+            labelEl = `< input type = "text" class="cr-master-input cr-custom-label w-full font-bold px-3 py-2 text-slate-700" value = "${itemObj.customLabel || ''}" data - item - id="${item.id}" > `;
         } else {
-            labelEl = `<span class="px-3 block w-full py-2 font-bold text-slate-700">${item.label}</span>`;
+            labelEl = `< span class="px-3 block w-full py-2 font-bold text-slate-700" > ${item.label}</span > `;
         }
 
         const req = itemObj.req || '';
@@ -3325,22 +3551,22 @@ window.adminApp.renderContractReview = (reviewData = {}) => {
 
         const cell = (type, val, currentVal, extraVal) => {
             const isActive = type === 'out' && val === 'more' ? extraVal === 'true' : currentVal === val;
-            const activeClass = isActive ? `active-${val}` : '';
+            const activeClass = isActive ? `active - ${val} ` : '';
             const tick = isActive ? '✓' : '○';
 
             return `
-                <td class="p-0 select-none" onclick="window.adminApp.setReviewItem('${item.id}', '${type}', '${val}')">
-                    <div class="outcome-tile ${activeClass}" data-opt="${val}">
-                         <span class="cr-tick">${tick}</span>
-                    </div>
-                </td>
-            `;
+    < td class="p-0 select-none" onclick = "window.adminApp.setReviewItem('${item.id}', '${type}', '${val}')" >
+        <div class="outcome-tile ${activeClass}" data-opt="${val}">
+            <span class="cr-tick">${tick}</span>
+        </div>
+                </td >
+    `;
         };
 
-        const deleteBtn = isCustom ? `<button class="cr-item-delete-btn text-red-400 hover:text-red-600 px-3 flex-shrink-0" onclick="window.adminApp.removeReviewItem('${item.id}')" title="Remove Item"><svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>` : '';
+        const deleteBtn = isCustom ? `< button class="cr-item-delete-btn text-red-400 hover:text-red-600 px-3 flex-shrink-0" onclick = "window.adminApp.removeReviewItem('${item.id}')" title = "Remove Item" > <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button > ` : '';
 
         return `
-            <tr class="cr-item-row" data-item-id="${item.id}" data-req-val="${req}" data-out-val="${out}" data-more-val="${itemObj.more || 'false'}">
+    < tr class="cr-item-row" data - item - id="${item.id}" data - req - val="${req}" data - out - val="${out}" data - more - val="${itemObj.more || 'false'}" >
                 <td class="cr-item-index text-center uppercase tracking-tighter">${index + 1}</td>
                 <td class="p-0">
                     <div class="flex items-center h-full">
@@ -3354,11 +3580,11 @@ window.adminApp.renderContractReview = (reviewData = {}) => {
                 ${cell('out', 'nok', out)}
                 ${cell('out', 'na', out)}
                 ${cell('out', 'more', out, itemObj.more)}
-                <td class="p-0">
-                    <input type="text" class="cr-master-input w-full cr-remarks-input px-3 py-2 text-slate-600" value="${itemObj.remarks || ''}">
-                </td>
-            </tr>
-        `;
+<td class="p-0">
+    <input type="text" class="cr-master-input w-full cr-remarks-input px-3 py-2 text-slate-600" value="${itemObj.remarks || ''}">
+</td>
+            </tr >
+    `;
     };
 
     let currentIndex = 0;
@@ -3383,26 +3609,26 @@ window.adminApp.addCustomContractReviewItem = () => {
     const rowCount = tbody.querySelectorAll('.cr-item-row').length;
     const newId = 'custom_' + Date.now();
 
-    const labelEl = `<input type="text" class="cr-master-input cr-custom-label w-full font-bold px-3 py-2 text-slate-700" value="" data-item-id="${newId}">`;
+    const labelEl = `< input type = "text" class="cr-master-input cr-custom-label w-full font-bold px-3 py-2 text-slate-700" value = "" data - item - id="${newId}" > `;
 
     const cell = (type, val) => {
         return `
-            <td class="p-0 select-none" onclick="window.adminApp.setReviewItem('${newId}', '${type}', '${val}')">
-                <div class="outcome-tile" data-opt="${val}">
-                    <span class="cr-tick">○</span>
-                </div>
-            </td>
-        `;
+    < td class="p-0 select-none" onclick = "window.adminApp.setReviewItem('${newId}', '${type}', '${val}')" >
+        <div class="outcome-tile" data-opt="${val}">
+            <span class="cr-tick">○</span>
+        </div>
+            </td >
+    `;
     };
 
-    const deleteBtn = `<button class="cr-item-delete-btn text-red-400 hover:text-red-600 px-3 flex-shrink-0" onclick="window.adminApp.removeReviewItem('${newId}')" title="Remove Item"><svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>`;
+    const deleteBtn = `< button class="cr-item-delete-btn text-red-400 hover:text-red-600 px-3 flex-shrink-0" onclick = "window.adminApp.removeReviewItem('${newId}')" title = "Remove Item" > <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button > `;
 
     const tr = document.createElement('tr');
     tr.className = 'cr-item-row';
     tr.dataset.itemId = newId;
 
     tr.innerHTML = `
-        <td class="cr-item-index text-center uppercase tracking-tighter">${rowCount + 1}</td>
+    < td class="cr-item-index text-center uppercase tracking-tighter" > ${rowCount + 1}</td >
         <td class="p-0">
             <div class="flex items-center h-full">
                 <div class="flex-grow">${labelEl}</div>
@@ -3415,10 +3641,10 @@ window.adminApp.addCustomContractReviewItem = () => {
         ${cell('out', 'nok')}
         ${cell('out', 'na')}
         ${cell('out', 'more')}
-        <td class="p-0">
-            <input type="text" class="cr-master-input w-full cr-remarks-input px-3 py-2 text-slate-600" value="">
-        </td>
-    `;
+<td class="p-0">
+    <input type="text" class="cr-master-input w-full cr-remarks-input px-3 py-2 text-slate-600" value="">
+</td>
+`;
     tr.dataset.moreVal = 'false';
 
     tbody.appendChild(tr);
@@ -3426,7 +3652,7 @@ window.adminApp.addCustomContractReviewItem = () => {
 
 
 window.adminApp.removeReviewItem = (itemId) => {
-    const row = document.querySelector(`.cr-item-row[data-item-id="${itemId}"]`);
+    const row = document.querySelector(`.cr - item - row[data - item - id="${itemId}"]`);
     if (row) {
         row.remove();
         // Update indices
@@ -3438,7 +3664,7 @@ window.adminApp.removeReviewItem = (itemId) => {
 };
 
 window.adminApp.setReviewItem = (itemId, type, val) => {
-    const row = document.querySelector(`.cr-item-row[data-item-id="${itemId}"]`);
+    const row = document.querySelector(`.cr - item - row[data - item - id="${itemId}"]`);
     if (!row) return;
 
     if (type === 'out' && val === 'more') {
@@ -3474,21 +3700,21 @@ window.adminApp.setReviewItem = (itemId, type, val) => {
         const tickEl = tile.querySelector('.cr-tick');
 
         if (opt === val) {
-            const isCurrentlyActive = row.dataset[`${type}Val`] === val;
+            const isCurrentlyActive = row.dataset[`${type} Val`] === val;
             if (isCurrentlyActive) {
                 // Toggle OFF
-                tile.classList.remove(`active-${val}`);
+                tile.classList.remove(`active - ${val} `);
                 if (tickEl) tickEl.textContent = '○';
-                row.dataset[`${type}Val`] = '';
+                row.dataset[`${type} Val`] = '';
             } else {
                 // Switch ON
-                tile.classList.add(`active-${val}`);
+                tile.classList.add(`active - ${val} `);
                 if (tickEl) tickEl.textContent = '✓';
-                row.dataset[`${type}Val`] = val;
+                row.dataset[`${type} Val`] = val;
             }
         } else {
             // Force others OFF
-            tile.classList.remove(`active-${opt}`);
+            tile.classList.remove(`active - ${opt} `);
             if (tickEl) tickEl.textContent = '○';
         }
     }
@@ -3508,12 +3734,12 @@ window.adminApp.loadContractReview = async (projectId) => {
 
         // Helper to safely set value
         const setVal = (id, val) => {
-            const el = document.getElementById(id) || document.querySelector(`[data-field="${id}"]`);
+            const el = document.getElementById(id) || document.querySelector(`[data - field= "${id}"]`);
             if (el) el.value = val || '';
         };
 
         // Auto-fill defaults
-        const reviewNo = reviewData.reviewNo || `CR-${project.projectId || projectId}`;
+        const reviewNo = reviewData.reviewNo || `CR - ${project.projectId || projectId} `;
         const today = new Date().toISOString().split('T')[0];
 
         // Find matching internal order for auto-population
@@ -3544,7 +3770,7 @@ window.adminApp.loadContractReview = async (projectId) => {
         const mGrid = ['matl', 'machine', 'man', 'method', 'measure', 'tools'];
         mGrid.forEach(key => {
             const data = reviewData.sixM?.[key] || { cmt: '' };
-            setVal(`cmt-${key}`, data.cmt);
+            setVal(`cmt - ${key} `, data.cmt);
         });
 
         // Decisions
@@ -3584,7 +3810,7 @@ window.adminApp.saveContractReview = async (action) => {
 
     // Helper to get value
     const getVal = (id) => {
-        const el = document.getElementById(id) || document.querySelector(`[data-field="${id}"]`);
+        const el = document.getElementById(id) || document.querySelector(`[data - field= "${id}"]`);
         return el ? el.value : '';
     };
 
@@ -3629,7 +3855,7 @@ window.adminApp.saveContractReview = async (action) => {
     const mGrid = ['matl', 'machine', 'man', 'method', 'measure', 'tools'];
     mGrid.forEach(key => {
         reviewData.sixM[key] = {
-            cmt: getVal(`cmt-${key}`)
+            cmt: getVal(`cmt - ${key} `)
         };
     });
 
@@ -3668,7 +3894,7 @@ window.adminApp.saveContractReview = async (action) => {
         }, 'Contract Review ' + (isFiled ? 'Finalized' : 'Draft Saved'));
 
         if (statusSpan) {
-            statusSpan.textContent = `Saved at ${new Date().toLocaleTimeString()}`;
+            statusSpan.textContent = `Saved at ${new Date().toLocaleTimeString()} `;
             setTimeout(() => statusSpan.textContent = '', 3000);
         }
         if (isFiled) {
@@ -3705,5 +3931,8 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log("Auto-initializing inventory on load");
             window.adminApp.initInventory();
         }
+
+        // Initialize Monitoring logic
+        Monitoring.setupCostCalculation();
     }, 100);
 });

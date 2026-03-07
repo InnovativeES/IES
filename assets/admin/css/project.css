@@ -2115,10 +2115,6 @@
         /* Balanced 10mm margins for all sides */
     }
 
-    body * {
-        visibility: hidden !important;
-    }
-
     #dd-panel-review,
     #dd-panel-review * {
         visibility: visible !important;
@@ -2791,16 +2787,18 @@
 /* === INVENTORY LEDGER PRINTING === */
 @media print {
 
-    /* Hide everything by default except the ledger print area */
-    body>*:not(.app-main),
-    .sidebar,
-    .app-header,
-    nav,
-    .pm-header,
-    .inventory-stats,
-    .inventory-filters,
-    .pm-trash-toggle,
-    .btn:not(.print-only) {
+    /* Only aggressively hide if we are currently printing the inventory ledger.
+       Relies on body having a specific class when inventory is active or isolating via specific views.
+       We'll scope this to avoid breaking Delivery Report print. */
+    body.is-printing-inventory>*:not(.app-main),
+    body.is-printing-inventory .sidebar,
+    body.is-printing-inventory .app-header,
+    body.is-printing-inventory nav,
+    body.is-printing-inventory .pm-header,
+    body.is-printing-inventory .inventory-stats,
+    body.is-printing-inventory .inventory-filters,
+    body.is-printing-inventory .pm-trash-toggle,
+    body.is-printing-inventory .btn:not(.print-only) {
         display: none !important;
     }
 
