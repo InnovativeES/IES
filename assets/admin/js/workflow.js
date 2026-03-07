@@ -547,7 +547,7 @@ const populateIOSuggestions = () => {
     const datalist = document.getElementById('wf-io-suggestions');
     if (!datalist) return;
     const pending = orders.filter(o => o.status === 'Pending' || o.status === 'Partially Delivered');
-    datalist.innerHTML = pending.map(o => `<option value="${o.internalOrderNo}">`).join('');
+    datalist.innerHTML = pending.map(o => `<option value="${o.internalOrderNo}">${o.customer || 'No Customer'} - ${o.description || 'No Description'}</option>`).join('');
 };
 
 const setupIOLookup = () => {
