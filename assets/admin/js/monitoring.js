@@ -218,7 +218,9 @@ export const renderTable = (orders) => {
 
         tr.innerHTML = `
             <td>${startIdx + index + 1}</td>
-            <td class="font-medium" style="white-space: nowrap;">${t(order.internalOrderNo)}</td>
+            <td class="font-medium" style="white-space: nowrap;">
+                ${order.internalOrderNo ? `<a href="#" onclick="event.preventDefault(); window.adminApp.wfOpenProject('${order.internalOrderNo}')" style="color: #0d9488; text-decoration: underline;" title="Open Project">${order.internalOrderNo}</a>` : '-'}
+            </td>
             <td>${formatDate(order.date)}</td>
             <td>${t(order.drawingNo)}</td>
             <td class="truncate" style="max-width: 150px;" title="${t(order.description)}">${t(order.description)}</td>

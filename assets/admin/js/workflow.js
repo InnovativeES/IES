@@ -9,6 +9,23 @@ let workflowUnsubscribe = null;
 let currentEditIdx = -1;
 let loadedDepartments = new Set(); // Track departments that have data for the current date
 
+/**
+ * Generates a stable ID for tasks that don't have one.
+ * Uses properties that shouldn't change for a specific assignment instance.
+ */
+const generateStableTaskId = (item) => {
+    if (item.taskId) return item.taskId;
+    // Fallback for legacy data: deterministic hash based on core properties
+    const str = `${item.employeeId}_${item.orderNo || 'adhoc'}_${item.description}_${item.workStart}`;
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash |= 0;
+    }
+    return `legacy-${Math.abs(hash).toString(16)}`;
+};
+
 // ===== INITIALIZATION =====
 
 export const initWorkflowView = () => {
@@ -40,6 +57,17 @@ export const initWorkflowView = () => {
         };
     }
 
+    window.adminApp = window.adminApp || {};
+    window.adminApp.wfOpenAssignModal = (idx) => openAssignModal(idx);
+    window.adminApp.wfSaveAll = () => saveAll();
+    window.adminApp.wfPrint = () => printWorksheet();
+    window.adminApp.wfCopyPreviousDay = () => copyPreviousDay();
+    window.adminApp.wfDeleteRoster = () => wfDeleteRoster();
+    window.adminApp.wfFilterTeam = (v) => filterTeam(v);
+    window.adminApp.wfUpdateRow = (tid, eid, f, v) => updateRow(tid, eid, f, v);
+    window.adminApp.wfRemoveRow = (tid, eid) => removeRow(tid, eid);
+    window.adminApp.wfEditRow = (tid, eid) => editRow(tid, eid);
+
     loadWorkflows();
 };
 
@@ -55,11 +83,26 @@ const loadWorkflows = async () => {
     if (currentWorkflowDept === 'All') {
         workflowUnsubscribe = DB.subscribeToWorkflows(currentWorkflowDate, (workflows) => {
             rosterRows = [];
-            loadedDepartments = new Set(workflows.map(wf => wf.department));
+            loadedDepartments = new Set();
             const notesArr = [];
             const members = window.adminApp?.getCurrentMembers ? window.adminApp.getCurrentMembers() : [];
 
+            // Group workflows by normalized department to avoid duplicates 
+            // (e.g. if both 'Fab' and 'Fabrication' exist)
+            const uniqueWfs = new Map();
             workflows.forEach(wf => {
+                const norm = (wf.department?.toLowerCase() === 'fabrication') ? 'Fab' : (wf.department || 'Unassigned');
+                // Prefer 'Fab' named document if we have both
+                if (!uniqueWfs.has(norm) || wf.department === 'Fab') {
+                    uniqueWfs.set(norm, wf);
+                }
+            });
+
+            uniqueWfs.forEach(wf => {
+                let wfDept = wf.department;
+                if (wfDept && wfDept.toLowerCase() === 'fabrication') wfDept = 'Fab';
+                loadedDepartments.add(wfDept);
+
                 (wf.assignments || []).forEach(a => {
                     let effectiveRole = (a.role || a.designation || '').trim();
                     if (!effectiveRole && members.length > 0) {
@@ -70,22 +113,31 @@ const loadWorkflows = async () => {
                     }
 
                     (a.tasks || []).forEach(t => {
-                        rosterRows.push({
+                        let aDept = a.department || wfDept;
+                        if (aDept && aDept.toLowerCase() === 'fabrication') aDept = 'Fab';
+
+                        const rowData = {
                             employeeId: a.employeeId,
                             employeeName: a.employeeName,
                             employeeNo: a.employeeNo,
-                            department: a.department || wf.department,
+                            department: aDept,
                             role: effectiveRole,
-                            taskId: t.taskId || crypto.randomUUID(),
                             ...t,
                             qty: parseFloat(t.qty) || 0,
+                            allocationPct: parseFloat(t.allocationPct) || 100,
                             overheads: parseFloat(t.overheads) || 0,
                             totalOverheads: parseFloat(t.totalOverheads) || 0,
-                            prodValueEa: parseFloat(t.prodValueEa) || 0
-                        });
+                            prodValueEa: parseFloat(t.prodValueEa) || 0,
+                            costFood: parseFloat(t.costFood) || 0,
+                            costConsumables: parseFloat(t.costConsumables) || 0,
+                            costTransport: parseFloat(t.costTransport) || 0,
+                            costMisc: parseFloat(t.costMisc) || 0
+                        };
+                        rowData.taskId = generateStableTaskId(rowData);
+                        rosterRows.push(rowData);
                     });
                 });
-                if (wf.supervisorNotes) notesArr.push(`[${wf.department}] ${wf.supervisorNotes}`);
+                if (wf.supervisorNotes) notesArr.push(`[${wfDept}] ${wf.supervisorNotes}`);
             });
 
             const notesEl = document.getElementById('wf-supervisor-notes');
@@ -95,44 +147,66 @@ const loadWorkflows = async () => {
             updateUnassignedAlert();
         });
     } else {
-        const result = await DB.getWorkflow(currentWorkflowDate, currentWorkflowDept);
-        if (result.data) {
-            rosterRows = [];
-            loadedDepartments = new Set([currentWorkflowDept]);
-            const members = window.adminApp?.getCurrentMembers ? window.adminApp.getCurrentMembers() : [];
+        let result = await DB.getWorkflow(currentWorkflowDate, currentWorkflowDept);
+        let assignments = [];
+        let notes = [];
 
-            (result.data.assignments || []).forEach(a => {
-                let effectiveRole = (a.role || a.designation || '').trim();
-                if (!effectiveRole && members.length > 0) {
-                    const m = members.find(m => m.id === a.employeeId);
-                    if (m) {
-                        effectiveRole = (m.role || m.designation || (m.orgRoles && m.orgRoles[0]) || '').trim();
-                    }
-                }
-
-                (a.tasks || []).forEach(t => {
-                    rosterRows.push({
-                        employeeId: a.employeeId,
-                        employeeName: a.employeeName,
-                        employeeNo: a.employeeNo,
-                        department: a.department || currentWorkflowDept,
-                        role: effectiveRole,
-                        taskId: t.taskId || crypto.randomUUID(),
-                        ...t,
-                        qty: parseFloat(t.qty) || 0,
-                        overheads: parseFloat(t.overheads) || 0,
-                        totalOverheads: parseFloat(t.totalOverheads) || 0,
-                        prodValueEa: parseFloat(t.prodValueEa) || 0
-                    });
-                });
-            });
-            const notesEl = document.getElementById('wf-supervisor-notes');
-            if (notesEl) notesEl.value = result.data.supervisorNotes || '';
-        } else {
-            rosterRows = [];
-            const notesEl = document.getElementById('wf-supervisor-notes');
-            if (notesEl) notesEl.value = '';
+        if (result && result.data && result.data.assignments) {
+            assignments = [...result.data.assignments];
+            if (result.data.supervisorNotes) notes.push(result.data.supervisorNotes);
         }
+
+        // Catch legacy "Fabrication" entries if "Fab" is selected
+        if (currentWorkflowDept === 'Fab') {
+            const legacyResult = await DB.getWorkflow(currentWorkflowDate, 'Fabrication');
+            if (legacyResult && legacyResult.data && legacyResult.data.assignments) {
+                assignments = [...assignments, ...legacyResult.data.assignments];
+                if (legacyResult.data.supervisorNotes) notes.push(legacyResult.data.supervisorNotes);
+            }
+        }
+
+        rosterRows = [];
+        loadedDepartments = new Set([currentWorkflowDept]);
+        const members = window.adminApp?.getCurrentMembers ? window.adminApp.getCurrentMembers() : [];
+
+        assignments.forEach(a => {
+            let effectiveRole = (a.role || a.designation || '').trim();
+            if (!effectiveRole && members.length > 0) {
+                const m = members.find(m => m.id === a.employeeId);
+                if (m) {
+                    effectiveRole = (m.role || m.designation || (m.orgRoles && m.orgRoles[0]) || '').trim();
+                }
+            }
+
+            (a.tasks || []).forEach(t => {
+                let aDept = a.department || currentWorkflowDept;
+                if (aDept && aDept.toLowerCase() === 'fabrication') aDept = 'Fab';
+
+                const rowData = {
+                    employeeId: a.employeeId,
+                    employeeName: a.employeeName,
+                    employeeNo: a.employeeNo,
+                    department: aDept,
+                    role: effectiveRole,
+                    ...t,
+                    qty: parseFloat(t.qty) || 0,
+                    allocationPct: parseFloat(t.allocationPct) || 100,
+                    overheads: parseFloat(t.overheads) || 0,
+                    totalOverheads: parseFloat(t.totalOverheads) || 0,
+                    prodValueEa: parseFloat(t.prodValueEa) || 0,
+                    costFood: parseFloat(t.costFood) || 0,
+                    costConsumables: parseFloat(t.costConsumables) || 0,
+                    costTransport: parseFloat(t.costTransport) || 0,
+                    costMisc: parseFloat(t.costMisc) || 0
+                };
+                rowData.taskId = generateStableTaskId(rowData);
+                rosterRows.push(rowData);
+            });
+        });
+
+        const notesEl = document.getElementById('wf-supervisor-notes');
+        if (notesEl) notesEl.value = notes.join('\n');
+
         renderTable();
         updateUnassignedAlert();
     }
@@ -145,7 +219,7 @@ const renderTable = () => {
     if (!tbody) return;
 
     if (rosterRows.length === 0) {
-        tbody.innerHTML = `<tr class="wf-empty-row"><td colspan="14" style="text-align:center; padding:2.5rem; color:#94a3b8;">No assignments for this date. Click <strong>"Add Assignment"</strong> to get started.</td></tr>`;
+        tbody.innerHTML = `<tr class="wf-empty-row"><td colspan="13" style="text-align:center; padding:2.5rem; color:#94a3b8;">No assignments for this date. Click <strong>"Add Assignment"</strong> to get started.</td></tr>`;
         return;
     }
 
@@ -161,38 +235,49 @@ const renderTable = () => {
         const pClass = row.priority === 'High' ? 'priority-high' : row.priority === 'Medium' ? 'priority-medium' : 'priority-low';
         const sClass = row.status === 'Completed' ? 'status-done' : row.status === 'Ongoing' ? 'status-ongoing' : 'status-pending';
 
+        let displayDept = row.department || '-';
+        if (displayDept.toLowerCase() === 'fabrication') displayDept = 'Fab';
+
         return `
-        <tr class="${isNewEmployee ? 'emp-row' : ''}">
+        <tr class="${isNewEmployee ? 'emp-row' : ''}" data-task-id="${row.taskId}" data-emp-id="${row.employeeId}">
             <td class="text-center">${isNewEmployee ? rowNum : ''}</td>
             <td class="wf-col-emp">
                 ${isNewEmployee ? `<strong>${row.employeeName}</strong><br><small>${row.employeeNo || ''} · ${row.department || ''} · ${row.role || ''}</small><br>
                 <div class="wf-timing-pills">
-                    <input type="time" value="${row.inTime || ''}" onchange="window.adminApp.wfUpdateRow(${idx}, 'inTime', this.value)" class="wf-time-input" title="In Time">
+                    <input type="time" value="${row.inTime || ''}" onchange="window.adminApp.wfUpdateRow('${row.taskId}', '${row.employeeId}', 'inTime', this.value)" class="wf-time-input" title="In Time">
                     <span>-</span>
-                    <input type="time" value="${row.outTime || ''}" onchange="window.adminApp.wfUpdateRow(${idx}, 'outTime', this.value)" class="wf-time-input" title="Out Time">
+                    <input type="time" value="${row.outTime || ''}" onchange="window.adminApp.wfUpdateRow('${row.taskId}', '${row.employeeId}', 'outTime', this.value)" class="wf-time-input" title="Out Time">
                 </div>` : ''}
             </td>
-            <td class="text-center" style="font-weight:600">${row.orderNo || 'Ad-hoc'}</td>
+            <td class="text-center" style="font-weight:600">
+                ${row.orderNo && row.orderNo !== 'Ad-hoc' ? `<a href="#" onclick="event.preventDefault(); window.adminApp.wfOpenProject('${row.orderNo}')" style="color: #0d9488; text-decoration: underline;" title="Open Project">${row.orderNo}</a>` : 'Ad-hoc'}
+            </td>
             <td class="text-center">${row.drawingNo || '-'}</td>
             <td class="wf-col-desc ${pClass}">${row.description || '-'}</td>
             <td>${row.customer || '-'}</td>
             <td class="text-center">${row.qty || '-'} ${row.unit || ''}</td>
-            <td class="text-right" style="font-weight:600; color:#0f172a;">
-                ${(row.prodValueEa > 0 && row.qty > 0) ? (row.prodValueEa * row.qty).toFixed(2) : '-'}
+            <td class="text-right" style="color:#0f172a;">
+                <div style="font-weight: 700; font-size: 0.9rem;">
+                    ₹${(row.prodValueEa > 0 && row.qty > 0) ? (((row.prodValueEa * row.qty) + (row.costFood || 0) + (row.costConsumables || 0) + (row.costTransport || 0) + (row.costMisc || 0)).toFixed(2)) : '0.00'}
+                </div>
+                <div style="font-size: 0.65rem; color: #64748b; margin-top: 2px;">
+                    Base: ₹${((row.prodValueEa || 0) * (row.qty || 0)).toLocaleString()} <br>
+                    Extra: ₹${((row.costFood || 0) + (row.costConsumables || 0) + (row.costTransport || 0) + (row.costMisc || 0)).toLocaleString()}
+                </div>
             </td>
             <td class="text-right" style="font-weight:600; color:#334155;">
                 ${row.totalOverheads > 0 ? `₹${row.totalOverheads.toFixed(2)}` : '-'}
             </td>
-            <td class="text-center">${row.manpower || '-'}</td>
+            <td class="text-center"><span class="text-xs font-semibold px-2 py-1 bg-slate-100 text-slate-600 rounded">${displayDept}</span></td>
             <td class="wf-col-assigned" title="${row.assignedWith || ''}">${row.assignedWith || '-'}</td>
             <td class="text-center">${row.workStart || '-'} to ${row.workEnd || '-'}</td>
             <td class="text-center"><span class="wf-status-badge ${sClass}">${row.status || 'Pending'}</span></td>
             <td class="text-center">
                 <div class="wf-row-actions">
-                    <button class="wf-row-edit" onclick="window.adminApp.wfEditRow(${idx})" title="Edit">
+                    <button class="wf-row-edit" onclick="window.adminApp.wfEditRow('${row.taskId}', '${row.employeeId}')" title="Edit">
                         <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                     </button>
-                    <button class="wf-row-delete" onclick="window.adminApp.wfRemoveRow(${idx})" title="Remove">
+                    <button class="wf-row-delete" onclick="window.adminApp.wfRemoveRow('${row.taskId}', '${row.employeeId}')" title="Remove">
                         <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                     </button>
                 </div>
@@ -227,34 +312,39 @@ const renderTable = () => {
 
 // ===== ROW UPDATE =====
 
-export const updateRow = (idx, field, value) => {
-    if (rosterRows[idx]) {
-        const empId = rosterRows[idx].employeeId;
-        rosterRows[idx][field] = value;
+export const updateRow = async (taskId, empId, field, value) => {
+    const row = rosterRows.find(r => r.taskId === taskId && r.employeeId === empId);
+    if (row) {
+        row[field] = value;
 
         // Sync inTime/outTime for all rows of the same employee
         if (field === 'inTime' || field === 'outTime') {
             rosterRows.forEach(r => {
                 if (r.employeeId === empId) r[field] = value;
             });
-            renderTable(); // Re-render to show sync'd times in all rows
+            renderTable();
         }
 
-        saveAll(); // Auto-save on inline changes
+        await saveAll();
     }
 };
 
-export const removeRow = (idx) => {
+export const removeRow = async (taskId, empId) => {
     if (confirm('Remove this assignment?')) {
-        rosterRows.splice(idx, 1);
-        renderTable();
-        saveAll(); // Auto-save on removal
+        const idx = rosterRows.findIndex(r => r.taskId === taskId && r.employeeId === empId);
+        if (idx >= 0) {
+            rosterRows.splice(idx, 1);
+            renderTable();
+            await saveAll();
+        }
     }
 };
 
-export const editRow = (idx) => {
-    currentEditIdx = idx;
-    openAssignModal(idx);
+export const editRow = (taskId, empId) => {
+    const idx = rosterRows.findIndex(r => r.taskId === taskId && r.employeeId === empId);
+    if (idx >= 0) {
+        openAssignModal(idx);
+    }
 };
 
 // ===== ASSIGNMENT MODAL =====
@@ -301,12 +391,18 @@ export const openAssignModal = (editIdx = -1) => {
                                 <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
                                 Who is Assigned?
                             </div>
-                            <div class="form-group" style="margin-bottom: 0.75rem;">
-                                <label class="wf-form-label">Primary Employee</label>
-                                <select id="wf-assign-employee" class="form-input" style="padding: 0.4rem 0.6rem; font-size: 0.8rem;">
-                                    <option value="">-- Select Employee --</option>
-                                    ${filteredMembers.map(m => `<option value="${m.id}" data-name="${m.name}" data-empno="${m.employeeId || ''}" data-dept="${m.section || m.department || ''}" data-role="${m.role || m.designation || ''}" data-overheads="${m.overheads || 0}" ${editData && editData.employeeId === m.id ? 'selected' : ''}>${m.name} (${m.employeeId || 'N/A'})</option>`).join('')}
-                                </select>
+                            <div class="form-group" style="margin-bottom: 0.75rem; display: flex; gap: 0.5rem; align-items: flex-end;">
+                                <div style="flex: 1;">
+                                    <label class="wf-form-label">Primary Employee</label>
+                                    <select id="wf-assign-employee" class="form-input" style="padding: 0.4rem 0.6rem; font-size: 0.8rem;">
+                                        <option value="">-- Select Employee --</option>
+                                        ${filteredMembers.map(m => `<option value="${m.id}" data-name="${m.name}" data-empno="${m.employeeId || ''}" data-dept="${m.section || m.department || ''}" data-role="${m.role || m.designation || ''}" data-overheads="${m.overheads || 0}" ${editData && editData.employeeId === m.id ? 'selected' : ''}>${m.name} (${m.employeeId || 'N/A'})</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div style="width: 70px;">
+                                    <label class="wf-form-label" title="Percentage of daily cost allocated to this task">Alloc %</label>
+                                    <input type="number" id="wf-assign-employee-pct" class="form-input" style="padding: 0.4rem; font-size: 0.8rem; text-align: center;" min="1" max="100" value="${editData && editData.allocationPct ? editData.allocationPct : 100}">
+                                </div>
                             </div>
                             
                             <div class="inline-section-label" style="margin: 0.5rem 0 0.4rem; font-size: 0.6rem;">Assigned With (Team)</div>
@@ -314,13 +410,30 @@ export const openAssignModal = (editIdx = -1) => {
                                 <div class="form-group" style="margin-bottom: 0.4rem;">
                                     <input type="text" id="wf-assign-with-filter" class="form-input" placeholder="Search team members..." style="font-size: 0.7rem; padding: 3px 6px;" oninput="window.adminApp.wfFilterTeam(this.value)">
                                 </div>
-                                <div id="wf-assign-with-list" class="wf-team-list" style="grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 0.4rem;">
-                                    ${filteredMembers.map(m => `
-                                        <label class="wf-team-item" style="padding: 4px 8px; font-size: 0.7rem; gap: 6px;">
-                                            <input type="checkbox" name="wf-team-member" value="${m.id}" data-name="${m.name}" ${editData?.assignedWith?.includes(m.name) ? 'checked' : ''}>
-                                            <span>${m.name}</span>
-                                        </label>
-                                    `).join('')}
+                                <div id="wf-assign-with-list" class="wf-team-list" style="display: flex; flex-direction: column; gap: 0.4rem;">
+                                    ${filteredMembers.map(m => {
+        let isChecked = false;
+        let existingPct = 100;
+        if (editData && editData.taskId) {
+            const existingTeamRow = rosterRows.find(r => r.taskId === editData.taskId && r.employeeId === m.id);
+            if (existingTeamRow && existingTeamRow.employeeId !== editData.employeeId) {
+                isChecked = true;
+                existingPct = existingTeamRow.allocationPct || 100;
+            }
+        }
+
+        return `
+                                        <div class="wf-team-item" style="display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: white; border-radius: 4px; border: 1px solid #f1f5f9;">
+                                            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.75rem; cursor: pointer; flex: 1;">
+                                                <input type="checkbox" name="wf-team-member" value="${m.id}" data-name="${m.name}" ${isChecked ? 'checked' : ''} onchange="window.adminApp.wfToggleTeamMemberPct(this)">
+                                                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px;" title="${m.name}">${m.name}</span>
+                                            </label>
+                                            <div style="display: flex; align-items: center; gap: 4px;">
+                                                <input type="number" id="wf-team-pct-${m.id}" class="form-input" style="padding: 2px 4px; font-size: 0.7rem; text-align: center; width: 45px; height: 1.5rem; ${!isChecked ? 'opacity: 0.5; pointer-events: none;' : ''}" min="1" max="100" value="${existingPct}" oninput="window.adminApp.wfUpdateOverheadsDisplay()">
+                                                <span style="font-size: 0.65rem; color: #94a3b8; font-weight: 600;">%</span>
+                                            </div>
+                                        </div>
+                                    `}).join('')}
                                 </div>
                             </div>
                         </div>
@@ -334,11 +447,11 @@ export const openAssignModal = (editIdx = -1) => {
                             <div class="wf-grid-2">
                                 <div class="form-group">
                                     <label class="wf-form-label">Shift In</label>
-                                    <input type="time" id="wf-assign-intime" class="form-input" style="padding: 0.4rem; font-size: 0.8rem;" value="${editData?.inTime || ''}">
+                                    <input type="time" id="wf-assign-intime" class="form-input" style="padding: 0.4rem; font-size: 0.8rem;" value="${editData?.inTime || '09:00'}">
                                 </div>
                                 <div class="form-group">
                                     <label class="wf-form-label">Shift Out</label>
-                                    <input type="time" id="wf-assign-outtime" class="form-input" style="padding: 0.4rem; font-size: 0.8rem;" value="${editData?.outTime || ''}">
+                                    <input type="time" id="wf-assign-outtime" class="form-input" style="padding: 0.4rem; font-size: 0.8rem;" value="${editData?.outTime || '18:00'}">
                                 </div>
                             </div>
                         </div>
@@ -399,18 +512,18 @@ export const openAssignModal = (editIdx = -1) => {
                             <div class="wf-grid-3" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-bottom: 0.5rem;">
                                 <div class="form-group">
                                     <label class="wf-form-label">Start</label>
-                                    <input type="time" id="wf-assign-workstart" class="form-input" style="padding: 0.35rem; font-size: 0.75rem;" value="${editData?.workStart || ''}">
+                                    <input type="time" id="wf-assign-workstart" class="form-input" style="padding: 0.35rem; font-size: 0.75rem;" value="${editData?.workStart || '09:00'}">
                                 </div>
                                 <div class="form-group">
                                     <label class="wf-form-label">End</label>
-                                    <input type="time" id="wf-assign-workend" class="form-input" style="padding: 0.35rem; font-size: 0.75rem;" value="${editData?.workEnd || ''}">
+                                    <input type="time" id="wf-assign-workend" class="form-input" style="padding: 0.35rem; font-size: 0.75rem;" value="${editData?.workEnd || '18:00'}">
                                 </div>
                                 <div class="form-group">
-                                    <label class="wf-form-label">MP</label>
-                                    <input type="number" id="wf-assign-manpower" class="form-input" style="padding: 0.35rem; font-size: 0.75rem;" min="1" value="${editData?.manpower || '1'}">
+                                    <label class="wf-form-label">Department</label>
+                                    <input type="text" id="wf-assign-department" class="form-input" style="padding: 0.35rem; font-size: 0.75rem;" value="${editData?.department || currentWorkflowDept || ''}">
                                 </div>
                             </div>
-                            <div class="wf-grid-3" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;">
+                            <div class="wf-grid-3" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-bottom: 0.5rem;">
                                 <div class="form-group">
                                     <label class="wf-form-label">Total Qty</label>
                                     <input type="number" id="wf-assign-qty" class="form-input" style="padding: 0.35rem; font-size: 0.75rem;" min="0" value="${editData?.qty || ''}" oninput="window.adminApp.wfCalculateProdValue()">
@@ -421,7 +534,25 @@ export const openAssignModal = (editIdx = -1) => {
                                 </div>
                                 <div class="form-group">
                                     <label class="wf-form-label">Total Prod. Val</label>
-                                    <input type="text" id="wf-assign-prod-total" class="form-input computed" style="padding: 0.35rem; font-size: 0.75rem; background: #f1f5f9;" readonly value="">
+                                    <input type="text" id="wf-assign-prod-total" class="form-input computed" style="padding: 0.35rem; font-size: 0.75rem; background: #f1f5f9; font-weight: 600; color: #0f172a;" readonly title="Base + Extra Costs">
+                                </div>
+                            </div>
+                            <div class="wf-grid-4" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem;">
+                                <div class="form-group">
+                                    <label class="wf-form-label">Food</label>
+                                    <input type="number" id="wf-assign-cost-food" class="form-input" style="padding: 0.35rem; font-size: 0.75rem;" min="0" value="${editData?.costFood || ''}" oninput="window.adminApp.wfCalculateProdValue()">
+                                </div>
+                                <div class="form-group">
+                                    <label class="wf-form-label">Consmls.</label>
+                                    <input type="number" id="wf-assign-cost-consumables" class="form-input" style="padding: 0.35rem; font-size: 0.75rem;" min="0" value="${editData?.costConsumables || ''}" oninput="window.adminApp.wfCalculateProdValue()">
+                                </div>
+                                <div class="form-group">
+                                    <label class="wf-form-label">Transport</label>
+                                    <input type="number" id="wf-assign-cost-transport" class="form-input" style="padding: 0.35rem; font-size: 0.75rem;" min="0" value="${editData?.costTransport || ''}" oninput="window.adminApp.wfCalculateProdValue()">
+                                </div>
+                                <div class="form-group">
+                                    <label class="wf-form-label">Misc.</label>
+                                    <input type="number" id="wf-assign-cost-misc" class="form-input" style="padding: 0.35rem; font-size: 0.75rem;" min="0" value="${editData?.costMisc || ''}" oninput="window.adminApp.wfCalculateProdValue()">
                                 </div>
                             </div>
                         </div>
@@ -483,24 +614,72 @@ export const openAssignModal = (editIdx = -1) => {
 export const calculateProdValue = () => {
     const qty = parseFloat(document.getElementById('wf-assign-qty')?.value) || 0;
     const cost = parseFloat(document.getElementById('wf-assign-prod-cost')?.value) || 0;
+    const food = parseFloat(document.getElementById('wf-assign-cost-food')?.value) || 0;
+    const consumables = parseFloat(document.getElementById('wf-assign-cost-consumables')?.value) || 0;
+    const transport = parseFloat(document.getElementById('wf-assign-cost-transport')?.value) || 0;
+    const misc = parseFloat(document.getElementById('wf-assign-cost-misc')?.value) || 0;
+
+    const baseVal = qty * cost;
+    const totalExtra = food + consumables + transport + misc;
+    const total = baseVal + totalExtra;
+
     const totalEl = document.getElementById('wf-assign-prod-total');
-    if (totalEl) totalEl.value = (qty * cost).toFixed(2);
+    if (totalEl) totalEl.value = total > 0 ? total.toFixed(2) : '';
 };
 
 const setupOverheadListeners = () => {
     const empSelect = document.getElementById('wf-assign-employee');
+    const empPct = document.getElementById('wf-assign-employee-pct');
     if (empSelect) {
         empSelect.addEventListener('change', updateOverheadsDisplay);
+    }
+    if (empPct) {
+        empPct.addEventListener('input', updateOverheadsDisplay);
     }
 
     const teamList = document.getElementById('wf-assign-with-list');
     if (teamList) {
         teamList.addEventListener('change', (e) => {
             if (e.target.name === 'wf-team-member') {
+                const cb = e.target;
+                const pctInput = document.getElementById(`wf-team-pct-${cb.value}`);
+                if (pctInput) {
+                    if (cb.checked) {
+                        pctInput.style.opacity = '1';
+                        pctInput.style.pointerEvents = 'auto';
+                    } else {
+                        pctInput.style.opacity = '0.5';
+                        pctInput.style.pointerEvents = 'none';
+                    }
+                }
                 updateOverheadsDisplay();
             }
         });
     }
+};
+
+window.adminApp = window.adminApp || {};
+
+window.adminApp.wfCalculateProdValue = () => {
+    calculateProdValue();
+};
+
+window.adminApp.wfToggleTeamMemberPct = (cb) => {
+    const pctInput = document.getElementById(`wf-team-pct-${cb.value}`);
+    if (pctInput) {
+        if (cb.checked) {
+            pctInput.style.opacity = '1';
+            pctInput.style.pointerEvents = 'auto';
+        } else {
+            pctInput.style.opacity = '0.5';
+            pctInput.style.pointerEvents = 'none';
+        }
+    }
+    updateOverheadsDisplay();
+};
+
+window.adminApp.wfUpdateOverheadsDisplay = () => {
+    updateOverheadsDisplay();
 };
 
 export const updateOverheadsDisplay = () => {
@@ -524,12 +703,22 @@ export const updateOverheadsDisplay = () => {
     uniqueIds.forEach(id => {
         const m = members.find(m => m.id === id);
         if (m) {
-            const oh = parseFloat(m.overheads) || 0;
+            const baseOh = parseFloat(m.overheads) || 0;
+            let oh = baseOh;
+            let pct = 100;
+
+            if (id === primaryId) {
+                pct = parseFloat(document.getElementById('wf-assign-employee-pct')?.value) || 100;
+            } else {
+                pct = parseFloat(document.getElementById(`wf-team-pct-${id}`)?.value) || 100;
+            }
+
+            oh = baseOh * (pct / 100);
             total += oh;
             html += `
                 <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: #64748b;">
-                    <span>${m.name}</span>
-                    <span>₹${oh.toFixed(2)}</span>
+                    <span>${m.name} <span style="font-size:0.6rem; color:#94a3b8; margin-left:4px;">(${pct}%)</span></span>
+                    <span title="Base daily overhead: ₹${baseOh.toFixed(2)}">₹${oh.toFixed(2)}</span>
                 </div>`;
         }
     });
@@ -564,6 +753,9 @@ const setupIOLookup = () => {
             setVal('wf-assign-desc', match.description);
             setVal('wf-assign-drg', match.drawingNo);
             setVal('wf-assign-customer', match.customer);
+            let dept = match.department || match.section || '';
+            if (dept.toLowerCase() === 'fabrication') dept = 'Fab';
+            setVal('wf-assign-department', dept); // Auto-fill department
             setVal('wf-assign-qty', match.qty);
             setVal('wf-assign-unit', match.qtyUnit || 'Nos');
             setVal('wf-assign-prod-cost', match.prodValueEa || '');
@@ -594,7 +786,7 @@ const setupEmployeeTimingLookup = () => {
 
 // ===== CONFIRM ASSIGNMENT =====
 
-export const confirmAssign = () => {
+export const confirmAssign = async () => {
     const empSelect = document.getElementById('wf-assign-employee');
     if (!empSelect || !empSelect.value) {
         alert('Please select an employee.');
@@ -614,7 +806,13 @@ export const confirmAssign = () => {
     const mainEmpId = empSelect.value;
     const mainEmpName = selectedOption.getAttribute('data-name');
     const mainEmpNo = selectedOption.getAttribute('data-empno');
-    const mainEmpDept = selectedOption.getAttribute('data-dept') || currentWorkflowDept;
+
+    // User can override the department in the modal. If empty, fall back to employee's default dept.
+    const modalDept = getVal('wf-assign-department');
+    let baseDept = modalDept || selectedOption.getAttribute('data-dept') || currentWorkflowDept;
+    if (baseDept.toLowerCase() === 'fabrication') baseDept = 'Fab';
+    const mainEmpDept = baseDept;
+
     const mainEmpRole = selectedOption.getAttribute('data-role') || '';
 
     // Get team members
@@ -628,17 +826,34 @@ export const confirmAssign = () => {
     const modalInTime = getVal('wf-assign-intime');
     const modalOutTime = getVal('wf-assign-outtime');
 
+    const primaryPct = parseFloat(document.getElementById('wf-assign-employee-pct')?.value) || 100;
+    const basePrimaryOverhead = parseFloat(selectedOption.getAttribute('data-overheads')) || 0;
+
     const allAssignees = [
-        { id: mainEmpId, name: mainEmpName, empNo: mainEmpNo, dept: mainEmpDept, role: mainEmpRole, overheads: parseFloat(selectedOption.getAttribute('data-overheads')) || 0 },
+        {
+            id: mainEmpId,
+            name: mainEmpName,
+            empNo: mainEmpNo,
+            dept: mainEmpDept,
+            role: mainEmpRole,
+            overheads: basePrimaryOverhead * (primaryPct / 100),
+            allocationPct: primaryPct
+        },
         ...teamMembers.map(tm => {
             const m = (window.adminApp.getCurrentMembers()).find(m => m.id === tm.id);
+            const tmPct = parseFloat(document.getElementById(`wf-team-pct-${tm.id}`)?.value) || 100;
+            const baseTmOverhead = parseFloat(m?.overheads) || 0;
+            let tmDept = modalDept || m?.section || m?.department || currentWorkflowDept;
+            if (tmDept.toLowerCase() === 'fabrication') tmDept = 'Fab';
+
             return {
                 id: tm.id,
                 name: tm.name,
                 empNo: m?.employeeId || '',
-                dept: m?.section || m?.department || currentWorkflowDept,
+                dept: tmDept,
                 role: m?.role || m?.designation || '',
-                overheads: parseFloat(m?.overheads) || 0
+                overheads: baseTmOverhead * (tmPct / 100),
+                allocationPct: tmPct
             };
         })
     ];
@@ -651,13 +866,17 @@ export const confirmAssign = () => {
         customer: getVal('wf-assign-customer'),
         qty: parseFloat(getVal('wf-assign-qty')) || 0,
         unit: getVal('wf-assign-unit') || 'Nos',
-        manpower: parseInt(getVal('wf-assign-manpower')) || 1,
-        workStart: getVal('wf-assign-workstart'),
-        workEnd: getVal('wf-assign-workend'),
+        manpower: 1, // Defaulting as requested since it's removed from UI
+        workStart: getVal('wf-assign-workstart') || '09:00',
+        workEnd: getVal('wf-assign-workend') || '18:00',
         priority: getVal('wf-assign-priority') || 'Medium',
         notes: getVal('wf-assign-notes'),
         status: getVal('wf-assign-status') || 'Pending',
         prodValueEa: parseFloat(getVal('wf-assign-prod-cost')) || 0,
+        costFood: parseFloat(getVal('wf-assign-cost-food')) || 0,
+        costConsumables: parseFloat(getVal('wf-assign-cost-consumables')) || 0,
+        costTransport: parseFloat(getVal('wf-assign-cost-transport')) || 0,
+        costMisc: parseFloat(getVal('wf-assign-cost-misc')) || 0,
         taskId: taskId,
         totalOverheads: allAssignees.reduce((sum, a) => sum + (a.overheads || 0), 0)
     };
@@ -691,6 +910,7 @@ export const confirmAssign = () => {
             role: assignee.role,
             assignedWith: others,
             overheads: assignee.overheads,
+            allocationPct: assignee.allocationPct,
             inTime: finalIn,
             outTime: finalOut
         };
@@ -715,7 +935,6 @@ export const confirmAssign = () => {
 
     // Close modal
     currentEditIdx = -1;
-    window.adminApp.wfSaveAll(); // Refresh and save
     const modal = document.getElementById('wf-assign-modal');
     if (modal) {
         modal.classList.remove('active');
@@ -723,7 +942,7 @@ export const confirmAssign = () => {
     }
 
     renderTable();
-    saveAll(); // Auto-save after addition/edit
+    await saveAll(); // Single auto-save after addition/edit
 };
 
 // ===== SAVE =====
@@ -746,6 +965,14 @@ export const saveAll = async () => {
                 tasks: []
             };
         }
+
+        // DEDUPLICATION: Prevent saving multiple tasks with the same ID for the same employee
+        const isDuplicate = grouped[key].tasks.some(t => t.taskId === row.taskId);
+        if (isDuplicate) {
+            console.warn(`Skipping duplicate taskId persistence for ${row.employeeName}: ${row.taskId}`);
+            return;
+        }
+
         grouped[key].tasks.push({
             type: row.type,
             orderNo: row.orderNo,
@@ -763,9 +990,14 @@ export const saveAll = async () => {
             priority: row.priority,
             notes: row.notes,
             status: row.status,
+            allocationPct: parseFloat(row.allocationPct) || 100,
             overheads: parseFloat(row.overheads) || 0,
             totalOverheads: parseFloat(row.totalOverheads) || 0,
             prodValueEa: parseFloat(row.prodValueEa) || 0,
+            costFood: parseFloat(row.costFood) || 0,
+            costConsumables: parseFloat(row.costConsumables) || 0,
+            costTransport: parseFloat(row.costTransport) || 0,
+            costMisc: parseFloat(row.costMisc) || 0,
             taskId: row.taskId
         });
     });
@@ -859,6 +1091,46 @@ const updateUnassignedAlert = () => {
         alertEl.classList.remove('hidden');
     } else {
         alertEl.classList.add('hidden');
+    }
+};
+
+// ===== DELETE DATA =====
+const wfDeleteRoster = async () => {
+    const pwd = prompt("Enter Password to Delete this Roster Data:");
+    if (pwd === null) return;
+    if (pwd !== 'IES') {
+        alert("Incorrect Password!");
+        return;
+    }
+
+    const dept = currentWorkflowDept;
+    const date = currentWorkflowDate;
+    const msg = dept === 'All'
+        ? `Are you sure you want to PERMANENTLY DELETE ALL roster data for ${date}?`
+        : `Are you sure you want to PERMANENTLY DELETE the ${dept} roster for ${date}?`;
+
+    if (!confirm(msg)) return;
+    if (!confirm("This action CANNOT be undone. Proceed?")) return;
+
+    try {
+        if (dept === 'All') {
+            const deptsToDelete = Array.from(loadedDepartments);
+            if (deptsToDelete.length === 0) {
+                alert("No data found to delete for this date.");
+                return;
+            }
+            for (const d of deptsToDelete) {
+                await DB.deleteDailyRoster(date, d);
+            }
+        } else {
+            await DB.deleteDailyRoster(date, dept);
+        }
+
+        alert("Data deleted successfully.");
+        location.reload();
+    } catch (err) {
+        console.error("Deletion failed:", err);
+        alert("Deletion failed. Check console.");
     }
 };
 

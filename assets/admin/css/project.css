@@ -1223,6 +1223,96 @@
     min-width: 0;
 }
 
+/* --- Header Aesthetics --- */
+.premium-emerald-header {
+    background: linear-gradient(135deg, #059669 0%, #065f46 100%) !important;
+    color: #ffffff !important;
+    padding: 1.25rem 1.5rem !important;
+    border-radius: 12px 12px 0 0 !important;
+    border: 1px solid #065f46 !important;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.premium-emerald-header h2 {
+    color: white !important;
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+
+.dd-header {
+    padding: 1.5rem;
+    background: linear-gradient(135deg, #059669 0%, #065f46 100%);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-radius: 16px 16px 0 0;
+    color: white;
+    box-shadow: 0 4px 20px rgba(5, 150, 105, 0.15);
+}
+
+.dd-header-left {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+}
+
+.dd-back-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    backdrop-filter: blur(4px);
+}
+
+.dd-back-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateX(-2px);
+}
+
+.dd-project-id {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    background: rgba(255, 255, 255, 0.95);
+    color: #065f46;
+    border-radius: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    font-weight: 700;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.dd-project-name {
+    margin: 0.25rem 0 0 0 !important;
+    font-size: 1.5rem !important;
+    font-weight: 800 !important;
+    color: white !important;
+    letter-spacing: -0.01em;
+}
+
+.inventory-header {
+    margin-bottom: 0 !important;
+    /* Flush with content */
+    border-bottom: none !important;
+}
+
+.pm-header-badge.inventory {
+    background: rgba(255, 255, 255, 0.95);
+    color: #0d9488;
+    border: none;
+    font-weight: 700;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
 .dd-stage-pill {
     display: inline-flex;
     align-items: center;

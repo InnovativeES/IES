@@ -605,19 +605,46 @@ export const subscribeToProjectAuditLogs = (projectId, callback) => {
 const DAILY_ROSTER_COLLECTION = "daily_workflows";
 
 /**
+ * Normalizes department names to prevent duplicate Firestore documents 
+ * (e.g., "Fab" vs "Fabrication").
+ */
+const normalizeDeptName = (dept) => {
+    if (!dept) return 'Unassigned';
+    const d = dept.trim();
+    if (d.toLowerCase() === 'fabrication' || d.toLowerCase() === 'fab') return 'Fab';
+    return d;
+};
+
+/**
  * Save or update a daily workflow for a specific date + department.
  * Uses composite ID "YYYY-MM-DD_Department" for fast lookups.
  */
 export const saveWorkflow = async (date, department, assignments, supervisorNotes = '') => {
     try {
-        const docId = `${date}_${department}`;
+        const normDept = normalizeDeptName(department);
+        const docId = `${date}_${normDept}`;
         const docRef = doc(db, DAILY_ROSTER_COLLECTION, docId);
         const existing = await getDoc(docRef);
+
+        // EXTRA CLEANUP: If we are saving "Fab", make sure to delete legacy "Fabrication" doc to avoid duplicates
+        if (normDept === 'Fab' && department !== 'Fabrication') {
+            const legacyId = `${date}_Fabrication`;
+            const legacyRef = doc(db, DAILY_ROSTER_COLLECTION, legacyId);
+            const legacySnap = await getDoc(legacyRef);
+            if (legacySnap.exists()) {
+                console.log("Cleaning up legacy Fabrication document...");
+                await deleteDoc(legacyRef);
+            }
+        }
+
+        // Extract unique project IDs from nested tasks
+        const projectIds = [...new Set((assignments || []).flatMap(a => (a.tasks || []).map(t => t.orderNo)).filter(id => id && id !== 'Ad-hoc'))];
 
         const payload = {
             date,
             department,
             assignments,
+            projectIds,
             supervisorNotes,
             updatedAt: serverTimestamp()
         };
@@ -636,16 +663,51 @@ export const saveWorkflow = async (date, department, assignments, supervisorNote
 };
 
 /**
+ * Delete a roster document for a specific date + department.
+ */
+export const deleteDailyRoster = async (date, department) => {
+    try {
+        const normDept = normalizeDeptName(department);
+        const docId = `${date}_${normDept}`;
+        const docRef = doc(db, DAILY_ROSTER_COLLECTION, docId);
+        await deleteDoc(docRef);
+
+        // Also check and delete legacy if applicable
+        if (normDept === 'Fab') {
+            const legacyId = `${date}_Fabrication`;
+            const legacyRef = doc(db, DAILY_ROSTER_COLLECTION, legacyId);
+            await deleteDoc(legacyRef).catch(() => { });
+        }
+
+        return { success: true };
+    } catch (error) {
+        console.error("Error deleting roster:", error);
+        return { error: error.message };
+    }
+};
+
+/**
  * Get a single workflow document for a date + department.
  */
 export const getWorkflow = async (date, department) => {
     try {
-        const docId = `${date}_${department}`;
+        const normDept = normalizeDeptName(department);
+        const docId = `${date}_${normDept}`;
         const docRef = doc(db, DAILY_ROSTER_COLLECTION, docId);
         const snap = await getDoc(docRef);
         if (snap.exists()) {
             return { data: { id: snap.id, ...snap.data() }, error: null };
         }
+
+        // Final fallback for legacy data if not yet migrated
+        if (normDept === 'Fab') {
+            const legacyId = `${date}_Fabrication`;
+            const legacySnap = await getDoc(doc(db, DAILY_ROSTER_COLLECTION, legacyId));
+            if (legacySnap.exists()) {
+                return { data: { id: legacySnap.id, ...legacySnap.data() }, error: null };
+            }
+        }
+
         return { data: null, error: null };
     } catch (error) {
         console.error("Error getting workflow:", error);
@@ -701,5 +763,35 @@ export const deleteWorkflowAssignment = async (workflowId, employeeId) => {
     } catch (error) {
         console.error("Error deleting assignment:", error);
         return { error: error.message };
+    }
+};
+
+/**
+ * Get all roster assignments for a specific project.
+ */
+export const getProjectAssignments = async (projectId) => {
+    try {
+        const q = query(
+            collection(db, DAILY_ROSTER_COLLECTION),
+            where("projectIds", "array-contains", projectId)
+        );
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (error) {
+        console.error("Error fetching project assignments:", error);
+        return [];
+    }
+};
+
+/**
+ * Get all workflow documents (for migration).
+ */
+export const getAllWorkflows = async () => {
+    try {
+        const snap = await getDocs(collection(db, DAILY_ROSTER_COLLECTION));
+        return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (error) {
+        console.error("Error fetching all workflows:", error);
+        return [];
     }
 };

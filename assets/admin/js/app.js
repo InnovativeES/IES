@@ -205,6 +205,19 @@ window.adminApp = {
         refreshDashboard();
     },
 
+    getCurrentOrders: () => currentOrders,
+    getCurrentProjects: () => currentProjects,
+
+    wfOpenProject: (orderNo) => {
+        if (!orderNo || orderNo === 'Ad-hoc') return;
+        const project = currentProjects.find(p => p.projectId === orderNo);
+        if (project) {
+            window.adminApp.viewProjectDetails(project.id);
+        } else {
+            alert('Linked project not found for Internal Order: ' + orderNo);
+        }
+    },
+
     // Definitions
     rolesList: [
         "Director", "Managing Director", "General Manager",
@@ -234,6 +247,192 @@ window.adminApp = {
                 ${window.adminApp.selectedRoles.has(role) ? '<svg class="w-4 h-4 ml-auto text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>' : ''}
             </div>
         `).join('');
+    },
+
+    loadProjectCosting: async (docId, projectNo) => {
+        console.log("Loading costing for:", projectNo);
+        const body = document.getElementById('project-costing-body');
+        if (body) body.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-slate-400 italic">Calculating costs...</td></tr>';
+
+        try {
+            const rosterDocs = await DB.getProjectAssignments(projectNo);
+            console.log(`Found ${rosterDocs.length} roster documents for project ${projectNo}`);
+
+            // Aggregation map based on Unique taskId to prevent team member over-counting
+            const taskMap = new Map();
+            const canonicalProjectNo = projectNo.toString().trim().toLowerCase();
+
+            rosterDocs.forEach(row => {
+                const employees = row.assignments || [];
+                employees.forEach(emp => {
+                    const tasks = emp.tasks || [];
+                    tasks.forEach(t => {
+                        const canonicalOrderNo = (t.orderNo || '').toString().trim().toLowerCase();
+
+                        if (canonicalOrderNo === canonicalProjectNo) {
+                            // Unique ID for the task-day-dept occurrence
+                            const tid = t.taskId || `${row.date}_${emp.employeeId}_${t.orderNo}`;
+
+                            if (!taskMap.has(tid)) {
+                                const food = parseFloat(t.costFood) || 0;
+                                const cons = parseFloat(t.costConsumables) || 0;
+                                const trans = parseFloat(t.costTransport) || 0;
+                                const misc = parseFloat(t.costMisc) || 0;
+                                const extras = food + cons + trans + misc;
+
+                                const qty = parseFloat(t.qty) || 0;
+                                const unitPrice = parseFloat(t.prodValueEa) || 0;
+                                const prodVal = (qty * unitPrice) + extras;
+
+                                taskMap.set(tid, {
+                                    date: row.date,
+                                    dept: row.department,
+                                    description: t.description,
+                                    extras: extras,
+                                    prodVal: prodVal,
+                                    employees: [],
+                                    totalOverhead: 0
+                                });
+                            }
+
+                            const entry = taskMap.get(tid);
+                            // SUM individual overhead shares (t.overheads) not task-total (t.totalOverheads)
+                            const overheadShare = parseFloat(t.overheads) || 0;
+                            entry.totalOverhead += overheadShare;
+
+                            const empDetail = `${emp.employeeName} (${t.allocationPct || 100}%)`;
+                            if (!entry.employees.includes(empDetail)) {
+                                entry.employees.push(empDetail);
+                            }
+                        }
+                    });
+                });
+            });
+
+            // Final Totals
+            let totalProd = 0;
+            let totalOverhead = 0;
+            let totalExtra = 0;
+            let history = [];
+
+            taskMap.forEach((data, tid) => {
+                totalProd += data.prodVal;
+                totalOverhead += data.totalOverhead;
+                totalExtra += data.extras;
+
+                history.push({
+                    date: data.date,
+                    dept: data.dept,
+                    employee: data.employees.join(', '),
+                    role: data.description,
+                    overhead: data.totalOverhead,
+                    extras: data.extras,
+                    prodVal: data.prodVal
+                });
+            });
+
+            console.log(`Aggregated: TotalProd=${totalProd}, UniqueTasks=${taskMap.size}`);
+            // Sort history by date descending
+            history.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            window.adminApp.renderProjectCosting({
+                totalProd,
+                totalOverhead,
+                totalExtra,
+                history
+            });
+
+            // If empty, show hint
+            if (taskMap.size === 0 && body) {
+                body.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="p-8 text-center text-slate-400 italic">
+                            No costing data mapped to this project ID.<br>
+                            <button class="mt-4 text-xs text-emerald-600 font-bold hover:underline" onclick="window.adminApp.syncAllProjectIndices()">
+                                ↻ Refresh Historical Links
+                            </button>
+                        </td>
+                    </tr>`;
+            }
+
+        } catch (err) {
+            console.error("Error in loadProjectCosting:", err);
+            if (body) body.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-red-500 italic">Error loading data. Check console.</td></tr>';
+        }
+    },
+
+    syncAllProjectIndices: async () => {
+        if (!confirm("This will scan all Daily Roster entries to link them to projects for the new Costing tab. This may take a moment for large datasets. Proceed?")) return;
+
+        try {
+            const workflows = await DB.getAllWorkflows();
+            console.log(`Starting sub-sync for ${workflows.length} documents...`);
+
+            let updated = 0;
+            for (const wf of workflows) {
+                const employees = wf.assignments || [];
+                // Correct extraction: flatMap tasks to get orderNo
+                const pIds = [...new Set(employees.flatMap(em => (em.tasks || []).map(t => t.orderNo)).filter(id => id && id !== 'Ad-hoc'))];
+
+                // Only update if projectIds is missing or doesn't match
+                if (!wf.projectIds || JSON.stringify(wf.projectIds.sort()) !== JSON.stringify(pIds.sort())) {
+                    console.log(`Syncing doc: ${wf.id} (${wf.date}) - New Index:`, pIds);
+                    // Use the existing saveWorkflow which now correctly extracts projectIds
+                    await DB.saveWorkflow(wf.date, wf.department, wf.assignments, wf.supervisorNotes || '', wf.id);
+                    updated++;
+                }
+            }
+
+            alert(`Sync complete! ${updated} records updated.`);
+
+            // Reload the current project costing
+            const currentId = window.adminApp.currentEditingProjectId;
+            const project = currentProjects.find(p => p.id === currentId);
+            if (project) {
+                window.adminApp.loadProjectCosting(currentId, project.projectId);
+            }
+        } catch (err) {
+            console.error("Sync failed:", err);
+            alert("Sync failed. Check console for details.");
+        }
+    },
+
+    renderProjectCosting: (data) => {
+        const elProd = document.getElementById('costing-total-prod');
+        const elOver = document.getElementById('costing-total-overhead');
+        const elExtra = document.getElementById('costing-total-extra');
+        const elMargin = document.getElementById('costing-total-margin');
+        const body = document.getElementById('project-costing-body');
+
+        if (elProd) elProd.textContent = `₹${data.totalProd.toLocaleString()}`;
+        if (elOver) elOver.textContent = `₹${data.totalOverhead.toLocaleString()}`;
+        if (elExtra) elExtra.textContent = `₹${data.totalExtra.toLocaleString()}`;
+
+        const margin = data.totalProd - data.totalOverhead;
+        if (elMargin) {
+            elMargin.textContent = `₹${margin.toLocaleString()}`;
+            elMargin.style.color = margin >= 0 ? '#047857' : '#e11d48';
+        }
+
+        if (body) {
+            if (data.history.length === 0) {
+                body.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-slate-400 italic">No costing data found for this project.</td></tr>';
+            } else {
+                body.innerHTML = data.history.map(h => `
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="p-3 border-b border-slate-50 font-medium text-slate-600">${h.date}</td>
+                        <td class="p-3 border-b border-slate-50"><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 uppercase">${h.dept}</span></td>
+                        <td class="p-3 border-b border-slate-50">
+                            <div class="font-bold text-slate-700">${h.employee}</div>
+                            <div class="text-[10px] text-slate-400 font-medium">${h.role}</div>
+                        </td>
+                        <td class="p-3 border-b border-slate-50 text-right font-bold text-slate-600">₹${h.overhead.toLocaleString()}</td>
+                        <td class="p-3 border-b border-slate-50 text-right font-bold text-amber-600">₹${h.extras.toLocaleString()}</td>
+                        <td class="p-3 border-b border-slate-50 text-right font-bold text-emerald-600">₹${h.prodVal.toLocaleString()}</td>
+                    </tr>
+                `).join('');
+            }
+        }
     },
 
     selectRole: (role) => {
@@ -1507,6 +1706,9 @@ window.adminApp = {
 
         // Load Contract Review form for this project
         window.adminApp.loadContractReview(id);
+
+        // Load Costing Data
+        window.adminApp.loadProjectCosting(id, project.projectId);
     },
 
     renderProgressDots: (project) => {
@@ -1537,6 +1739,15 @@ window.adminApp = {
         document.querySelectorAll('.dd-panel').forEach(p => {
             p.classList.toggle('active', p.id === `dd-panel-${tabName}`);
         });
+
+        // Trigger refresh for specific tabs
+        if (tabName === 'costing') {
+            const currentId = window.adminApp.currentEditingProjectId;
+            const project = currentProjects.find(p => p.id === currentId);
+            if (project) {
+                window.adminApp.loadProjectCosting(currentId, project.projectId);
+            }
+        }
     },
 
     renderStageAction: (project) => {

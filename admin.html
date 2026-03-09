@@ -1034,12 +1034,10 @@
                 <!-- View: Inventory Management -->
                 <section id="view-inventory_management" class="view-section hidden">
                     <!-- Header Bar -->
-                    <div class="pm-header inventory-header">
-                        <div class="pm-header-title">
-                            <div style="display: flex; align-items: center; gap: 1rem;">
-                                <h2>📦 Inventory Management</h2>
-                                <span class="pm-header-badge inventory">Stock Control</span>
-                            </div>
+                    <div class="premium-emerald-header inventory-header">
+                        <div class="flex items-center gap-4">
+                            <h2>📦 Inventory Management</h2>
+                            <span class="pm-header-badge inventory">Stock Control</span>
                         </div>
                         <div class="pm-header-actions">
                             <!-- MASTER ACTIONS -->
@@ -1518,26 +1516,26 @@
                 <!-- View: Project Detail (Deep Dive Workspace) -->
                 <section id="view-project_detail" class="view-section hidden">
 
-                    <!-- Compact Header -->
+                    <!-- Premium Header -->
                     <div class="dd-header">
                         <div class="dd-header-left">
                             <button class="dd-back-btn" onclick="window.adminApp.switchView('project_management')">
-                                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
                                         d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                                 </svg>
                             </button>
-                            <div>
-                                <div style="display:flex;align-items:center;gap:0.5rem;">
+                            <div class="flex flex-col">
+                                <div class="flex items-center gap-3">
                                     <span id="detail-project-id" class="dd-project-id">IES-2026-00000</span>
                                     <div class="dd-status-container relative">
                                         <button id="detail-project-status"
                                             class="status-badge draft flex items-center gap-1 group"
                                             onclick="window.adminApp.toggleStatusMenu(event)">
                                             <span>Draft</span>
-                                            <svg class="w-3 h-3 opacity-50 group-hover:opacity-100 transition-opacity"
+                                            <svg class="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 transition-opacity"
                                                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
                                                     d="M19 9l-7 7-7-7"></path>
                                             </svg>
                                         </button>
@@ -1569,7 +1567,9 @@
                             </div>
                         </div>
                         <div class="dd-header-right">
-                            <!-- Legacy buttons removed -->
+                            <div id="dd-header-stats" class="flex gap-4">
+                                <!-- Dynamic stats can go here -->
+                            </div>
                         </div>
                     </div>
 
@@ -1584,6 +1584,14 @@
                                     d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                             </svg>
                             Contract Review
+                        </button>
+                        <button class="dd-tab" onclick="window.adminApp.switchDeepDiveTab('costing')"
+                            data-tab="costing">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Costing
                         </button>
                         <button class="dd-tab" onclick="window.adminApp.switchDeepDiveTab('files')" data-tab="files">
                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2062,6 +2070,73 @@
                             </div>
                         </div>
                     </div>
+                    <!-- Panel: Costing -->
+                    <div id="dd-panel-costing" class="dd-panel">
+                        <div class="flex flex-col gap-6 p-2">
+                            <div class="grid grid-cols-4 gap-4">
+                                <!-- Production Value Card -->
+                                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                                        Total Production Value</div>
+                                    <div class="text-2xl font-bold text-slate-800" id="costing-total-prod">₹0</div>
+                                    <div class="text-[10px] text-emerald-500 font-medium mt-1">Cumulative Value</div>
+                                </div>
+                                <!-- Overhead Cost Card -->
+                                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                                        Total Overheads</div>
+                                    <div class="text-2xl font-bold text-slate-800" id="costing-total-overhead">₹0</div>
+                                    <div class="text-[10px] text-red-400 font-medium mt-1">Emp. Overheads</div>
+                                </div>
+                                <!-- Extra Costs Card -->
+                                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                                        Extra Costs</div>
+                                    <div class="text-2xl font-bold text-slate-800" id="costing-total-extra">₹0</div>
+                                    <div class="text-[10px] text-amber-500 font-medium mt-1">Food/Trans/Misc</div>
+                                </div>
+                                <!-- Margin Card -->
+                                <div
+                                    class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm highlight-emerald">
+                                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                                        Project Margin</div>
+                                    <div class="text-2xl font-bold text-emerald-700" id="costing-total-margin">₹0</div>
+                                    <div class="text-[10px] text-emerald-600 font-medium mt-1">Est. Contribution</div>
+                                </div>
+                            </div>
+
+                            <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                                <div
+                                    class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                    <h4 class="font-bold text-slate-800 text-sm">Costing History (Daily Roster)</h4>
+                                    <div class="text-[10px] font-medium text-slate-500 italic">Data pulled from daily
+                                        assignments</div>
+                                </div>
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-sm">
+                                        <thead>
+                                            <tr
+                                                class="text-left bg-slate-50 text-slate-400 font-bold uppercase text-[10px]">
+                                                <th class="p-3 border-b border-slate-100">Date</th>
+                                                <th class="p-3 border-b border-slate-100">Dept</th>
+                                                <th class="p-3 border-b border-slate-100">Employee / Role</th>
+                                                <th class="p-3 border-b border-slate-100 text-right">Overhead</th>
+                                                <th class="p-3 border-b border-slate-100 text-right">Extra Costs</th>
+                                                <th class="p-3 border-b border-slate-100 text-right">Prod. Value</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="project-costing-body">
+                                            <tr>
+                                                <td colspan="6" class="p-8 text-center text-slate-400 italic">No costing
+                                                    data found for this project.</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Panel: Files -->
                     <div id="dd-panel-files" class="dd-panel">
                         <input type="file" id="project-file-input" style="display:none;"
@@ -2166,6 +2241,14 @@
                                 </svg>
                                 Print
                             </button>
+                            <button class="btn wf-btn-delete" onclick="window.adminApp.wfDeleteRoster()"
+                                style="border-color: #ef4444; color: #ef4444; background: #fef2f2; font-weight: 700;">
+                                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                Delete Data
+                            </button>
                         </div>
                     </div>
 
@@ -2192,7 +2275,7 @@
                                     <th style="width:5%" class="text-center">Qty</th>
                                     <th style="width:7%" class="text-right">Prod. Value</th>
                                     <th style="width:8%" class="text-right">Total Overhead</th>
-                                    <th style="width:4%" class="text-center">MP</th>
+                                    <th style="width:4%" class="text-center">DEPARTMENT</th>
                                     <th style="width:8%">Assigned With</th>
                                     <th style="width:8%" class="text-center">Work Duration</th>
                                     <th style="width:5%" class="text-center">Status</th>
