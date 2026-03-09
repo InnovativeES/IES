@@ -258,15 +258,17 @@ const renderTable = () => {
             <td class="text-center">${row.qty || '-'} ${row.unit || ''}</td>
             <td class="text-right" style="color:#0f172a;">
                 <div style="font-weight: 700; font-size: 0.9rem;">
-                    ₹${(row.prodValueEa > 0 && row.qty > 0) ? (((row.prodValueEa * row.qty) + (row.costFood || 0) + (row.costConsumables || 0) + (row.costTransport || 0) + (row.costMisc || 0)).toFixed(2)) : '0.00'}
-                </div>
-                <div style="font-size: 0.65rem; color: #64748b; margin-top: 2px;">
-                    Base: ₹${((row.prodValueEa || 0) * (row.qty || 0)).toLocaleString()} <br>
-                    Extra: ₹${((row.costFood || 0) + (row.costConsumables || 0) + (row.costTransport || 0) + (row.costMisc || 0)).toLocaleString()}
+                    ₹${(row.prodValueEa > 0 && row.qty > 0) ? ((row.prodValueEa * row.qty).toFixed(2)) : '0.00'}
                 </div>
             </td>
-            <td class="text-right" style="font-weight:600; color:#334155;">
-                ${row.totalOverheads > 0 ? `₹${row.totalOverheads.toFixed(2)}` : '-'}
+            <td class="text-right" style="color:#334155;">
+                <div style="font-weight: 700; font-size: 0.9rem;">
+                    ₹${(row.totalOverheads || 0).toFixed(2)}
+                </div>
+                <div style="font-size: 0.65rem; color: #64748b; margin-top: 2px;">
+                    Base: ₹${(row.overheads || 0).toFixed(2)} <br>
+                    Extra: ₹${((row.costFood || 0) + (row.costConsumables || 0) + (row.costTransport || 0) + (row.costMisc || 0)).toFixed(2)}
+                </div>
             </td>
             <td class="text-center"><span class="text-xs font-semibold px-2 py-1 bg-slate-100 text-slate-600 rounded">${displayDept}</span></td>
             <td class="wf-col-assigned" title="${row.assignedWith || ''}">${row.assignedWith || '-'}</td>
@@ -614,17 +616,14 @@ export const openAssignModal = (editIdx = -1) => {
 export const calculateProdValue = () => {
     const qty = parseFloat(document.getElementById('wf-assign-qty')?.value) || 0;
     const cost = parseFloat(document.getElementById('wf-assign-prod-cost')?.value) || 0;
-    const food = parseFloat(document.getElementById('wf-assign-cost-food')?.value) || 0;
-    const consumables = parseFloat(document.getElementById('wf-assign-cost-consumables')?.value) || 0;
-    const transport = parseFloat(document.getElementById('wf-assign-cost-transport')?.value) || 0;
-    const misc = parseFloat(document.getElementById('wf-assign-cost-misc')?.value) || 0;
 
-    const baseVal = qty * cost;
-    const totalExtra = food + consumables + transport + misc;
-    const total = baseVal + totalExtra;
+    const total = qty * cost;
 
     const totalEl = document.getElementById('wf-assign-prod-total');
     if (totalEl) totalEl.value = total > 0 ? total.toFixed(2) : '';
+
+    // Changing Prod Value might affect total overheads if extras are part of it
+    updateOverheadsDisplay();
 };
 
 const setupOverheadListeners = () => {
@@ -694,7 +693,7 @@ export const updateOverheadsDisplay = () => {
     const totalEl = document.getElementById('wf-overhead-total');
     if (!listEl || !totalEl) return;
 
-    let total = 0;
+    let manpowerTotal = 0;
     let html = '';
 
     const allIds = [primaryId, ...teamIds].filter(Boolean);
@@ -714,7 +713,7 @@ export const updateOverheadsDisplay = () => {
             }
 
             oh = baseOh * (pct / 100);
-            total += oh;
+            manpowerTotal += oh;
             html += `
                 <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: #64748b;">
                     <span>${m.name} <span style="font-size:0.6rem; color:#94a3b8; margin-left:4px;">(${pct}%)</span></span>
@@ -723,12 +722,28 @@ export const updateOverheadsDisplay = () => {
         }
     });
 
+    const food = parseFloat(document.getElementById('wf-assign-cost-food')?.value) || 0;
+    const consumables = parseFloat(document.getElementById('wf-assign-cost-consumables')?.value) || 0;
+    const transport = parseFloat(document.getElementById('wf-assign-cost-transport')?.value) || 0;
+    const misc = parseFloat(document.getElementById('wf-assign-cost-misc')?.value) || 0;
+    const totalExtra = food + consumables + transport + misc;
+
+    if (totalExtra > 0) {
+        html += `
+            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: #0d9488; font-weight: 600; margin-top: 4px; border-top: 1px dotted #e2e8f0; padding-top: 4px;">
+                <span>Task Extras (Food/Transp/etc)</span>
+                <span>₹${totalExtra.toFixed(2)}</span>
+            </div>`;
+    }
+
+    const grandTotal = manpowerTotal + totalExtra;
+
     if (!html) {
         html = '<div style="font-size: 0.75rem; color: #94a3b8; text-align: center;">No employees selected</div>';
     }
 
     listEl.innerHTML = html;
-    totalEl.textContent = `₹${total.toFixed(2)}`;
+    totalEl.textContent = `₹${grandTotal.toFixed(2)}`;
 };
 
 const populateIOSuggestions = () => {
@@ -858,6 +873,12 @@ export const confirmAssign = async () => {
         })
     ];
 
+    const food = parseFloat(getVal('wf-assign-cost-food')) || 0;
+    const consumables = parseFloat(getVal('wf-assign-cost-consumables')) || 0;
+    const transport = parseFloat(getVal('wf-assign-cost-transport')) || 0;
+    const misc = parseFloat(getVal('wf-assign-cost-misc')) || 0;
+    const totalExtra = food + consumables + transport + misc;
+
     const baseData = {
         type: orderNo ? 'order' : 'adhoc',
         orderNo,
@@ -873,12 +894,12 @@ export const confirmAssign = async () => {
         notes: getVal('wf-assign-notes'),
         status: getVal('wf-assign-status') || 'Pending',
         prodValueEa: parseFloat(getVal('wf-assign-prod-cost')) || 0,
-        costFood: parseFloat(getVal('wf-assign-cost-food')) || 0,
-        costConsumables: parseFloat(getVal('wf-assign-cost-consumables')) || 0,
-        costTransport: parseFloat(getVal('wf-assign-cost-transport')) || 0,
-        costMisc: parseFloat(getVal('wf-assign-cost-misc')) || 0,
+        costFood: food,
+        costConsumables: consumables,
+        costTransport: transport,
+        costMisc: misc,
         taskId: taskId,
-        totalOverheads: allAssignees.reduce((sum, a) => sum + (a.overheads || 0), 0)
+        totalOverheads: allAssignees.reduce((sum, a) => sum + (a.overheads || 0), 0) + totalExtra
     };
 
     if (currentEditIdx >= 0) {

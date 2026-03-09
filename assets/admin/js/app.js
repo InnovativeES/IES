@@ -282,7 +282,7 @@ window.adminApp = {
 
                                 const qty = parseFloat(t.qty) || 0;
                                 const unitPrice = parseFloat(t.prodValueEa) || 0;
-                                const prodVal = (qty * unitPrice) + extras;
+                                const prodVal = (qty * unitPrice); // Base only, extras separated
 
                                 taskMap.set(tid, {
                                     date: row.date,
@@ -317,9 +317,10 @@ window.adminApp = {
 
             taskMap.forEach((data, tid) => {
                 totalProd += data.prodVal;
-                totalOverhead += data.totalOverhead;
+                totalOverhead += data.totalOverhead; // Base manpower overhead
                 totalExtra += data.extras;
 
+                // Push combined overhead for the table
                 history.push({
                     date: data.date,
                     dept: data.dept,
@@ -405,10 +406,10 @@ window.adminApp = {
         const body = document.getElementById('project-costing-body');
 
         if (elProd) elProd.textContent = `₹${data.totalProd.toLocaleString()}`;
-        if (elOver) elOver.textContent = `₹${data.totalOverhead.toLocaleString()}`;
+        if (elOver) elOver.textContent = `₹${(data.totalOverhead + data.totalExtra).toLocaleString()}`; // Combined display
         if (elExtra) elExtra.textContent = `₹${data.totalExtra.toLocaleString()}`;
 
-        const margin = data.totalProd - data.totalOverhead;
+        const margin = data.totalProd - (data.totalOverhead + data.totalExtra);
         if (elMargin) {
             elMargin.textContent = `₹${margin.toLocaleString()}`;
             elMargin.style.color = margin >= 0 ? '#047857' : '#e11d48';
@@ -416,9 +417,16 @@ window.adminApp = {
 
         if (body) {
             if (data.history.length === 0) {
-                body.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-slate-400 italic">No costing data found for this project.</td></tr>';
+                body.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-slate-400 italic">No costing data found for this project.</td></tr>';
             } else {
-                body.innerHTML = data.history.map(h => `
+                body.innerHTML = data.history.map(h => {
+                    const combinedOverhead = h.overhead + h.extras;
+                    let overheadHtml = `<div class="font-bold text-slate-600">₹${combinedOverhead.toLocaleString()}</div>`;
+                    if (h.extras > 0) {
+                        overheadHtml += `<div class="text-[10px] text-slate-400">Base: ₹${h.overhead.toLocaleString()}</div>
+                                         <div class="text-[10px] text-amber-500">Extra: ₹${h.extras.toLocaleString()}</div>`;
+                    }
+                    return `
                     <tr class="hover:bg-slate-50 transition-colors">
                         <td class="p-3 border-b border-slate-50 font-medium text-slate-600">${h.date}</td>
                         <td class="p-3 border-b border-slate-50"><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 uppercase">${h.dept}</span></td>
@@ -426,11 +434,11 @@ window.adminApp = {
                             <div class="font-bold text-slate-700">${h.employee}</div>
                             <div class="text-[10px] text-slate-400 font-medium">${h.role}</div>
                         </td>
-                        <td class="p-3 border-b border-slate-50 text-right font-bold text-slate-600">₹${h.overhead.toLocaleString()}</td>
-                        <td class="p-3 border-b border-slate-50 text-right font-bold text-amber-600">₹${h.extras.toLocaleString()}</td>
+                        <td class="p-3 border-b border-slate-50 text-right">${overheadHtml}</td>
                         <td class="p-3 border-b border-slate-50 text-right font-bold text-emerald-600">₹${h.prodVal.toLocaleString()}</td>
                     </tr>
-                `).join('');
+                    `;
+                }).join('');
             }
         }
     },
