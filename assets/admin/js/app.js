@@ -3541,9 +3541,9 @@ window.adminApp.renderContractReview = (reviewData = {}) => {
 
         let labelEl = item.label;
         if (isCustom) {
-            labelEl = `< input type = "text" class="cr-master-input cr-custom-label w-full font-bold px-3 py-2 text-slate-700" value = "${itemObj.customLabel || ''}" data - item - id="${item.id}" > `;
+            labelEl = `<input type="text" class="cr-master-input cr-custom-label w-full font-bold px-3 py-2 text-slate-700" value="${itemObj.customLabel || ''}" data-item-id="${item.id}">`;
         } else {
-            labelEl = `< span class="px-3 block w-full py-2 font-bold text-slate-700" > ${item.label}</span > `;
+            labelEl = `<span class="px-3 block w-full py-2 font-bold text-slate-700">${item.label}</span>`;
         }
 
         const req = itemObj.req || '';
@@ -3551,22 +3551,22 @@ window.adminApp.renderContractReview = (reviewData = {}) => {
 
         const cell = (type, val, currentVal, extraVal) => {
             const isActive = type === 'out' && val === 'more' ? extraVal === 'true' : currentVal === val;
-            const activeClass = isActive ? `active - ${val} ` : '';
+            const activeClass = isActive ? `active-${val}` : '';
             const tick = isActive ? '✓' : '○';
 
             return `
-    < td class="p-0 select-none" onclick = "window.adminApp.setReviewItem('${item.id}', '${type}', '${val}')" >
+    <td class="p-0 select-none" onclick="window.adminApp.setReviewItem('${item.id}', '${type}', '${val}')">
         <div class="outcome-tile ${activeClass}" data-opt="${val}">
             <span class="cr-tick">${tick}</span>
         </div>
-                </td >
+    </td>
     `;
         };
 
-        const deleteBtn = isCustom ? `< button class="cr-item-delete-btn text-red-400 hover:text-red-600 px-3 flex-shrink-0" onclick = "window.adminApp.removeReviewItem('${item.id}')" title = "Remove Item" > <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button > ` : '';
+        const deleteBtn = isCustom ? `<button class="cr-item-delete-btn text-red-400 hover:text-red-600 px-3 flex-shrink-0" onclick="window.adminApp.removeReviewItem('${item.id}')" title="Remove Item"><svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>` : '';
 
         return `
-    < tr class="cr-item-row" data - item - id="${item.id}" data - req - val="${req}" data - out - val="${out}" data - more - val="${itemObj.more || 'false'}" >
+    <tr class="cr-item-row" data-item-id="${item.id}" data-req-val="${req}" data-out-val="${out}" data-more-val="${itemObj.more || 'false'}">
                 <td class="cr-item-index text-center uppercase tracking-tighter">${index + 1}</td>
                 <td class="p-0">
                     <div class="flex items-center h-full">
@@ -3583,7 +3583,7 @@ window.adminApp.renderContractReview = (reviewData = {}) => {
 <td class="p-0">
     <input type="text" class="cr-master-input w-full cr-remarks-input px-3 py-2 text-slate-600" value="${itemObj.remarks || ''}">
 </td>
-            </tr >
+            </tr>
     `;
     };
 
@@ -3609,26 +3609,26 @@ window.adminApp.addCustomContractReviewItem = () => {
     const rowCount = tbody.querySelectorAll('.cr-item-row').length;
     const newId = 'custom_' + Date.now();
 
-    const labelEl = `< input type = "text" class="cr-master-input cr-custom-label w-full font-bold px-3 py-2 text-slate-700" value = "" data - item - id="${newId}" > `;
+    const labelEl = `<input type="text" class="cr-master-input cr-custom-label w-full font-bold px-3 py-2 text-slate-700" value="" data-item-id="${newId}">`;
 
     const cell = (type, val) => {
         return `
-    < td class="p-0 select-none" onclick = "window.adminApp.setReviewItem('${newId}', '${type}', '${val}')" >
+    <td class="p-0 select-none" onclick="window.adminApp.setReviewItem('${newId}', '${type}', '${val}')">
         <div class="outcome-tile" data-opt="${val}">
             <span class="cr-tick">○</span>
         </div>
-            </td >
+    </td>
     `;
     };
 
-    const deleteBtn = `< button class="cr-item-delete-btn text-red-400 hover:text-red-600 px-3 flex-shrink-0" onclick = "window.adminApp.removeReviewItem('${newId}')" title = "Remove Item" > <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button > `;
+    const deleteBtn = `<button class="cr-item-delete-btn text-red-400 hover:text-red-600 px-3 flex-shrink-0" onclick="window.adminApp.removeReviewItem('${newId}')" title="Remove Item"><svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>`;
 
     const tr = document.createElement('tr');
     tr.className = 'cr-item-row';
     tr.dataset.itemId = newId;
 
     tr.innerHTML = `
-    < td class="cr-item-index text-center uppercase tracking-tighter" > ${rowCount + 1}</td >
+        <td class="cr-item-index text-center uppercase tracking-tighter">${rowCount + 1}</td>
         <td class="p-0">
             <div class="flex items-center h-full">
                 <div class="flex-grow">${labelEl}</div>
@@ -3652,7 +3652,7 @@ window.adminApp.addCustomContractReviewItem = () => {
 
 
 window.adminApp.removeReviewItem = (itemId) => {
-    const row = document.querySelector(`.cr - item - row[data - item - id="${itemId}"]`);
+    const row = document.querySelector(`.cr-item-row[data-item-id="${itemId}"]`);
     if (row) {
         row.remove();
         // Update indices
@@ -3664,7 +3664,7 @@ window.adminApp.removeReviewItem = (itemId) => {
 };
 
 window.adminApp.setReviewItem = (itemId, type, val) => {
-    const row = document.querySelector(`.cr - item - row[data - item - id="${itemId}"]`);
+    const row = document.querySelector(`.cr-item-row[data-item-id="${itemId}"]`);
     if (!row) return;
 
     if (type === 'out' && val === 'more') {
@@ -3700,21 +3700,21 @@ window.adminApp.setReviewItem = (itemId, type, val) => {
         const tickEl = tile.querySelector('.cr-tick');
 
         if (opt === val) {
-            const isCurrentlyActive = row.dataset[`${type} Val`] === val;
+            const isCurrentlyActive = row.dataset[`${type}Val`] === val;
             if (isCurrentlyActive) {
                 // Toggle OFF
-                tile.classList.remove(`active - ${val} `);
+                tile.classList.remove(`active-${val}`);
                 if (tickEl) tickEl.textContent = '○';
-                row.dataset[`${type} Val`] = '';
+                row.dataset[`${type}Val`] = '';
             } else {
                 // Switch ON
-                tile.classList.add(`active - ${val} `);
+                tile.classList.add(`active-${val}`);
                 if (tickEl) tickEl.textContent = '✓';
-                row.dataset[`${type} Val`] = val;
+                row.dataset[`${type}Val`] = val;
             }
         } else {
             // Force others OFF
-            tile.classList.remove(`active - ${opt} `);
+            tile.classList.remove(`active-${opt}`);
             if (tickEl) tickEl.textContent = '○';
         }
     }
@@ -3734,7 +3734,7 @@ window.adminApp.loadContractReview = async (projectId) => {
 
         // Helper to safely set value
         const setVal = (id, val) => {
-            const el = document.getElementById(id) || document.querySelector(`[data - field= "${id}"]`);
+            const el = document.getElementById(id) || document.querySelector(`[data-field="${id}"]`);
             if (el) el.value = val || '';
         };
 
@@ -3770,7 +3770,7 @@ window.adminApp.loadContractReview = async (projectId) => {
         const mGrid = ['matl', 'machine', 'man', 'method', 'measure', 'tools'];
         mGrid.forEach(key => {
             const data = reviewData.sixM?.[key] || { cmt: '' };
-            setVal(`cmt - ${key} `, data.cmt);
+            setVal(`cmt-${key}`, data.cmt);
         });
 
         // Decisions
@@ -3810,7 +3810,7 @@ window.adminApp.saveContractReview = async (action) => {
 
     // Helper to get value
     const getVal = (id) => {
-        const el = document.getElementById(id) || document.querySelector(`[data - field= "${id}"]`);
+        const el = document.getElementById(id) || document.querySelector(`[data-field="${id}"]`);
         return el ? el.value : '';
     };
 
@@ -3855,7 +3855,7 @@ window.adminApp.saveContractReview = async (action) => {
     const mGrid = ['matl', 'machine', 'man', 'method', 'measure', 'tools'];
     mGrid.forEach(key => {
         reviewData.sixM[key] = {
-            cmt: getVal(`cmt - ${key} `)
+            cmt: getVal(`cmt-${key}`)
         };
     });
 
