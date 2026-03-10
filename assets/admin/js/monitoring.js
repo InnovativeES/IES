@@ -169,7 +169,7 @@ export const renderTable = (orders) => {
 
         if (!isTrashMode) {
             if (status === 'DELIVERED') tr.className = 'row-delivered';
-            else if (status === 'PARTIALLY DELIVERED' || status === 'PORTION DELIVERED') tr.className = 'row-partially-delivered';
+            else if (status === 'PARTIALLY DELIVERED' || status === 'PORTION DELIVERED') tr.className = 'row-portion';
             else if (status === 'PENDING') tr.className = 'row-pending';
         } else {
             tr.className = 'row-deleted';
@@ -187,7 +187,7 @@ export const renderTable = (orders) => {
             const statusVal = order.status || 'Pending';
             let badgeClass = 'status-pending';
             if (statusVal === 'Delivered') badgeClass = 'status-delivered';
-            else if (statusVal === 'Partially Delivered' || statusVal === 'Portion Delivered') badgeClass = 'status-partial text-blue-600 bg-blue-50 border border-blue-200'; // Define a distinctive style
+            else if (statusVal === 'Partially Delivered' || statusVal === 'Portion Delivered') badgeClass = 'status-portion';
             statusHtml = `<span class="status-badge ${badgeClass}">${statusVal}</span>`;
         }
 
@@ -285,20 +285,42 @@ export const handleAddOrder = async () => {
     }
 
     // Auto-determine status from DC No and Qty
-    const dcNo = data.dcNo ? data.dcNo.trim() : '';
-    if (dcNo) {
-        const orderedQty = parseFloat(data.qty) || 0;
-        const deliveredQty = parseFloat(data.deliveryQty) || 0;
-        if (deliveredQty >= orderedQty && orderedQty > 0) {
+    // If updating an existing order, we must calculate the TOTAL delivered across all DCs.
+    const orderedQty = parseFloat(data.qty) || 0;
+
+    if (orderId) {
+        // Find existing delivery records for this IO
+        const allOrders = window.adminApp.getCurrentOrders ? window.adminApp.getCurrentOrders() : [];
+        const existingDeliveries = allOrders.filter(o =>
+            o.entryType === 'delivery_report' &&
+            o.internalOrderNo === data.internalOrderNo &&
+            !o.deleted
+        );
+
+        const totalDelivered = existingDeliveries.reduce((sum, d) => sum + (parseFloat(d.deliveryQty) || 0), 0);
+
+        if (totalDelivered >= orderedQty && orderedQty > 0) {
             data.status = 'Delivered';
-        } else if (deliveredQty > 0) {
+        } else if (totalDelivered > 0) {
             data.status = 'Partially Delivered';
         } else {
-            // If they entered a DC No but didn't enter a delivery qty, default to Delivered for legacy compatibility
-            data.status = 'Delivered';
+            data.status = 'Pending';
         }
     } else {
-        data.status = 'Pending';
+        // For entirely new orders created here, they won't have deliveries yet.
+        const dcNo = data.dcNo ? data.dcNo.trim() : '';
+        if (dcNo) {
+            const deliveredQty = parseFloat(data.deliveryQty) || 0;
+            if (deliveredQty >= orderedQty && orderedQty > 0) {
+                data.status = 'Delivered';
+            } else if (deliveredQty > 0) {
+                data.status = 'Partially Delivered';
+            } else {
+                data.status = 'Delivered';
+            }
+        } else {
+            data.status = 'Pending';
+        }
     }
 
     const orderId = data.orderId;
@@ -391,6 +413,61 @@ export const populateForm = (order) => {
 
     if (statusDisplay) statusDisplay.value = displayHtml;
     if (statusHidden) statusHidden.value = autoStatus;
+
+    // NEW: Handle DC Breakdown for Internal Order Modal
+    const breakdownBody = document.getElementById('io-delivery-breakdown-body');
+    if (breakdownBody) {
+        const ioNo = order.internalOrderNo;
+        const allOrders = window.adminApp.getCurrentOrders ? window.adminApp.getCurrentOrders() : [];
+        const deliveries = allOrders.filter(o =>
+            o.entryType === 'delivery_report' &&
+            o.internalOrderNo === ioNo &&
+            !o.deleted
+        );
+
+        if (deliveries.length > 0) {
+            // Sort by date descending
+            deliveries.sort((a, b) => new Date(b.deliveryDateActual || b.date) - new Date(a.deliveryDateActual || a.date));
+
+            breakdownBody.innerHTML = deliveries.map(d => `
+                <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.2s;" onmouseover="this.style.background='#fbfcfd'" onmouseout="this.style.background='transparent'">
+                    <td style="padding: 10px 8px; color: #313d4f; font-weight: 500;">${d.dcNo || '-'}</td>
+                    <td style="padding: 10px 8px; color: #64748b;">${formatDate(d.deliveryDateActual || d.date)}</td>
+                    <td style="padding: 10px 8px; text-align: right; color: #0f172a; font-weight: 700;">${d.deliveryQty || 0}</td>
+                    <td style="padding: 10px 8px; text-align: right; color: #0d9488; font-weight: 700;">₹${(parseFloat(d.total) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                </tr>
+            `).join('');
+        } else {
+            breakdownBody.innerHTML = '<tr><td colspan="4" style="padding: 1.5rem 1rem; text-align: center; color: #94a3b8; font-style: italic; font-size: 0.75rem; background: #f8fafc;">No deliveries recorded.</td></tr>';
+        }
+
+        // --- NEW: Populate Summary Stats ---
+        const totalDelivered = deliveries.reduce((sum, d) => sum + (parseFloat(d.deliveryQty) || 0), 0);
+        const orderedQty = parseFloat(order.qty) || 0;
+        const pendingQty = Math.max(0, orderedQty - totalDelivered);
+
+        const totalDelEl = document.getElementById('io-total-delivered');
+        const pendingQtyEl = document.getElementById('io-pending-qty');
+        const derivedStatusEl = document.getElementById('io-derived-status');
+
+        if (totalDelEl) totalDelEl.textContent = totalDelivered;
+        if (pendingQtyEl) pendingQtyEl.textContent = pendingQty;
+        if (derivedStatusEl) {
+            let sText = 'Pending';
+            let sClass = 'status-pending';
+
+            if (pendingQty <= 0 && orderedQty > 0) {
+                sText = 'Delivered';
+                sClass = 'status-delivered';
+            } else if (totalDelivered > 0) {
+                sText = 'Partially Delivered';
+                sClass = 'status-portion';
+            }
+
+            derivedStatusEl.textContent = sText;
+            derivedStatusEl.className = `status-badge ${sClass}`;
+        }
+    }
 
     // Trigger calculation for all cost fields
     calculateOrderCosts();

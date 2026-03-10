@@ -1932,6 +1932,29 @@ window.adminApp = {
         const hidden = document.getElementById('orderId-input');
         if (hidden) hidden.value = '';
 
+        // NEW: Clear breakdown table and summary stats for new orders
+        const breakdownBody = document.getElementById('io-delivery-breakdown-body');
+        if (breakdownBody) {
+            breakdownBody.innerHTML = '<tr><td colspan="4" style="padding: 1.5rem; text-align: center; color: #94a3b8; font-style: italic;">No delivery records found for this order.</td></tr>';
+        }
+
+        // Clear summary stats
+        const totalDelEl = document.getElementById('io-total-delivered');
+        const pendingQtyEl = document.getElementById('io-pending-qty');
+        const derivedStatusEl = document.getElementById('io-derived-status');
+        if (totalDelEl) totalDelEl.textContent = '0';
+        if (pendingQtyEl) pendingQtyEl.textContent = '0';
+        if (derivedStatusEl) {
+            derivedStatusEl.textContent = 'Pending';
+            derivedStatusEl.className = 'status-badge status-pending';
+        }
+
+        // Reset order status display and hidden field
+        const statusDisplay = document.getElementById('order-status-display');
+        const statusHidden = form ? form.querySelector('[name="status"]') : null;
+        if (statusDisplay) statusDisplay.value = '🟡 Pending';
+        if (statusHidden) statusHidden.value = 'Pending';
+
         // Set default date to today
         const dateInput = form.querySelector('[name="date"]');
         if (dateInput) {
@@ -1993,11 +2016,24 @@ window.adminApp = {
             ioLookup.value = existingOrder ? (existingOrder.internalOrderNo || '') : '';
         }
 
+        // Initialize DC Rows
+        const container = document.getElementById('dc-rows-container');
+        if (container) {
+            container.innerHTML = '';
+            if (existingOrder) {
+                // For editing, show the existing DC data in the first row
+                window.adminApp.addDCRow(existingOrder.dcNo, existingOrder.deliveryDateActual || existingOrder.date, existingOrder.deliveryQty || existingOrder.qty, existingOrder.total || '');
+            } else {
+                // For new delivery, add one default empty row
+                window.adminApp.addDCRow();
+            }
+        }
+
         // Populate datalist with all active/delivered IO numbers for autocomplete
         const datalist = document.getElementById('delivery-io-suggestions');
         if (datalist) {
             const activeOrders = currentOrders.filter(o =>
-                (o.status === 'Pending' || o.status === 'Portion Delivered' || o.status === 'Delivered' || (existingOrder && o.internalOrderNo === existingOrder.internalOrderNo)) &&
+                (o.status === 'Pending' || o.status === 'Partially Delivered' || o.status === 'Delivered' || (existingOrder && o.internalOrderNo === existingOrder.internalOrderNo)) &&
                 o.internalOrderNo &&
                 (!o.entryType || o.entryType !== 'delivery_report')
             );
@@ -2012,24 +2048,56 @@ window.adminApp = {
                 const el = form.querySelector(`[name="${name}"]`);
                 if (el) el.value = val !== undefined && val !== null ? val : '';
             };
-            setVal('date', existingOrder.deliveryDateActual || existingOrder.date);
             setVal('customer', existingOrder.customer);
             setVal('description', existingOrder.description);
             setVal('drawingNo', existingOrder.drawingNo);
             setVal('department', existingOrder.department);
-            setVal('dcNo', existingOrder.dcNo);
-            setVal('qty', existingOrder.deliveryQty || existingOrder.qty);
-            setVal('total', existingOrder.total || '');
             setVal('labourCost', existingOrder.labourCost || 0);
-            setVal('billNo', existingOrder.billNo || '');
             setVal('manpower', existingOrder.manpower || '');
             setVal('qtyUnit', existingOrder.qtyUnit || 'Nos');
+
+            // Set main date field to match existing order's main date if none in first DC
+            const dateInput = form.querySelector('[name="date"]');
+            if (dateInput) dateInput.value = existingOrder.date || new Date().toISOString().split('T')[0];
         } else {
             const dateInput = form.querySelector('[name="date"]');
             if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
         }
 
         window.adminApp.openModal('add-delivery-modal');
+    },
+
+    addDCRow: (dcNo = '', date = '', qty = '', value = '') => {
+        const container = document.getElementById('dc-rows-container');
+        if (!container) return;
+
+        const dateVal = date || new Date().toISOString().split('T')[0];
+        const tr = document.createElement('tr');
+        tr.className = 'dc-row';
+        tr.innerHTML = `
+            <td style="padding: 4px;"><input type="text" name="dcNo_row" class="form-input" placeholder="DC #" value="${dcNo}"></td>
+            <td style="padding: 4px;"><input type="date" name="dcDate_row" class="form-input" value="${dateVal}"></td>
+            <td style="padding: 4px;"><input type="number" name="dcQty_row" class="form-input" style="text-align: right;" min="0" value="${qty}"></td>
+            <td style="padding: 4px;"><input type="number" name="dcVal_row" class="form-input" style="text-align: right;" min="0" step="0.01" value="${value}" placeholder="₹"></td>
+            <td style="padding: 4px; text-align: center;">
+                <button type="button" class="action-btn delete" onclick="window.adminApp.removeDCRow(this)" title="Remove Row">
+                    <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </td>
+        `;
+        container.appendChild(tr);
+    },
+
+    removeDCRow: (btn) => {
+        const container = document.getElementById('dc-rows-container');
+        if (!container) return;
+        if (container.children.length > 1) {
+            btn.closest('tr').remove();
+        } else {
+            // Keep at least one row, just clear it
+            const row = container.querySelector('tr');
+            row.querySelectorAll('input').forEach(i => i.value = (i.type === 'date' ? new Date().toISOString().split('T')[0] : ''));
+        }
     },
 
     // Lookup: Auto-fill delivery form from an existing Internal Order
@@ -2065,28 +2133,39 @@ window.adminApp = {
         const formData = new FormData(form);
         const orderId = formData.get('orderId');
 
-        // Construct object compatible with DB.addOrder
-        const orderData = {
+        // Collect DC Rows
+        const dcRows = [];
+        const container = document.getElementById('dc-rows-container');
+        if (container) {
+            container.querySelectorAll('tr').forEach(tr => {
+                const dcNo = tr.querySelector('[name="dcNo_row"]')?.value.trim();
+                const dcDate = tr.querySelector('[name="dcDate_row"]')?.value;
+                const dcQty = parseFloat(tr.querySelector('[name="dcQty_row"]')?.value) || 0;
+                const dcVal = parseFloat(tr.querySelector('[name="dcVal_row"]')?.value) || 0;
+
+                if (dcNo || dcQty > 0) {
+                    dcRows.push({ dcNo, dcDate, dcQty, dcVal });
+                }
+            });
+        }
+
+        if (dcRows.length === 0) {
+            alert("Please add at least one DC entry (DC Number or Quantity).");
+            return;
+        }
+
+        const baseData = {
             date: formData.get('date'),
             customer: formData.get('customer'),
             drawingNo: formData.get('drawingNo') || '',
             description: formData.get('description') || '',
             internalOrderNo: formData.get('internalOrderNo')?.trim() || '',
-            qty: parseFloat(formData.get('qty')) || 0,
-            total: parseFloat(formData.get('total')) || 0, // Manual Delivery Value
             department: formData.get('department') || '',
             labourCost: parseFloat(formData.get('labourCost')) || 0,
             manpower: parseFloat(formData.get('manpower')) || 0,
-
-            // Delivery Specifics
-            deliveryDateActual: formData.get('date'), // Same as entry date for direct delivery
-            deliveryQty: parseFloat(formData.get('qty')) || 0,
-            dcNo: formData.get('dcNo') || '',
-            billNo: formData.get('billNo') || '',
-            status: 'Delivered', // Force status
-            entryType: 'delivery_report', // Flag to distinguish from Internal Orders
-
-            // Defaults for unused fields
+            qtyUnit: formData.get('qtyUnit') || 'Nos',
+            status: 'Delivered',
+            entryType: 'delivery_report',
             saleValueEa: 0,
             prodValueEa: 0,
             priority: 'Medium',
@@ -2095,63 +2174,76 @@ window.adminApp = {
             finishAvail: 'n'
         };
 
-        let result;
-        if (orderId) {
-            result = await DB.updateOrder(orderId, orderData);
-        } else {
-            result = await DB.addOrder(orderData);
-        }
+        // If editing an existing entry, we'll update the first DC's document
+        // and potentially create NEW ones for the rest.
+        // Simplified approach: For "Editing", user should probably edit individual entries from the report.
+        // But since they can add multiple here, we handle the first one as update if ID exists.
 
-        // Automated Sync: Update original Internal Order if IO Number is linked
-        if (!result.error && orderData.internalOrderNo) {
-            const ioNo = orderData.internalOrderNo;
-            const originalOrder = currentOrders.find(o =>
-                o.internalOrderNo === ioNo && (!o.entryType || o.entryType !== 'delivery_report')
-            );
+        try {
+            for (let i = 0; i < dcRows.length; i++) {
+                const row = dcRows[i];
+                const entryData = {
+                    ...baseData,
+                    dcNo: row.dcNo,
+                    deliveryDateActual: row.dcDate,
+                    deliveryQty: row.dcQty,
+                    qty: row.dcQty, // Keep qty same for compatibility
+                    total: row.dcVal
+                };
 
-            if (originalOrder) {
-                // 1. Calculate Total Delivered Quantity across all delivery report entries
-                const allDeliveries = currentOrders.filter(o =>
-                    o.entryType === 'delivery_report' &&
-                    o.internalOrderNo === ioNo &&
-                    o.id !== orderId // Exclude old version if editing
+                // If editing (orderId exists), only the FIRST row updates the original doc.
+                // Subsequential rows are added as new documents.
+                if (orderId && i === 0) {
+                    await DB.updateOrder(orderId, entryData);
+                } else {
+                    await DB.addOrder(entryData);
+                }
+            }
+
+            // Sync with Internal Order
+            if (baseData.internalOrderNo) {
+                const ioNo = baseData.internalOrderNo;
+                const originalOrder = currentOrders.find(o =>
+                    o.internalOrderNo === ioNo && (!o.entryType || o.entryType !== 'delivery_report')
                 );
 
-                const totalDelivered = allDeliveries.reduce((sum, o) => sum + (parseFloat(o.deliveryQty) || 0), 0) + orderData.deliveryQty;
+                if (originalOrder) {
+                    // Refetch/Re-calculate all deliveries for this IO
+                    // Since DB.addOrder is async, it might take a moment to reflect in state.
+                    // However, current system relies on real-time snapshots, so currentOrders *should* update.
+                    // To be safe, we calculate based on what we just sent + current state.
 
-                // 2. Pool DC Numbers
-                let allDCs = allDeliveries.map(o => o.dcNo?.trim()).filter(dc => dc);
-                if (orderData.dcNo?.trim() && !allDCs.includes(orderData.dcNo.trim())) {
-                    allDCs.push(orderData.dcNo.trim());
+                    const existingDeliveries = currentOrders.filter(o =>
+                        o.entryType === 'delivery_report' &&
+                        o.internalOrderNo === ioNo &&
+                        o.id !== orderId
+                    );
+
+                    const totalDelivered = existingDeliveries.reduce((sum, o) => sum + (parseFloat(o.deliveryQty) || 0), 0) +
+                        dcRows.reduce((sum, r) => sum + r.dcQty, 0);
+
+                    let allDCs = existingDeliveries.map(o => o.dcNo?.trim()).filter(dc => dc);
+                    dcRows.forEach(r => {
+                        if (r.dcNo && !allDCs.includes(r.dcNo)) allDCs.push(r.dcNo);
+                    });
+                    const pooledDCs = allDCs.join(', ');
+
+                    const orderedQty = parseFloat(originalOrder.qty) || 0;
+                    let newStatus = 'Pending';
+                    if (totalDelivered >= orderedQty && orderedQty > 0) newStatus = 'Delivered';
+                    else if (totalDelivered > 0) newStatus = 'Partially Delivered';
+
+                    await DB.updateOrder(originalOrder.id, {
+                        deliveryQty: totalDelivered,
+                        dcNo: pooledDCs,
+                        status: newStatus
+                    });
                 }
-                const pooledDCs = allDCs.join(', ');
-
-                // 3. Update Status based on completion
-                const orderedQty = parseFloat(originalOrder.qty) || 0;
-                let newStatus = originalOrder.status;
-
-                if (totalDelivered >= orderedQty && orderedQty > 0) {
-                    newStatus = 'Delivered';
-                } else if (totalDelivered > 0) {
-                    newStatus = 'Portion Delivered';
-                } else {
-                    newStatus = 'Pending';
-                }
-
-                console.log(`Automated Sync: Updating IO ${ioNo} -> ${totalDelivered}/${orderedQty} (${newStatus})`);
-
-                await DB.updateOrder(originalOrder.id, {
-                    deliveryQty: totalDelivered,
-                    dcNo: pooledDCs,
-                    status: newStatus
-                });
             }
-        }
 
-        if (result.error) {
-            alert('Error: ' + result.error);
-        } else {
             window.adminApp.closeModal('add-delivery-modal');
+        } catch (err) {
+            alert('Error: ' + err.message);
         }
     },
 
