@@ -100,7 +100,11 @@ export const renderHierarchy = (members, containerId) => {
             const depts = getDepts(m);
             return (roles.includes('section head') || roles.includes('manager') || (m.employeeType && m.employeeType.toLowerCase() === 'manager')) && depts.includes(name.toLowerCase());
         });
-        const teamMembers = members.filter(m => m !== sectionHead);
+        const teamMembers = members.filter(m => m !== sectionHead).sort((a, b) => {
+            const idA = a.employeeId || '';
+            const idB = b.employeeId || '';
+            return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
+        });
 
         return `
             <div class="org-dept" style="--dept-color: ${color};">
