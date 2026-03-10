@@ -288,6 +288,9 @@ export const handleAddOrder = async () => {
     // If updating an existing order, we must calculate the TOTAL delivered across all DCs.
     const orderedQty = parseFloat(data.qty) || 0;
 
+    const orderId = data.orderId;
+    delete data.orderId;
+
     if (orderId) {
         // Find existing delivery records for this IO
         const allOrders = window.adminApp.getCurrentOrders ? window.adminApp.getCurrentOrders() : [];
@@ -323,8 +326,7 @@ export const handleAddOrder = async () => {
         }
     }
 
-    const orderId = data.orderId;
-    delete data.orderId;
+
 
     const isNewOrder = !orderId;
     const createProject = isNewOrder && document.getElementById('io-create-project')?.checked;
