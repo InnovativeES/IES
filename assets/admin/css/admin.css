@@ -275,6 +275,7 @@ h4 {
     border-radius: var(--border-radius);
     box-shadow: var(--shadow);
     border: 1px solid var(--slate-100);
+    min-width: 0;
 }
 
 .card-header {
@@ -284,6 +285,7 @@ h4 {
 
 .card-body {
     padding: 1.5rem;
+    min-width: 0;
 }
 
 /* Summary Stats Cards (KPI Style) */
@@ -373,6 +375,25 @@ h4 {
 #dashboard-container {
     display: flex;
     min-height: 100vh;
+    min-width: 0;
+    max-width: 100vw;
+    overflow-x: hidden;
+}
+
+.main-wrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+#main-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    position: relative;
+    padding: 2rem;
+    min-width: 0;
 }
 
 /* === SIDEBAR === */
@@ -831,10 +852,11 @@ h4 {
 #main-content {
     flex: 1;
     padding: 0;
-    overflow: hidden;
-    /* Prevent page scroll */
+    overflow-y: auto;
+    overflow-x: hidden;
     display: flex;
     flex-direction: column;
+    min-width: 0;
 }
 
 /* === VIEW SECTIONS === */
@@ -844,7 +866,8 @@ h4 {
     display: flex;
     flex-direction: column;
     animation: fadeIn 0.2s ease;
-    overflow: hidden;
+    overflow: auto;
+    min-width: 0;
 }
 
 .view-section.hidden {
@@ -2126,9 +2149,29 @@ tr.row-deleted td:first-child {
 }
 
 /* === ORGANIZATION CHART === */
+#subview-hierarchy {
+    min-width: 0;
+    max-width: 100%;
+}
+
+#subview-hierarchy .card {
+    min-width: 0;
+    max-width: 100%;
+}
+
+#subview-hierarchy .card-body {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    padding: 0;
+    /* Removing padding to allow full flush scrolling */
+}
+
 #hierarchy-container {
     min-height: 400px;
     padding: 2rem;
+    min-width: max-content;
+    /* THIS IS THE FIX: The inner container MUST be max-content or it will compress instead of overflowing */
 }
 
 .org-chart {

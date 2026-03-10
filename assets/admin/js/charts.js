@@ -130,6 +130,11 @@ export const renderHierarchy = (members, containerId) => {
                 background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
                 border-radius: 12px;
                 min-height: 400px;
+                overflow-x: auto;
+            }
+            .org-inner-wrapper {
+                min-width: 1000px;
+                padding-bottom: 0.5rem;
             }
             .org-header {
                 display: flex;
@@ -293,36 +298,38 @@ export const renderHierarchy = (members, containerId) => {
     container.innerHTML = `
         ${styles}
         <div class="org-container">
-            <div class="org-header">
-                <div class="org-header-icon">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
-                    </svg>
+            <div class="org-inner-wrapper">
+                <div class="org-header">
+                    <div class="org-header-icon">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                        </svg>
+                    </div>
+                    <div class="org-header-text">
+                        <h2>Innovative Engineering Solutions</h2>
+                        <p>Organization Structure</p>
+                    </div>
                 </div>
-                <div class="org-header-text">
-                    <h2>Innovative Engineering Solutions</h2>
-                    <p>Organization Structure</p>
+                
+                <div class="org-leadership">
+                    <div class="org-leader">
+                        <div class="org-leader-label">Managing Director</div>
+                        ${createCard(director, true)}
+                    </div>
+                    <div class="org-leader">
+                        <div class="org-leader-label">Business Development</div>
+                        ${createCard(bdm, false)}
+                    </div>
                 </div>
-            </div>
-            
-            <div class="org-leadership">
-                <div class="org-leader">
-                    <div class="org-leader-label">Managing Director</div>
-                    ${createCard(director, true)}
+                
+                <div class="org-connector"></div>
+                
+                <div class="org-departments">
+                    ${createSection('Fabrication', '🔧', '#6366f1', fabTeam)}
+                    ${createSection('CNC & VMC', '⚙️', '#3b82f6', cncTeam)}
+                    ${createSection('SPM', '🔩', '#8b5cf6', spmTeam)}
+                    ${createSection('HR', '👥', '#ec4899', hrTeam)}
                 </div>
-                <div class="org-leader">
-                    <div class="org-leader-label">Business Development</div>
-                    ${createCard(bdm, false)}
-                </div>
-            </div>
-            
-            <div class="org-connector"></div>
-            
-            <div class="org-departments">
-                ${createSection('Fabrication', '🔧', '#6366f1', fabTeam)}
-                ${createSection('CNC & VMC', '⚙️', '#3b82f6', cncTeam)}
-                ${createSection('SPM', '🔩', '#8b5cf6', spmTeam)}
-                ${createSection('HR', '👥', '#ec4899', hrTeam)}
             </div>
         </div>
     `;
