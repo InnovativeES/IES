@@ -10,7 +10,46 @@ let workflowUnsubscribe = null;
 let currentEditIdx = -1;
 let loadedDepartments = new Set(); // Track departments that have data for the current date
 let saveTimeout = null; // For debouncing
-let pendingAttendanceEdits = new Set(); // Track local edits to protect from server overwrites
+let pendingAttendanceEdits = new Map(); // empId -> { status, shift }
+
+// ===== LOCK LOGIC =====
+const isRosterLocked = () => {
+    if (!currentWorkflowDate) return false;
+    const today = new Date().toISOString().split('T')[0];
+    return currentWorkflowDate < today;
+};
+
+const renderLockStatus = () => {
+    const banner = document.getElementById('wf-lock-banner');
+    if (!banner) return;
+    
+    if (isRosterLocked()) {
+        banner.innerHTML = `
+            <div class="flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-700 text-sm font-medium animate-in fade-in slide-in-from-top-2 duration-300">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                <span>Read-Only Mode: Historical data is locked and cannot be modified.</span>
+            </div>
+        `;
+        banner.classList.remove('hidden');
+    } else {
+        banner.classList.add('hidden');
+        banner.innerHTML = '';
+    }
+};
+
+// Update Global Button States
+const updateManagementButtons = () => {
+    const locked = isRosterLocked();
+    const saveBtn = document.getElementById('save-all-btn');
+    const addBtn = document.getElementById('add-assignment-btn');
+    const copyBtn = document.getElementById('copy-prev-btn');
+    const deleteBtn = document.getElementById('delete-all-btn');
+    
+    if (saveBtn) saveBtn.classList.toggle('hidden', locked);
+    if (addBtn) addBtn.classList.toggle('hidden', locked);
+    if (copyBtn) copyBtn.classList.toggle('hidden', locked);
+    if (deleteBtn) deleteBtn.classList.toggle('hidden', locked);
+};
 
 /**
  * Generates a stable ID for tasks that don't have one.
@@ -86,6 +125,8 @@ export const initWorkflowView = () => {
     window.adminApp.wfExportCSV = () => exportCSV();
 
     loadWorkflows();
+    renderLockStatus();
+    updateManagementButtons();
 };
 
 // ===== DATA LOADING =====
@@ -108,15 +149,10 @@ const loadWorkflows = async () => {
             }
 
             // CAPTURE local unsaved changes
-            const savedLocalEdits = {};
-            pendingAttendanceEdits.forEach(empId => {
-                if (attendanceData[empId]) {
-                    savedLocalEdits[empId] = { ...attendanceData[empId] };
-                }
-            });
-
+            const savedLocalEdits = new Map(pendingAttendanceEdits); // Create a copy
+            
             rosterRows = [];
-            attendanceData = savedLocalEdits; // RESTORE local unsaved changes
+            attendanceData = {}; // Reset attendanceData before merging
             loadedDepartments = new Set();
             const notesArr = [];
             const members = window.adminApp?.getCurrentMembers ? window.adminApp.getCurrentMembers() : [];
@@ -150,7 +186,7 @@ const loadWorkflows = async () => {
 
                 // Selective Merge for Attendance: Only update if no local pending changes exist
                 Object.keys(entry.attendance).forEach(empId => {
-                    if (!pendingAttendanceEdits.has(empId)) {
+                    if (!savedLocalEdits.has(empId)) { // Check against savedLocalEdits (which is pendingAttendanceEdits)
                         attendanceData[empId] = entry.attendance[empId];
                     }
                 });
@@ -193,12 +229,19 @@ const loadWorkflows = async () => {
                 }
             });
 
+            // Apply saved local attendance edits on top of fetched data
+            savedLocalEdits.forEach((att, empId) => {
+                attendanceData[empId] = att;
+            });
+
             const notesEl = document.getElementById('wf-supervisor-notes');
             if (notesEl) notesEl.value = notesArr.join('\n');
 
             renderTable();
             renderAttendanceTable();
             updateUnassignedAlert();
+            renderLockStatus();
+            updateManagementButtons();
         });
     } else {
         let result = await DB.getWorkflow(currentWorkflowDate, currentWorkflowDept);
@@ -265,6 +308,8 @@ const loadWorkflows = async () => {
         renderTable();
         renderAttendanceTable();
         updateUnassignedAlert();
+        renderLockStatus();
+        updateManagementButtons();
     }
 };
 
@@ -283,6 +328,8 @@ const renderTable = () => {
     let lastEmpId = '';
     let rowNum = 0;
 
+    const locked = isRosterLocked();
+
     tbody.innerHTML = rosterRows.map((row, idx) => {
         const isNewEmployee = row.employeeId !== lastEmpId;
         lastEmpId = row.employeeId;
@@ -297,6 +344,17 @@ const renderTable = () => {
         const rowStyle = isNewEmployee ? 'border-top: 2px solid #e2e8f0;' : '';
         const paddingStyle = 'padding: 0.4rem 0.5rem;';
 
+        const actionBtns = locked ? '' : `
+            <div class="wf-row-actions" style="display: flex; gap: 4px; justify-content: center;">
+                <button class="wf-row-edit" onclick="window.adminApp.wfEditRow('${row.taskId}', '${row.employeeId}')" style="padding: 4px; color: #0d9488; background: #f0fdfa; border-radius: 4px;">
+                    <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                </button>
+                <button class="wf-row-remove" onclick="window.adminApp.wfRemoveRow('${row.taskId}', '${row.employeeId}')" style="padding: 4px; color: #ef4444; background: #fef2f2; border-radius: 4px;">
+                    <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                </button>
+            </div>
+        `;
+
         return `
         <tr class="${isNewEmployee ? 'emp-row' : ''}" data-task-id="${row.taskId}" data-emp-id="${row.employeeId}" style="${rowStyle}">
             <td class="text-center" style="${paddingStyle} font-size: 0.75rem;">${isNewEmployee ? rowNum : ''}</td>
@@ -305,9 +363,9 @@ const renderTable = () => {
                     <strong style="font-size: 0.8rem;">${row.employeeName}</strong>
                     <span style="font-size: 0.65rem; color: #64748b;">${row.employeeNo || ''} · ${row.role || ''}</span>
                     <div class="wf-timing-pills" style="margin-top: 4px; border: 1px solid #e2e8f0; border-radius: 4px; padding: 2px; width: fit-content; background: #f8fafc;">
-                        <input type="time" value="${row.inTime || ''}" onchange="window.adminApp.wfUpdateRow('${row.taskId}', '${row.employeeId}', 'inTime', this.value)" style="border:none; background:transparent; font-size: 0.65rem; padding: 0;" title="In Time">
+                        <input type="time" value="${row.inTime || ''}" onchange="window.adminApp.wfUpdateRow('${row.taskId}', '${row.employeeId}', 'inTime', this.value)" style="border:none; background:transparent; font-size: 0.65rem; padding: 0;" title="In Time" ${locked ? 'disabled' : ''}>
                         <span style="font-size: 0.65rem; color: #94a3b8;">-</span>
-                        <input type="time" value="${row.outTime || ''}" onchange="window.adminApp.wfUpdateRow('${row.taskId}', '${row.employeeId}', 'outTime', this.value)" style="border:none; background:transparent; font-size: 0.65rem; padding: 0;" title="Out Time">
+                        <input type="time" value="${row.outTime || ''}" onchange="window.adminApp.wfUpdateRow('${row.taskId}', '${row.employeeId}', 'outTime', this.value)" style="border:none; background:transparent; font-size: 0.65rem; padding: 0;" title="Out Time" ${locked ? 'disabled' : ''}>
                     </div>
                 </div>` : ''}
             </td>
@@ -329,14 +387,7 @@ const renderTable = () => {
             <td class="text-center" style="${paddingStyle} font-size: 0.7rem; font-weight: 600;">${row.workStart || '-'} <br> ${row.workEnd || '-'}</td>
             <td class="text-center" style="${paddingStyle}"><span class="wf-status-badge ${sClass}" style="font-size: 0.65rem; padding: 2px 6px;">${row.status || 'Pending'}</span></td>
             <td class="text-center" style="${paddingStyle}">
-                <div class="wf-row-actions" style="display: flex; gap: 4px; justify-content: center;">
-                    <button class="wf-row-edit" onclick="window.adminApp.wfEditRow('${row.taskId}', '${row.employeeId}')" style="padding: 4px; color: #0d9488; background: #f0fdfa; border-radius: 4px;">
-                        <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                    </button>
-                    <button class="wf-row-remove" onclick="window.adminApp.wfRemoveRow('${row.taskId}', '${row.employeeId}')" style="padding: 4px; color: #ef4444; background: #fef2f2; border-radius: 4px;">
-                        <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                    </button>
-                </div>
+                ${actionBtns}
             </td>
         </tr>
         `;
@@ -390,6 +441,8 @@ const renderAttendanceTable = () => {
         return;
     }
 
+    const locked = isRosterLocked();
+
     let totalOh = 0;
     tbody.innerHTML = filteredMembers.map((m, idx) => {
         const att = attendanceData[m.id] || { present: false, shiftType: 'Full' };
@@ -423,17 +476,17 @@ const renderAttendanceTable = () => {
                     <div class="flex flex-col items-center gap-1.5">
                         <div class="flex items-center p-0.5 bg-slate-200 rounded-lg w-fit shadow-inner border border-slate-300">
                             <button type="button" onclick="window.adminApp.wfToggleAttendance('${m.id}', true)" 
-                                    style="padding: 6px 24px; border-radius: 6px; font-size: 10px; font-weight: 900; transition: all 0.2s; ${att.present ? 'background-color: #10b981 !important; color: white !important; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);' : 'background-color: transparent !important; color: #64748b !important;'}" class="px-6 py-1.5 rounded-md">PRESENT</button>
+                                    style="padding: 6px 24px; border-radius: 6px; font-size: 10px; font-weight: 900; transition: all 0.2s; ${att.present ? 'background-color: #10b981 !important; color: white !important; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);' : 'background-color: transparent !important; color: #64748b !important;'}" class="px-6 py-1.5 rounded-md" ${locked ? 'disabled' : ''}>PRESENT</button>
                             <button type="button" onclick="window.adminApp.wfToggleAttendance('${m.id}', false)" 
-                                    style="padding: 6px 24px; border-radius: 6px; font-size: 10px; font-weight: 900; transition: all 0.2s; ${!att.present ? 'background-color: #f43f5e !important; color: white !important; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);' : 'background-color: transparent !important; color: #64748b !important;'}" class="px-6 py-1.5 rounded-md">ABSENT</button>
+                                    style="padding: 6px 24px; border-radius: 6px; font-size: 10px; font-weight: 900; transition: all 0.2s; ${!att.present ? 'background-color: #f43f5e !important; color: white !important; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);' : 'background-color: transparent !important; color: #64748b !important;'}" class="px-6 py-1.5 rounded-md" ${locked ? 'disabled' : ''}>ABSENT</button>
                         </div>
                         
                         ${att.present ? `
                         <div class="flex items-center gap-1 p-0.5 bg-white rounded-lg w-fit border-2 border-emerald-500 shadow-sm">
                              <button type="button" onclick="window.adminApp.wfToggleShiftType('${m.id}', 'Full')" 
-                                    style="padding: 4px 12px; border-radius: 4px; font-size: 9px; font-weight: 900; transition: all 0.2s; ${att.shiftType !== 'Half' ? 'background-color: #0891b2 !important; color: white !important;' : 'background-color: transparent !important; color: #0891b2 !important;'}" class="px-3 py-1 rounded">FULL DAY</button>
+                                    style="padding: 4px 12px; border-radius: 4px; font-size: 9px; font-weight: 900; transition: all 0.2s; ${att.shiftType !== 'Half' ? 'background-color: #0891b2 !important; color: white !important;' : 'background-color: transparent !important; color: #0891b2 !important;'}" class="px-3 py-1 rounded" ${locked ? 'disabled' : ''}>FULL DAY</button>
                              <button type="button" onclick="window.adminApp.wfToggleShiftType('${m.id}', 'Half')" 
-                                    style="padding: 4px 12px; border-radius: 4px; font-size: 9px; font-weight: 900; transition: all 0.2s; ${att.shiftType === 'Half' ? 'background-color: #f59e0b !important; color: white !important;' : 'background-color: transparent !important; color: #f59e0b !important;'}" class="px-3 py-1 rounded">HALF DAY</button>
+                                    style="padding: 4px 12px; border-radius: 4px; font-size: 9px; font-weight: 900; transition: all 0.2s; ${att.shiftType === 'Half' ? 'background-color: #f59e0b !important; color: white !important;' : 'background-color: transparent !important; color: #f59e0b !important;'}" class="px-3 py-1 rounded" ${locked ? 'disabled' : ''}>HALF DAY</button>
                         </div>
                         ` : '<div style="height: 22px;"></div>'}
                     </div>
@@ -458,6 +511,7 @@ const renderAttendanceTable = () => {
 };
 
 const toggleAttendance = async (empId, isPresent) => {
+    if (isRosterLocked()) return;
     const members = window.adminApp?.getCurrentMembers ? window.adminApp.getCurrentMembers() : [];
     const m = members.find(m => m.id === empId);
     if (!m) return;
@@ -468,7 +522,7 @@ const toggleAttendance = async (empId, isPresent) => {
     
     attendanceData[empId].present = isPresent;
     attendanceData[empId].overhead = parseFloat(m.overheads) || 0;
-    pendingAttendanceEdits.add(empId); // Mark as locally edited
+    pendingAttendanceEdits.set(empId, attendanceData[empId]); // Mark as locally edited
 
     const statusEl = document.getElementById('wf-attendance-save-status');
     if (statusEl) {
@@ -481,10 +535,11 @@ const toggleAttendance = async (empId, isPresent) => {
 };
 
 const toggleShiftType = async (empId, type) => {
+    if (isRosterLocked()) return;
     if (!attendanceData[empId]) return;
     
     attendanceData[empId].shiftType = type;
-    pendingAttendanceEdits.add(empId); // Mark as locally edited
+    pendingAttendanceEdits.set(empId, attendanceData[empId]); // Mark as locally edited
 
     const statusEl = document.getElementById('wf-attendance-save-status');
     if (statusEl) {
@@ -539,6 +594,7 @@ const switchTab = (tabName) => {
 // ===== ROW UPDATE =====
 
 export const updateRow = async (taskId, empId, field, value) => {
+    if (isRosterLocked()) return;
     const row = rosterRows.find(r => r.taskId === taskId && r.employeeId === empId);
     if (row) {
         row[field] = value;
@@ -556,6 +612,7 @@ export const updateRow = async (taskId, empId, field, value) => {
 };
 
 export const removeRow = async (taskId, empId) => {
+    if (isRosterLocked()) return;
     if (confirm('Remove this assignment?')) {
         const idx = rosterRows.findIndex(r => r.taskId === taskId && r.employeeId === empId);
         if (idx >= 0) {
@@ -567,6 +624,7 @@ export const removeRow = async (taskId, empId) => {
 };
 
 export const editRow = (taskId, empId) => {
+    if (isRosterLocked()) return;
     const idx = rosterRows.findIndex(r => r.taskId === taskId && r.employeeId === empId);
     if (idx >= 0) {
         openAssignModal(idx);
@@ -576,6 +634,7 @@ export const editRow = (taskId, empId) => {
 // ===== ASSIGNMENT MODAL =====
 
 export const openAssignModal = (editIdx = -1) => {
+    if (isRosterLocked()) return;
     const members = window.adminApp?.getCurrentMembers ? window.adminApp.getCurrentMembers() : [];
     const dept = currentWorkflowDept;
 
@@ -1026,6 +1085,7 @@ const setupEmployeeTimingLookup = () => {
 // ===== CONFIRM ASSIGNMENT =====
 
 export const confirmAssign = async () => {
+    if (isRosterLocked()) return;
     const empSelect = document.getElementById('wf-assign-employee');
     if (!empSelect || !empSelect.value) {
         alert('Please select an employee.');
@@ -1191,6 +1251,7 @@ export const confirmAssign = async () => {
 };
 
 export const saveAll = async () => {
+    if (isRosterLocked()) return;
     if (saveTimeout) clearTimeout(saveTimeout);
     if (!currentWorkflowDate) return;
 
@@ -1327,6 +1388,7 @@ export const saveAll = async () => {
 // ===== COPY PREVIOUS DAY =====
 
 export const copyPreviousDay = async () => {
+    if (isRosterLocked()) return;
     if (!currentWorkflowDate) return;
 
     const prevDate = new Date(currentWorkflowDate);
@@ -1388,6 +1450,7 @@ const updateUnassignedAlert = () => {
 
 // ===== DELETE DATA =====
 const wfDeleteRoster = async () => {
+    if (isRosterLocked()) return;
     const pwd = prompt("Enter Password to Delete this Roster Data:");
     if (pwd === null) return;
     if (pwd !== 'IES') {

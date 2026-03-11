@@ -2181,6 +2181,9 @@
                      VIEW: Daily Roster
                      ============================================ -->
                 <section id="view-daily_roster" class="view-section hidden">
+                    <!-- Lock Status Banner -->
+                    <div id="wf-lock-banner" class="mb-4 hidden"></div>
+
                     <!-- Header Bar -->
                     <div class="wf-header">
                         <div class="wf-header-left">
@@ -2211,7 +2214,7 @@
                             </div>
                         </div>
                         <div class="wf-header-right">
-                            <button class="btn wf-btn-copy" onclick="window.adminApp.wfCopyPreviousDay()"
+                            <button id="copy-prev-btn" class="btn wf-btn-copy" onclick="window.adminApp.wfCopyPreviousDay()"
                                 title="Copy Previous Day">
                                 <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -2219,14 +2222,14 @@
                                 </svg>
                                 Copy Prev Day
                             </button>
-                            <button class="btn wf-btn-add" onclick="window.adminApp.wfOpenAssignModal()">
+                            <button id="add-assignment-btn" class="btn wf-btn-add" onclick="window.adminApp.wfOpenAssignModal()">
                                 <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                         d="M12 4v16m8-8H4" />
                                 </svg>
                                 Add Assignment
                             </button>
-                            <button class="btn wf-btn-save" onclick="window.adminApp.wfSaveAll()">
+                            <button id="save-all-btn" class="btn wf-btn-save" onclick="window.adminApp.wfSaveAll()">
                                 <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                         d="M5 13l4 4L19 7" />
@@ -2240,7 +2243,7 @@
                                 </svg>
                                 Print
                             </button>
-                            <button class="btn wf-btn-delete" onclick="window.adminApp.wfDeleteRoster()"
+                            <button id="delete-all-btn" class="btn wf-btn-delete" onclick="window.adminApp.wfDeleteRoster()"
                                 style="border-color: #ef4444; color: #ef4444; background: #fef2f2; font-weight: 700;">
                                 <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
