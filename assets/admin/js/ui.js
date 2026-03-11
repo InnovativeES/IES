@@ -1,4 +1,5 @@
 // UI Module - Clean Version for New Admin Panel
+import { initDailySummaryReport } from './reporting.js';
 
 let views = [];
 let navLinks = [];
@@ -45,7 +46,8 @@ export const switchView = (viewName) => {
             'team_org': 'Team & Organization',
             'project_management': 'Project Management',
             'project_detail': 'Project Deep Dive & Workflow',
-            'daily_roster': 'Daily Roster'
+            'daily_roster': 'Daily Roster',
+            'daily_summary_report': 'Daily Summary Report'
         };
 
         const pageTitle = document.getElementById('page-title');
@@ -55,6 +57,9 @@ export const switchView = (viewName) => {
         updateActiveLink(viewName);
 
         // Trigger View Renders
+        if (viewName === 'daily_summary_report') {
+            initDailySummaryReport();
+        }
         if (viewName === 'team_org') {
             if (window.adminApp?.renderTeamView) {
                 window.adminApp.renderTeamView();

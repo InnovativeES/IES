@@ -5,6 +5,7 @@ import * as Charts from './charts.js';
 import * as Monitoring from './monitoring.js';
 import * as Inventory from './inventory.js';
 import * as Workflow from './workflow.js';
+import * as Reporting from './reporting.js';
 
 // App State
 let currentMembers = [];
@@ -198,6 +199,14 @@ window.adminApp = {
         }
         if (viewName === 'daily_roster') {
             Workflow.initWorkflowView();
+        }
+
+        if (viewName === 'daily_summary_report') {
+            const picker = document.getElementById('summary-report-month');
+            if (picker && !picker.value) {
+                picker.value = new Date().toISOString().slice(0, 7);
+            }
+            Reporting.renderDailySummaryReport(picker.value);
         }
     },
 
@@ -2055,6 +2064,23 @@ window.adminApp = {
             setVal('labourCost', existingOrder.labourCost || 0);
             setVal('manpower', existingOrder.manpower || '');
             setVal('qtyUnit', existingOrder.qtyUnit || 'Nos');
+            
+            const prodValEl = document.getElementById('delivery-prodValue-input');
+            if (prodValEl) {
+                let cost = parseFloat(existingOrder.prodValueEa) || 0;
+                // If historical entry lacks cost, try to lookup from original IO
+                if (cost === 0 && existingOrder.internalOrderNo) {
+                    const original = currentOrders.find(o => 
+                        o.internalOrderNo && 
+                        o.internalOrderNo.trim().toUpperCase() === existingOrder.internalOrderNo.trim().toUpperCase() && 
+                        (!o.entryType || o.entryType !== 'delivery_report')
+                    );
+                    if (original) {
+                        cost = parseFloat(original.prodValueEa) || 0;
+                    }
+                }
+                prodValEl.value = cost;
+            }
 
             // Set main date field to match existing order's main date if none in first DC
             const dateInput = form.querySelector('[name="date"]');
@@ -2086,6 +2112,17 @@ window.adminApp = {
             </td>
         `;
         container.appendChild(tr);
+
+        // Add Auto-calculation Listener
+        const qtyInp = tr.querySelector('[name="dcQty_row"]');
+        const valInp = tr.querySelector('[name="dcVal_row"]');
+        if (qtyInp && valInp) {
+            qtyInp.addEventListener('input', () => {
+                const prodVal = parseFloat(document.getElementById('delivery-prodValue-input')?.value) || 0;
+                const qty = parseFloat(qtyInp.value) || 0;
+                valInp.value = (prodVal * qty).toFixed(2);
+            });
+        }
     },
 
     removeDCRow: (btn) => {
@@ -2103,24 +2140,49 @@ window.adminApp = {
     // Lookup: Auto-fill delivery form from an existing Internal Order
     lookupOrderForDelivery: (ioNo) => {
         if (!ioNo || !ioNo.trim()) return;
-        const order = currentOrders.find(o => o.internalOrderNo === ioNo.trim());
+        const searchVal = ioNo.trim().toLowerCase();
+        
+        // Find order case-insensitive and excluding delivery reports
+        const order = currentOrders.find(o => 
+            o.internalOrderNo && 
+            o.internalOrderNo.trim().toLowerCase() === searchVal &&
+            (!o.entryType || o.entryType !== 'delivery_report')
+        );
+        
         if (!order) return;
 
         const form = document.getElementById('add-delivery-form');
         if (!form) return;
 
-        // Auto-fill fields (all remain editable)
+        // Auto-fill fields
         const setVal = (name, val) => {
             const el = form.querySelector(`[name="${name}"]`);
-            if (el && val) el.value = val;
+            if (el && val !== undefined) el.value = val;
         };
 
         setVal('customer', order.customer);
         setVal('description', order.description);
         setVal('drawingNo', order.drawingNo);
-        setVal('qty', order.qty);
         setVal('qtyUnit', order.qtyUnit);
         setVal('department', order.department);
+
+        const prodValEl = document.getElementById('delivery-prodValue-input');
+        if (prodValEl) {
+            // Strictly use Production Cost Value as per user request
+            const pVal = parseFloat(order.prodValueEa) || 0;
+            prodValEl.value = pVal;
+
+            // Force recalculate all DC rows
+            const rows = document.querySelectorAll('#dc-rows-container .dc-row');
+            rows.forEach(row => {
+                const qInp = row.querySelector('[name="dcQty_row"]');
+                const vInp = row.querySelector('[name="dcVal_row"]');
+                if (qInp && vInp) {
+                    const q = parseFloat(qInp.value) || 0;
+                    vInp.value = (pVal * q).toFixed(2);
+                }
+            });
+        }
     },
 
     submitDeliveryForm: async () => {
@@ -2166,8 +2228,8 @@ window.adminApp = {
             qtyUnit: formData.get('qtyUnit') || 'Nos',
             status: 'Delivered',
             entryType: 'delivery_report',
-            saleValueEa: 0,
-            prodValueEa: 0,
+            saleValueEa: parseFloat(formData.get('saleValueEa')) || 0,
+            prodValueEa: parseFloat(formData.get('prodValueEa')) || 0,
             priority: 'Medium',
             drgAvail: 'n',
             rawAvail: 'n',
@@ -3256,10 +3318,10 @@ window.adminApp = {
         const result = await DB.saveReport(reportData);
 
         if (result.success) {
-            alert(`Report for ${dateStr} saved successfully!`);
+            console.log(`Report for ${dateStr} saved successfully!`);
             window.adminApp.renderReports();
         } else {
-            alert('Failed to save report: ' + (result.error || 'Unknown error'));
+            console.error('Failed to save report: ' + (result.error || 'Unknown error'));
         }
     },
 
@@ -4245,5 +4307,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Initialize Monitoring logic
         Monitoring.setupCostCalculation();
+
+        // Setup Daily Summary Report Event Listeners
+        const summaryMonth = document.getElementById('summary-report-month');
+        if (summaryMonth) {
+            summaryMonth.addEventListener('change', (e) => {
+                Reporting.renderDailySummaryReport(e.target.value);
+            });
+        }
+
+        const summaryExport = document.getElementById('summary-export-btn');
+        if (summaryExport) {
+            summaryExport.addEventListener('click', () => {
+                const picker = document.getElementById('summary-report-month');
+                Reporting.exportToExcel(picker ? picker.value : '');
+            });
+        }
     }, 100);
 });

@@ -49,6 +49,17 @@ export const updateMember = async (memberId, memberData) => {
     }
 };
 
+// Get all members (synchronous fetch)
+export const getMembers = async () => {
+    try {
+        const snapshot = await getDocs(collection(db, MEMBERS_COLLECTION));
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+        console.error("Error fetching members:", error);
+        return [];
+    }
+};
+
 // Subscribe to member list updates (Real-time)
 export const subscribeToMembers = (callback) => {
     const q = query(collection(db, MEMBERS_COLLECTION), orderBy("createdAt", "desc"));
@@ -72,6 +83,7 @@ export const deleteMember = async (memberId) => {
         return { success: false, error: error.message };
     }
 };
+
 
 // Backward compatibility aliases
 export const addEmployee = addMember;
@@ -810,6 +822,24 @@ export const getWorkflowsForDateRange = async (startDate, endDate) => {
         return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     } catch (error) {
         console.error("Error fetching workflows for range:", error);
+        return [];
+    }
+};
+
+/**
+ * Get all order documents for a date range.
+ */
+export const getOrdersForDateRange = async (startDate, endDate) => {
+    try {
+        const q = query(
+            collection(db, ORDERS_COLLECTION),
+            where("date", ">=", startDate),
+            where("date", "<=", endDate)
+        );
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (error) {
+        console.error("Error fetching orders for range:", error);
         return [];
     }
 };

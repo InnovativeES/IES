@@ -435,12 +435,12 @@
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a href="#" class="nav-link" data-view="reports">
+                            <a href="#" class="nav-link" data-view="daily_summary_report">
                                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                         d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                 </svg>
-                                Daily Reports
+                                Daily Summary Report
                             </a>
                         </li>
                     </ul>
@@ -1345,6 +1345,81 @@
                                 </thead>
                                 <tbody id="delivery-report-body">
                                     <!-- Report rows will be injected here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- View: Daily Summary Report (Overheads, Production, Sales) -->
+                <section id="view-daily_summary_report" class="view-section hidden">
+                    <div class="flex items-center justify-between w-full bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6 no-print">
+                        <div class="flex items-center gap-4">
+                            <h2 class="text-xl font-extrabold text-slate-800 flex items-center gap-2">
+                                <span class="p-2 bg-emerald-100 text-emerald-600 rounded-lg">
+                                    <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                    </svg>
+                                </span>
+                                Daily Summary Report
+                            </h2>
+                            <div class="h-8 w-px bg-slate-200"></div>
+                            <div class="flex flex-wrap items-center gap-4">
+                                <div class="flex items-center gap-2">
+                                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Start Date</label>
+                                    <input type="date" id="summary-report-start-date" class="form-input text-xs py-1 px-2 border-slate-200 rounded-md">
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">End Date</label>
+                                    <input type="date" id="summary-report-end-date" class="form-input text-xs py-1 px-2 border-slate-200 rounded-md">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <button class="btn btn-secondary flex items-center gap-2" id="summary-export-btn">
+                                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                Export CSV
+                            </button>
+                            <button class="btn btn-primary flex items-center gap-2" id="summary-print-btn">
+                                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                </svg>
+                                Print Report
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Report Card/Container -->
+                    <div class="table-container no-print">
+                        <div class="table-wrapper">
+                            <table class="w-full text-sm" id="daily-summary-report-table">
+                                <thead class="sticky-header">
+                                    <tr class="bg-slate-800 text-white text-left border-b border-slate-700">
+                                        <th rowspan="2" class="p-4 font-bold border-r border-slate-700" style="width: 150px;">Date</th>
+                                        <th colspan="2" class="p-3 text-center font-bold bg-amber-900/50 border-r border-slate-700">Attendance</th>
+                                        <th colspan="2" class="p-3 text-center font-bold bg-slate-700/50 border-r border-slate-700">Overheads</th>
+                                        <th colspan="2" class="p-3 text-center font-bold bg-blue-900/50 border-r border-slate-700">Production</th>
+                                        <th colspan="2" class="p-3 text-center font-bold bg-emerald-900/50">Sales</th>
+                                    </tr>
+                                    <tr class="bg-slate-900 text-[10px] uppercase tracking-wider font-extrabold text-slate-400 border-b border-slate-700">
+                                        <th class="p-2 text-right">Today</th>
+                                        <th class="p-2 text-right border-r border-slate-700">Cumulative</th>
+                                        <th class="p-2 text-right">Today</th>
+                                        <th class="p-2 text-right border-r border-slate-700">Cumulative</th>
+                                        <th class="p-2 text-right">Today</th>
+                                        <th class="p-2 text-right border-r border-slate-700">Cumulative</th>
+                                        <th class="p-2 text-right">Today</th>
+                                        <th class="p-2 text-right">Cumulative</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="daily-summary-report-body" class="bg-white">
+                                    <!-- Populated by JS -->
+                                    <tr>
+                                        <td colspan="9" class="p-12 text-center text-slate-300 italic">Select a range to generate report</td>
+                                    </tr>
+                                </tbody>
                             </table>
                         </div>
                     </div>
@@ -2657,6 +2732,7 @@
             <form id="add-delivery-form" onsubmit="event.preventDefault(); window.adminApp.submitDeliveryForm()">
                 <div class="modal-body compact modal-2col-layout">
                     <input type="hidden" id="delivery-orderId-input" name="orderId">
+                    <input type="hidden" id="delivery-prodValue-input" name="prodValueEa" value="0">
 
                     <!-- LEFT COLUMN -->
                     <div class="modal-col-left">
