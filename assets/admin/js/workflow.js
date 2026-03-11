@@ -3,11 +3,14 @@ import * as DB from './db.js';
 
 // Each row in the roster is a flat object: { employeeId, employeeName, employeeNo, department, role, orderNo, drawingNo, description, customer, qty, unit, manpower, assignedWith, inTime, outTime, workStart, workEnd, priority, notes, status, taskId }
 let rosterRows = [];
+let attendanceData = {}; // { empId: { present: bool, overhead: num } }
 let currentWorkflowDate = '';
 let currentWorkflowDept = 'All';
 let workflowUnsubscribe = null;
 let currentEditIdx = -1;
 let loadedDepartments = new Set(); // Track departments that have data for the current date
+let saveTimeout = null; // For debouncing
+let pendingAttendanceEdits = new Set(); // Track local edits to protect from server overwrites
 
 /**
  * Generates a stable ID for tasks that don't have one.
@@ -16,14 +19,20 @@ let loadedDepartments = new Set(); // Track departments that have data for the c
 const generateStableTaskId = (item) => {
     if (item.taskId) return item.taskId;
     // Fallback for legacy data: deterministic hash based on core properties
-    const str = `${item.employeeId}_${item.orderNo || 'adhoc'}_${item.description}_${item.workStart}`;
+    const s = `${item.employeeId}-${item.orderNo || ''}-${item.drawingNo || ''}-${item.description || ''}`.replace(/\s+/g, '');
     let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-        const char = str.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
+    for (let i = 0; i < s.length; i++) {
+        hash = ((hash << 5) - hash) + s.charCodeAt(i);
         hash |= 0;
     }
-    return `legacy-${Math.abs(hash).toString(16)}`;
+    return `task-${Math.abs(hash)}`;
+};
+
+const getNormalizedDept = (item) => {
+    let dept = (item.department || item.section || 'Unassigned').trim();
+    if (!dept) dept = 'Unassigned';
+    if (dept.toLowerCase() === 'fabrication') return 'Fab';
+    return dept;
 };
 
 // ===== INITIALIZATION =====
@@ -67,6 +76,14 @@ export const initWorkflowView = () => {
     window.adminApp.wfUpdateRow = (tid, eid, f, v) => updateRow(tid, eid, f, v);
     window.adminApp.wfRemoveRow = (tid, eid) => removeRow(tid, eid);
     window.adminApp.wfEditRow = (tid, eid) => editRow(tid, eid);
+    
+    // Attendance & Reports
+    window.adminApp.wfToggleAttendance = (eid, status) => toggleAttendance(eid, status);
+    window.adminApp.wfToggleShiftType = (eid, type) => toggleShiftType(eid, type);
+    window.adminApp.wfSwitchTab = (tabName) => switchTab(tabName);
+    window.adminApp.wfOpenReportModal = () => openReportModal();
+    window.adminApp.wfGenerateReport = () => generateReport();
+    window.adminApp.wfExportCSV = () => exportCSV();
 
     loadWorkflows();
 };
@@ -79,31 +96,66 @@ const loadWorkflows = async () => {
     if (workflowUnsubscribe) workflowUnsubscribe();
 
     rosterRows = [];
+    attendanceData = {}; // CRITICAL: Reset attendance data when context changes
+    loadedDepartments = new Set();
 
     if (currentWorkflowDept === 'All') {
-        workflowUnsubscribe = DB.subscribeToWorkflows(currentWorkflowDate, (workflows) => {
+        workflowUnsubscribe = DB.subscribeToWorkflows(currentWorkflowDate, (workflows, metadata) => {
+            // CRITICAL: Ignore local pending writes to prevent UI flickers
+            if (metadata?.hasPendingWrites) {
+                console.log("Ignoring local pending write update...");
+                return;
+            }
+
+            // CAPTURE local unsaved changes
+            const savedLocalEdits = {};
+            pendingAttendanceEdits.forEach(empId => {
+                if (attendanceData[empId]) {
+                    savedLocalEdits[empId] = { ...attendanceData[empId] };
+                }
+            });
+
             rosterRows = [];
+            attendanceData = savedLocalEdits; // RESTORE local unsaved changes
             loadedDepartments = new Set();
             const notesArr = [];
             const members = window.adminApp?.getCurrentMembers ? window.adminApp.getCurrentMembers() : [];
 
-            // Group workflows by normalized department to avoid duplicates 
-            // (e.g. if both 'Fab' and 'Fabrication' exist)
-            const uniqueWfs = new Map();
+            // Group workflows and MERGE colliding departments (e.g. Fab + Fabrication)
+            const mergedWfs = new Map();
             workflows.forEach(wf => {
-                const norm = (wf.department?.toLowerCase() === 'fabrication') ? 'Fab' : (wf.department || 'Unassigned');
-                // Prefer 'Fab' named document if we have both
-                if (!uniqueWfs.has(norm) || wf.department === 'Fab') {
-                    uniqueWfs.set(norm, wf);
+                const norm = getNormalizedDept(wf);
+                loadedDepartments.add(wf.department || wf.id); // Track original ID for cleanup/sync
+
+                if (!mergedWfs.has(norm)) {
+                    mergedWfs.set(norm, {
+                        department: norm,
+                        assignments: [],
+                        attendance: {},
+                        supervisorNotes: []
+                    });
                 }
+
+                const entry = mergedWfs.get(norm);
+                // Merge assignments
+                if (wf.assignments) entry.assignments.push(...wf.assignments);
+                // Merge attendance
+                if (wf.attendance) Object.assign(entry.attendance, wf.attendance);
+                // Merge notes
+                if (wf.supervisorNotes) entry.supervisorNotes.push(wf.supervisorNotes);
             });
 
-            uniqueWfs.forEach(wf => {
-                let wfDept = wf.department;
-                if (wfDept && wfDept.toLowerCase() === 'fabrication') wfDept = 'Fab';
-                loadedDepartments.add(wfDept);
+            mergedWfs.forEach(entry => {
+                const wfDept = entry.department;
 
-                (wf.assignments || []).forEach(a => {
+                // Selective Merge for Attendance: Only update if no local pending changes exist
+                Object.keys(entry.attendance).forEach(empId => {
+                    if (!pendingAttendanceEdits.has(empId)) {
+                        attendanceData[empId] = entry.attendance[empId];
+                    }
+                });
+
+                (entry.assignments || []).forEach(a => {
                     let effectiveRole = (a.role || a.designation || '').trim();
                     if (!effectiveRole && members.length > 0) {
                         const m = members.find(m => m.id === a.employeeId);
@@ -113,8 +165,7 @@ const loadWorkflows = async () => {
                     }
 
                     (a.tasks || []).forEach(t => {
-                        let aDept = a.department || wfDept;
-                        if (aDept && aDept.toLowerCase() === 'fabrication') aDept = 'Fab';
+                        let aDept = getNormalizedDept(a) || wfDept;
 
                         const rowData = {
                             employeeId: a.employeeId,
@@ -137,13 +188,16 @@ const loadWorkflows = async () => {
                         rosterRows.push(rowData);
                     });
                 });
-                if (wf.supervisorNotes) notesArr.push(`[${wfDept}] ${wf.supervisorNotes}`);
+                if (entry.supervisorNotes.length > 0) {
+                    notesArr.push(`[${wfDept}] ${entry.supervisorNotes.join('; ')}`);
+                }
             });
 
             const notesEl = document.getElementById('wf-supervisor-notes');
             if (notesEl) notesEl.value = notesArr.join('\n');
 
             renderTable();
+            renderAttendanceTable();
             updateUnassignedAlert();
         });
     } else {
@@ -154,6 +208,7 @@ const loadWorkflows = async () => {
         if (result && result.data && result.data.assignments) {
             assignments = [...result.data.assignments];
             if (result.data.supervisorNotes) notes.push(result.data.supervisorNotes);
+            if (result.data.attendance) attendanceData = result.data.attendance;
         }
 
         // Catch legacy "Fabrication" entries if "Fab" is selected
@@ -162,6 +217,7 @@ const loadWorkflows = async () => {
             if (legacyResult && legacyResult.data && legacyResult.data.assignments) {
                 assignments = [...assignments, ...legacyResult.data.assignments];
                 if (legacyResult.data.supervisorNotes) notes.push(legacyResult.data.supervisorNotes);
+                if (legacyResult.data.attendance) Object.assign(attendanceData, legacyResult.data.attendance);
             }
         }
 
@@ -179,8 +235,7 @@ const loadWorkflows = async () => {
             }
 
             (a.tasks || []).forEach(t => {
-                let aDept = a.department || currentWorkflowDept;
-                if (aDept && aDept.toLowerCase() === 'fabrication') aDept = 'Fab';
+                let aDept = getNormalizedDept(a) || currentWorkflowDept;
 
                 const rowData = {
                     employeeId: a.employeeId,
@@ -208,6 +263,7 @@ const loadWorkflows = async () => {
         if (notesEl) notesEl.value = notes.join('\n');
 
         renderTable();
+        renderAttendanceTable();
         updateUnassignedAlert();
     }
 };
@@ -238,53 +294,52 @@ const renderTable = () => {
         let displayDept = row.department || '-';
         if (displayDept.toLowerCase() === 'fabrication') displayDept = 'Fab';
 
+        const rowStyle = isNewEmployee ? 'border-top: 2px solid #e2e8f0;' : '';
+        const paddingStyle = 'padding: 0.4rem 0.5rem;';
+
         return `
-        <tr class="${isNewEmployee ? 'emp-row' : ''}" data-task-id="${row.taskId}" data-emp-id="${row.employeeId}">
-            <td class="text-center">${isNewEmployee ? rowNum : ''}</td>
-            <td class="wf-col-emp">
-                ${isNewEmployee ? `<strong>${row.employeeName}</strong><br><small>${row.employeeNo || ''} · ${row.department || ''} · ${row.role || ''}</small><br>
-                <div class="wf-timing-pills">
-                    <input type="time" value="${row.inTime || ''}" onchange="window.adminApp.wfUpdateRow('${row.taskId}', '${row.employeeId}', 'inTime', this.value)" class="wf-time-input" title="In Time">
-                    <span>-</span>
-                    <input type="time" value="${row.outTime || ''}" onchange="window.adminApp.wfUpdateRow('${row.taskId}', '${row.employeeId}', 'outTime', this.value)" class="wf-time-input" title="Out Time">
+        <tr class="${isNewEmployee ? 'emp-row' : ''}" data-task-id="${row.taskId}" data-emp-id="${row.employeeId}" style="${rowStyle}">
+            <td class="text-center" style="${paddingStyle} font-size: 0.75rem;">${isNewEmployee ? rowNum : ''}</td>
+            <td class="wf-col-emp" style="${paddingStyle}">
+                ${isNewEmployee ? `<div class="flex flex-col">
+                    <strong style="font-size: 0.8rem;">${row.employeeName}</strong>
+                    <span style="font-size: 0.65rem; color: #64748b;">${row.employeeNo || ''} · ${row.role || ''}</span>
+                    <div class="wf-timing-pills" style="margin-top: 4px; border: 1px solid #e2e8f0; border-radius: 4px; padding: 2px; width: fit-content; background: #f8fafc;">
+                        <input type="time" value="${row.inTime || ''}" onchange="window.adminApp.wfUpdateRow('${row.taskId}', '${row.employeeId}', 'inTime', this.value)" style="border:none; background:transparent; font-size: 0.65rem; padding: 0;" title="In Time">
+                        <span style="font-size: 0.65rem; color: #94a3b8;">-</span>
+                        <input type="time" value="${row.outTime || ''}" onchange="window.adminApp.wfUpdateRow('${row.taskId}', '${row.employeeId}', 'outTime', this.value)" style="border:none; background:transparent; font-size: 0.65rem; padding: 0;" title="Out Time">
+                    </div>
                 </div>` : ''}
             </td>
-            <td class="text-center" style="font-weight:600">
-                ${row.orderNo && row.orderNo !== 'Ad-hoc' ? `<a href="#" onclick="event.preventDefault(); window.adminApp.wfOpenProject('${row.orderNo}')" style="color: #0d9488; text-decoration: underline;" title="Open Project">${row.orderNo}</a>` : 'Ad-hoc'}
+            <td class="text-center" style="${paddingStyle} font-weight:700; font-size: 0.75rem;">
+                ${row.orderNo && row.orderNo !== 'Ad-hoc' ? `<a href="#" onclick="event.preventDefault(); window.adminApp.wfOpenProject('${row.orderNo}')" style="color: #0d9488; text-decoration: underline;">${row.orderNo}</a>` : '<span style="color:#94a3b8; font-weight:400;">Ad-hoc</span>'}
             </td>
-            <td class="text-center">${row.drawingNo || '-'}</td>
-            <td class="wf-col-desc ${pClass}">${row.description || '-'}</td>
-            <td>${row.customer || '-'}</td>
-            <td class="text-center">${row.qty || '-'} ${row.unit || ''}</td>
-            <td class="text-right" style="color:#0f172a;">
-                <div style="font-weight: 700; font-size: 0.9rem;">
-                    ₹${(row.prodValueEa > 0 && row.qty > 0) ? ((row.prodValueEa * row.qty).toFixed(2)) : '0.00'}
-                </div>
+            <td class="text-center" style="${paddingStyle} font-size: 0.75rem;">${row.drawingNo || '-'}</td>
+            <td class="wf-col-desc ${pClass}" style="${paddingStyle} font-size: 0.75rem;">${row.description || '-'}</td>
+            <td style="${paddingStyle} font-size: 0.75rem; white-space: nowrap; overflow: hidden; max-width: 100px; text-overflow: ellipsis;">${row.customer || '-'}</td>
+            <td class="text-center" style="${paddingStyle} font-size: 0.75rem;">${row.qty || '-'} ${row.unit || ''}</td>
+            <td class="text-right" style="${paddingStyle} color:#0f172a;">
+                <div style="font-weight: 800; font-size: 0.8rem;">₹${(row.prodValueEa > 0 && row.qty > 0) ? ((row.prodValueEa * row.qty).toFixed(0)) : '0'}</div>
             </td>
-            <td class="text-right" style="color:#334155;">
-                <div style="font-weight: 700; font-size: 0.9rem;">
-                    ₹${(row.totalOverheads || 0).toFixed(2)}
-                </div>
-                <div style="font-size: 0.65rem; color: #64748b; margin-top: 2px;">
-                    Base: ₹${(row.overheads || 0).toFixed(2)} <br>
-                    Extra: ₹${((row.costFood || 0) + (row.costConsumables || 0) + (row.costTransport || 0) + (row.costMisc || 0)).toFixed(2)}
-                </div>
+            <td class="text-right" style="${paddingStyle} color:#334155;">
+                <div style="font-weight: 800; font-size: 0.8rem;">₹${(row.totalOverheads || 0).toFixed(0)}</div>
             </td>
-            <td class="text-center"><span class="text-xs font-semibold px-2 py-1 bg-slate-100 text-slate-600 rounded">${displayDept}</span></td>
-            <td class="wf-col-assigned" title="${row.assignedWith || ''}">${row.assignedWith || '-'}</td>
-            <td class="text-center">${row.workStart || '-'} to ${row.workEnd || '-'}</td>
-            <td class="text-center"><span class="wf-status-badge ${sClass}">${row.status || 'Pending'}</span></td>
-            <td class="text-center">
-                <div class="wf-row-actions">
-                    <button class="wf-row-edit" onclick="window.adminApp.wfEditRow('${row.taskId}', '${row.employeeId}')" title="Edit">
-                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+            <td class="text-center" style="${paddingStyle}"><span style="font-size: 0.6rem; font-weight: 700; padding: 2px 6px; background: #f1f5f9; color: #64748b; border-radius: 4px; text-transform: uppercase;">${displayDept}</span></td>
+            <td class="wf-col-assigned" style="${paddingStyle} font-size: 0.7rem;" title="${row.assignedWith || ''}">${row.assignedWith || '-'}</td>
+            <td class="text-center" style="${paddingStyle} font-size: 0.7rem; font-weight: 600;">${row.workStart || '-'} <br> ${row.workEnd || '-'}</td>
+            <td class="text-center" style="${paddingStyle}"><span class="wf-status-badge ${sClass}" style="font-size: 0.65rem; padding: 2px 6px;">${row.status || 'Pending'}</span></td>
+            <td class="text-center" style="${paddingStyle}">
+                <div class="wf-row-actions" style="display: flex; gap: 4px; justify-content: center;">
+                    <button class="wf-row-edit" onclick="window.adminApp.wfEditRow('${row.taskId}', '${row.employeeId}')" style="padding: 4px; color: #0d9488; background: #f0fdfa; border-radius: 4px;">
+                        <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                     </button>
-                    <button class="wf-row-delete" onclick="window.adminApp.wfRemoveRow('${row.taskId}', '${row.employeeId}')" title="Remove">
-                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    <button class="wf-row-remove" onclick="window.adminApp.wfRemoveRow('${row.taskId}', '${row.employeeId}')" style="padding: 4px; color: #ef4444; background: #fef2f2; border-radius: 4px;">
+                        <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                     </button>
                 </div>
             </td>
-        </tr>`;
+        </tr>
+        `;
     }).join('');
 
     // Add totals row (sum unique taskIds to avoid double counting)
@@ -309,6 +364,175 @@ const renderTable = () => {
                 <td class="text-right" style="padding: 12px 15px; color: #0f172a; border-top: 2px solid #e2e8f0; border-left: 2px solid #e2e8f0; font-size: 0.9rem;">₹${grandTotalOverheads.toFixed(2)}</td>
                 <td colspan="5" style="border-top: 2px solid #e2e8f0;"></td>
             </tr>`;
+    }
+};
+
+// ===== ATTENDANCE RENDERING =====
+
+const renderAttendanceTable = () => {
+    const tbody = document.getElementById('wf-attendance-body');
+    const totalEl = document.getElementById('wf-attendance-total');
+    if (!tbody || !totalEl) return;
+
+    const members = window.adminApp?.getCurrentMembers ? window.adminApp.getCurrentMembers() : [];
+    const dept = currentWorkflowDept;
+
+    const filteredMembers = (dept !== 'All'
+        ? members.filter(m => {
+            const memberDept = (m.section || m.department || '').toLowerCase();
+            return memberDept.includes(dept.toLowerCase());
+        })
+        : members).sort((a, b) => (a.employeeId || '').localeCompare(b.employeeId || ''));
+
+    if (filteredMembers.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center p-8 text-slate-400">No employees found for this department.</td></tr>`;
+        totalEl.textContent = '₹0';
+        return;
+    }
+
+    let totalOh = 0;
+    tbody.innerHTML = filteredMembers.map((m, idx) => {
+        const att = attendanceData[m.id] || { present: false, shiftType: 'Full' };
+        const baseOh = parseFloat(m.overheads) || 0;
+        
+        const rosterRow = rosterRows.find(r => r.employeeId === m.id);
+        const timing = rosterRow ? `${rosterRow.inTime || '-'} to ${rosterRow.outTime || '-'}` : 'No work assigned';
+
+        const effectiveOh = att.present ? (baseOh * (att.shiftType === 'Half' ? 0.5 : 1)) : 0;
+        totalOh += effectiveOh;
+
+        return `
+            <tr class="${att.present ? 'bg-emerald-50' : 'bg-rose-50'}" style="transition: all 0.2s; border-bottom: 2px solid #fff;">
+                <td class="text-center text-slate-400 font-medium py-2" style="font-size: 0.75rem;">${idx + 1}</td>
+                <td class="py-2">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg ${att.present ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'} flex items-center justify-center text-[10px] font-bold border border-current opacity-50">
+                             ${m.employeeId ? m.employeeId.slice(-3) : '??'}
+                        </div>
+                        <div class="flex flex-col">
+                            <span class="font-bold text-slate-800" style="font-size: 0.85rem; line-height: 1.2;">${m.name}</span>
+                            <div class="flex gap-1.5 items-center">
+                                <span class="text-[9px] text-slate-500 font-mono font-bold">${m.employeeId || 'N/A'}</span>
+                                <span class="text-[9px] text-slate-300">•</span>
+                                <span class="text-[9px] text-slate-500 font-bold uppercase tracking-tighter">${m.role || m.designation || ''}</span>
+                            </div>
+                        </div>
+                    </div>
+                </td>
+                <td class="text-center py-2">
+                    <div class="flex flex-col items-center gap-1.5">
+                        <div class="flex items-center p-0.5 bg-slate-200 rounded-lg w-fit shadow-inner border border-slate-300">
+                            <button type="button" onclick="window.adminApp.wfToggleAttendance('${m.id}', true)" 
+                                    style="padding: 6px 24px; border-radius: 6px; font-size: 10px; font-weight: 900; transition: all 0.2s; ${att.present ? 'background-color: #10b981 !important; color: white !important; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);' : 'background-color: transparent !important; color: #64748b !important;'}" class="px-6 py-1.5 rounded-md">PRESENT</button>
+                            <button type="button" onclick="window.adminApp.wfToggleAttendance('${m.id}', false)" 
+                                    style="padding: 6px 24px; border-radius: 6px; font-size: 10px; font-weight: 900; transition: all 0.2s; ${!att.present ? 'background-color: #f43f5e !important; color: white !important; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);' : 'background-color: transparent !important; color: #64748b !important;'}" class="px-6 py-1.5 rounded-md">ABSENT</button>
+                        </div>
+                        
+                        ${att.present ? `
+                        <div class="flex items-center gap-1 p-0.5 bg-white rounded-lg w-fit border-2 border-emerald-500 shadow-sm">
+                             <button type="button" onclick="window.adminApp.wfToggleShiftType('${m.id}', 'Full')" 
+                                    style="padding: 4px 12px; border-radius: 4px; font-size: 9px; font-weight: 900; transition: all 0.2s; ${att.shiftType !== 'Half' ? 'background-color: #0891b2 !important; color: white !important;' : 'background-color: transparent !important; color: #0891b2 !important;'}" class="px-3 py-1 rounded">FULL DAY</button>
+                             <button type="button" onclick="window.adminApp.wfToggleShiftType('${m.id}', 'Half')" 
+                                    style="padding: 4px 12px; border-radius: 4px; font-size: 9px; font-weight: 900; transition: all 0.2s; ${att.shiftType === 'Half' ? 'background-color: #f59e0b !important; color: white !important;' : 'background-color: transparent !important; color: #f59e0b !important;'}" class="px-3 py-1 rounded">HALF DAY</button>
+                        </div>
+                        ` : '<div style="height: 22px;"></div>'}
+                    </div>
+                </td>
+                <td class="text-center py-2">
+                    <div class="flex flex-col items-center">
+                        <span class="text-[10px] font-black ${rosterRows.some(r => r.employeeId === m.id) ? 'text-emerald-700' : 'text-slate-400'}">${timing}</span>
+                        ${rosterRows.some(r => r.employeeId === m.id) ? '<span class="text-[8px] bg-emerald-100 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded font-black uppercase tracking-widest mt-1">ASSIGNED</span>' : ''}
+                    </div>
+                </td>
+                <td class="text-right py-2 pr-6">
+                    <div class="flex flex-col items-end">
+                        <span class="font-mono font-black ${att.present ? 'text-slate-900' : 'text-slate-400'}" style="font-size: 1rem;">₹${effectiveOh.toFixed(2)}</span>
+                        <span class="text-[9px] ${att.present ? 'text-slate-500' : 'text-slate-300'} font-bold">Base: ₹${baseOh.toFixed(0)}</span>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+
+    totalEl.textContent = `₹${totalOh.toFixed(2)}`;
+};
+
+const toggleAttendance = async (empId, isPresent) => {
+    const members = window.adminApp?.getCurrentMembers ? window.adminApp.getCurrentMembers() : [];
+    const m = members.find(m => m.id === empId);
+    if (!m) return;
+
+    if (!attendanceData[empId]) {
+        attendanceData[empId] = { present: false, shiftType: 'Full', overhead: parseFloat(m.overheads) || 0 };
+    }
+    
+    attendanceData[empId].present = isPresent;
+    attendanceData[empId].overhead = parseFloat(m.overheads) || 0;
+    pendingAttendanceEdits.add(empId); // Mark as locally edited
+
+    const statusEl = document.getElementById('wf-attendance-save-status');
+    if (statusEl) {
+        statusEl.textContent = 'Unsaved Changes';
+        statusEl.style.opacity = '1';
+        statusEl.style.color = '#f59e0b';
+    }
+
+    renderAttendanceTable();
+};
+
+const toggleShiftType = async (empId, type) => {
+    if (!attendanceData[empId]) return;
+    
+    attendanceData[empId].shiftType = type;
+    pendingAttendanceEdits.add(empId); // Mark as locally edited
+
+    const statusEl = document.getElementById('wf-attendance-save-status');
+    if (statusEl) {
+        statusEl.textContent = 'Unsaved Changes';
+        statusEl.style.opacity = '1';
+        statusEl.style.color = '#f59e0b';
+    }
+
+    renderAttendanceTable();
+};
+
+const debouncedSaveAll = (immediate = false) => {
+    // Deprecated: No longer used as we switched to manual save per user request
+    if (immediate) saveAll();
+};
+
+const switchTab = (tabName) => {
+    const btnAssignments = document.getElementById('wf-tab-btn-assignments');
+    const btnAttendance = document.getElementById('wf-tab-btn-attendance');
+    const paneAssignments = document.getElementById('wf-tab-content-assignments');
+    const paneAttendance = document.getElementById('wf-tab-content-attendance');
+
+    if (!btnAssignments || !btnAttendance || !paneAssignments || !paneAttendance) return;
+
+    if (tabName === 'assignments') {
+        btnAssignments.classList.add('active');
+        btnAssignments.style.borderBottomColor = '#0d9488';
+        btnAssignments.style.color = '#0d9488';
+        
+        btnAttendance.classList.remove('active');
+        btnAttendance.style.borderBottomColor = 'transparent';
+        btnAttendance.style.color = '#64748b';
+        
+        paneAssignments.classList.remove('hidden');
+        paneAttendance.classList.add('hidden');
+    } else {
+        btnAttendance.classList.add('active');
+        btnAttendance.style.borderBottomColor = '#0d9488';
+        btnAttendance.style.color = '#0d9488';
+        
+        btnAssignments.classList.remove('active');
+        btnAssignments.style.borderBottomColor = 'transparent';
+        btnAssignments.style.color = '#64748b';
+        
+        paneAttendance.classList.remove('hidden');
+        paneAssignments.classList.add('hidden');
+        
+        renderAttendanceTable();
     }
 };
 
@@ -966,12 +1190,18 @@ export const confirmAssign = async () => {
     await saveAll(); // Single auto-save after addition/edit
 };
 
-// ===== SAVE =====
-
 export const saveAll = async () => {
+    if (saveTimeout) clearTimeout(saveTimeout);
     if (!currentWorkflowDate) return;
 
-    const notes = (document.getElementById('wf-supervisor-notes')?.value || '').trim();
+    const statusEl = document.getElementById('wf-attendance-save-status');
+    if (statusEl) {
+        statusEl.textContent = 'Saving...';
+        statusEl.style.opacity = '1';
+    }
+
+    try {
+        const notes = (document.getElementById('wf-supervisor-notes')?.value || '').trim();
 
     const grouped = {};
     rosterRows.forEach(row => {
@@ -1027,20 +1257,42 @@ export const saveAll = async () => {
 
     if (currentWorkflowDept === 'All') {
         const byDept = {};
+        const members = window.adminApp?.getCurrentMembers ? window.adminApp.getCurrentMembers() : [];
         assignments.forEach(a => {
-            const dept = a.department || 'Unassigned';
+            const dept = getNormalizedDept(a);
             if (!byDept[dept]) byDept[dept] = [];
             byDept[dept].push(a);
         });
 
-        // Ensure we update (clear) any department that was previously loaded but now has no assignments
-        const allDeptsToUpdate = new Set([...Object.keys(byDept), ...loadedDepartments]);
+        // Identify all departments we need to care about: 
+        // 1. Departments with current assignments
+        // 2. Departments that were previously loaded (to clear them if now empty)
+        // 3. Departments that have marked attendance
+        const attendanceDepts = new Set();
+        Object.keys(attendanceData).forEach(empId => {
+            const m = members.find(m => m.id === empId);
+            if (m) {
+                attendanceDepts.add(getNormalizedDept(m));
+            }
+        });
+
+        const allDeptsToUpdate = new Set([...Object.keys(byDept), ...loadedDepartments, ...attendanceDepts]);
         for (const dept of allDeptsToUpdate) {
             const deptAssignments = byDept[dept] || [];
-            await DB.saveWorkflow(currentWorkflowDate, dept, deptAssignments, notes);
+            const deptAttendance = {};
+            
+            // Filter members strictly by normalized department
+            const deptMembers = members.filter(m => getNormalizedDept(m) === dept);
+
+            deptMembers.forEach(m => {
+                if (attendanceData[m.id]) deptAttendance[m.id] = attendanceData[m.id];
+            });
+
+            await DB.saveWorkflow(currentWorkflowDate, dept, deptAssignments, notes, deptAttendance);
+            loadedDepartments.add(dept); 
         }
     } else {
-        await DB.saveWorkflow(currentWorkflowDate, currentWorkflowDept, assignments, notes);
+        await DB.saveWorkflow(currentWorkflowDate, currentWorkflowDept, assignments, notes, attendanceData);
     }
 
     // Visual feedback
@@ -1051,6 +1303,25 @@ export const saveAll = async () => {
         saveBtn.style.background = '#059669';
         setTimeout(() => { if (saveBtn) { saveBtn.innerHTML = original; saveBtn.style.background = ''; } }, 1500);
     }
+
+    if (statusEl) {
+        statusEl.textContent = 'All changes saved';
+        statusEl.style.color = '#10b981';
+        pendingAttendanceEdits.clear(); // Clear pending tracker on success
+        setTimeout(() => {
+            if (statusEl && statusEl.textContent === 'All changes saved') {
+                statusEl.style.opacity = '0';
+            }
+        }, 3000);
+    }
+} catch (error) {
+    console.error("Error saving workflow:", error);
+    const statusEl = document.getElementById('wf-attendance-save-status');
+    if (statusEl) {
+        statusEl.textContent = 'Error saving';
+        statusEl.style.color = '#f43f5e';
+    }
+}
 };
 
 // ===== COPY PREVIOUS DAY =====
@@ -1320,4 +1591,127 @@ export const filterTeam = (val) => {
             item.style.display = 'none';
         }
     });
+};
+
+// ===== REPORT GENERATION =====
+
+export const openReportModal = () => {
+    if (window.adminApp?.openModal) {
+        window.adminApp.openModal('attendance-report-modal');
+        // Default range: current month
+        const now = new Date();
+        const firstDay = new Date(now.getFullYear(), now.getMonth(), 2).toISOString().split('T')[0];
+        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString().split('T')[0];
+        
+        document.getElementById('wf-report-start').value = firstDay;
+        document.getElementById('wf-report-end').value = lastDay;
+        
+        document.getElementById('attendance-report-container').classList.add('hidden');
+        document.getElementById('attendance-report-empty').classList.remove('hidden');
+    }
+};
+
+export const generateReport = async () => {
+    const start = document.getElementById('wf-report-start').value;
+    const end = document.getElementById('wf-report-end').value;
+    if (!start || !end) {
+        alert('Please select both start and end dates.');
+        return;
+    }
+
+    const container = document.getElementById('attendance-report-container');
+    const empty = document.getElementById('attendance-report-empty');
+    const tbody = document.getElementById('attendance-report-body');
+    const totalEl = document.getElementById('attendance-report-total');
+
+    empty.innerHTML = '<div class="flex flex-col items-center gap-2"><div class="spinner"></div><span>Gathering data...</span></div>';
+    empty.classList.remove('hidden');
+    container.classList.add('hidden');
+
+    try {
+        const allWorkflows = await DB.getWorkflowsForDateRange(start, end);
+        const reportData = [];
+        let grandTotal = 0;
+
+        allWorkflows.forEach(wf => {
+            const att = wf.attendance || {}; // Use attendance field to match save/load logic
+            const members = window.adminApp?.getCurrentMembers ? window.adminApp.getCurrentMembers() : [];
+            
+            Object.keys(att).forEach(empId => {
+                const entry = att[empId];
+                if (entry.present) {
+                    const m = members.find(m => m.id === empId);
+                    const shiftLabel = entry.shiftType === 'Half' ? 'Half Day' : 'Full Day';
+                    const effectiveOh = (entry.overhead || 0) * (entry.shiftType === 'Half' ? 0.5 : 1);
+                    
+                    reportData.push({
+                        date: wf.date,
+                        employee: m ? m.name : (entry.name || 'Unknown'),
+                        dept: wf.department,
+                        shift: shiftLabel,
+                        overhead: effectiveOh
+                    });
+                    grandTotal += effectiveOh;
+                }
+            });
+        });
+
+        if (reportData.length === 0) {
+            empty.innerHTML = 'No attendance recorded for this period.';
+            container.classList.add('hidden');
+            empty.classList.remove('hidden');
+            return;
+        }
+
+        reportData.sort((a, b) => a.date.localeCompare(b.date));
+
+        tbody.innerHTML = reportData.map(r => `
+            <tr>
+                <td class="p-2 border-b border-slate-50 font-mono text-[11px]">${r.date}</td>
+                <td class="p-2 border-b border-slate-50">
+                    <div class="flex flex-col">
+                        <span class="font-bold text-slate-700 text-xs">${r.employee}</span>
+                        <span class="text-[9px] text-slate-400 uppercase">${r.dept}</span>
+                    </div>
+                </td>
+                <td class="p-2 border-b border-slate-50 text-center">
+                    <span class="text-[9px] px-2 py-0.5 rounded-full font-black ${r.shift === 'Half Day' ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-emerald-100 text-emerald-700 border border-emerald-200'}">
+                        ${r.shift.toUpperCase()}
+                    </span>
+                </td>
+                <td class="p-2 border-b border-slate-50 text-right font-mono font-bold text-slate-700 text-xs">₹${r.overhead.toFixed(2)}</td>
+            </tr>
+        `).join('');
+
+        totalEl.textContent = `₹${grandTotal.toFixed(2)}`;
+        
+        empty.classList.add('hidden');
+        container.classList.remove('hidden');
+
+    } catch (err) {
+        console.error("Report failed:", err);
+        empty.innerHTML = 'Failed to generate report. Check console.';
+    }
+};
+
+export const exportCSV = () => {
+    const tbody = document.getElementById('attendance-report-body');
+    const start = document.getElementById('wf-report-start').value;
+    const end = document.getElementById('wf-report-end').value;
+    
+    if (!tbody || !start || !end) return;
+
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    let csv = 'Date,Employee,Department,Shift Type,Overhead (₹)\n';
+    rows.forEach(tr => {
+        const cols = Array.from(tr.querySelectorAll('td')).map(td => td.textContent.trim().replace(/,/g, ''));
+        csv += cols.join(',') + '\n';
+    });
+    
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.setAttribute('href', url);
+    a.setAttribute('download', `Attendance_Report_${start}_to_${end}.csv`);
+    a.click();
 };

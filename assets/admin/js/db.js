@@ -619,7 +619,7 @@ const normalizeDeptName = (dept) => {
  * Save or update a daily workflow for a specific date + department.
  * Uses composite ID "YYYY-MM-DD_Department" for fast lookups.
  */
-export const saveWorkflow = async (date, department, assignments, supervisorNotes = '') => {
+export const saveWorkflow = async (date, department, assignments, supervisorNotes = '', attendance = {}) => {
     try {
         const normDept = normalizeDeptName(department);
         const docId = `${date}_${normDept}`;
@@ -646,6 +646,7 @@ export const saveWorkflow = async (date, department, assignments, supervisorNote
             assignments,
             projectIds,
             supervisorNotes,
+            attendance,
             updatedAt: serverTimestamp()
         };
 
@@ -725,7 +726,7 @@ export const subscribeToWorkflows = (date, callback) => {
     );
     return onSnapshot(q, (snapshot) => {
         const workflows = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        callback(workflows);
+        callback(workflows, snapshot.metadata);
     });
 };
 
@@ -792,6 +793,23 @@ export const getAllWorkflows = async () => {
         return snap.docs.map(d => ({ id: d.id, ...d.data() }));
     } catch (error) {
         console.error("Error fetching all workflows:", error);
+        return [];
+    }
+};
+/**
+ * Get all workflow documents for a date range.
+ */
+export const getWorkflowsForDateRange = async (startDate, endDate) => {
+    try {
+        const q = query(
+            collection(db, DAILY_ROSTER_COLLECTION),
+            where("date", ">=", startDate),
+            where("date", "<=", endDate)
+        );
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (error) {
+        console.error("Error fetching workflows for range:", error);
         return [];
     }
 };
