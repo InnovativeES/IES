@@ -4804,6 +4804,19 @@ tr.row-deleted {
     box-shadow: 0 4px 12px rgba(13, 148, 136, 0.3);
 }
 
+/* Scrollability fix for Daily Roster */
+#view-daily_roster .wf-tab-pane {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    padding-bottom: 2rem;
+    overscroll-behavior: contain;
+}
+
+#view-daily_roster {
+    overflow: hidden; /* Contain internal scroll */
+}
+
 .wf-btn-save {
     background: linear-gradient(135deg, #2563eb, #1d4ed8);
     color: white;
