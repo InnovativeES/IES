@@ -3811,6 +3811,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const deliveryCompanyFilter = document.getElementById('delivery-company-filter');
+    if (deliveryCompanyFilter) {
+        deliveryCompanyFilter.addEventListener('change', () => {
+            const weekPicker = document.getElementById('delivery-week-picker');
+            const monthPicker = document.getElementById('delivery-month-picker');
+            Monitoring.renderDeliveryReport(weekPicker?.value, monthPicker?.value);
+        });
+    }
+
     // Pending Assignment Filter Listeners
     const pendingFilters = ['pending-filter-department', 'pending-filter-assigned', 'pending-filter-priority', 'pending-sort-by'];
     pendingFilters.forEach(filterId => {

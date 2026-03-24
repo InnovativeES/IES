@@ -744,7 +744,7 @@ export const renderDeliveryReport = async (weekValue, monthValue) => {
     console.log("Render Delivery Report:", { weekValue, monthValue, mode: isDeliveryTrashMode ? 'Trash' : 'Active', totalOrders: orders.length });
     console.log("Range:", { start: startDate.toString(), end: endDate.toString() });
 
-    const reportOrders = orders.filter(o => {
+    let dateFilteredOrders = orders.filter(o => {
         // Strict separation: ONLY show explicitly tagged delivery reports
         if (o.entryType !== 'delivery_report') return false;
 
@@ -772,6 +772,30 @@ export const renderDeliveryReport = async (weekValue, monthValue) => {
         }
 
         return inRange;
+    });
+
+    // Populate Company Filter Dropdown
+    const companyFilterEl = document.getElementById('delivery-company-filter');
+    if (companyFilterEl) {
+        const currentTargetCompany = companyFilterEl.value;
+        const uniqueCustomers = [...new Set(dateFilteredOrders.map(o => o.customer).filter(Boolean))].sort();
+        
+        companyFilterEl.innerHTML = '<option value="all">All Customers</option>' + 
+            uniqueCustomers.map(c => `<option value="${c}">${c}</option>`).join('');
+            
+        // Restore value if it still exists in the options, otherwise reset to 'all'
+        if (currentTargetCompany && currentTargetCompany !== 'all' && uniqueCustomers.includes(currentTargetCompany)) {
+            companyFilterEl.value = currentTargetCompany;
+        } else {
+            companyFilterEl.value = 'all';
+        }
+    }
+
+    const selectedCompany = companyFilterEl ? companyFilterEl.value : 'all';
+
+    const reportOrders = dateFilteredOrders.filter(o => {
+        if (selectedCompany !== 'all' && o.customer !== selectedCompany) return false;
+        return true;
     });
 
     // Sort by Date
