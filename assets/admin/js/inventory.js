@@ -79,6 +79,23 @@ export const addInventoryItem = async (itemData) => {
 };
 
 /**
+ * Update an existing inventory item's details
+ */
+export const updateInventoryItem = async (itemId, updatedData) => {
+    try {
+        const itemRef = doc(db, INVENTORY_COLLECTION, itemId);
+        await updateDoc(itemRef, {
+            ...updatedData,
+            updatedAt: serverTimestamp()
+        });
+        return { success: true, error: null };
+    } catch (error) {
+        console.error("Error updating inventory item:", error);
+        return { success: false, error: error.message };
+    }
+};
+
+/**
  * Update stock level and record transaction
  */
 export const updateStock = async (itemId, itemName, type, quantity, reason, orderId = null, unitPrice = 0, performedBy = 'Admin', category = 'Unknown') => {

@@ -1300,10 +1300,9 @@
 }
 
 .inventory-header {
-    margin-bottom: 0 !important;
-    /* Flush with content */
+    margin-bottom: 1.5rem !important;
     border-bottom: none !important;
-    border-radius: 14px 14px 0 0 !important;
+    border-radius: 14px !important;
 }
 
 .pm-header-badge.inventory {
@@ -2961,4 +2960,27 @@
         size: A4 portrait;
         margin: 1cm;
     }
+}
+
+/* === INVENTORY SORTABLE HEADERS === */
+.inv-sortable {
+    cursor: pointer;
+    user-select: none;
+    transition: background 150ms ease;
+}
+
+.inv-sortable:hover {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+}
+
+.inv-sort-icon {
+    font-size: 0.6rem;
+    margin-left: 0.35rem;
+    opacity: 0.4;
+    transition: opacity 150ms ease;
+}
+
+.inv-sort-icon.active {
+    opacity: 1;
+    color: #d1fae5;
 }

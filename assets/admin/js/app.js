@@ -20,6 +20,7 @@ let inventoryUnsubscribe = null;
 let transactionUnsubscribe = null;
 let isInventoryTrashView = false;
 let currentInventoryTab = 'master';
+let inventorySortState = { column: 'name', direction: 'asc' };
 
 // Helper: Member Search Handling
 function setupMemberSearch(containerId, inputClass, hiddenInputId, onSelectChange) {
@@ -1029,6 +1030,10 @@ window.adminApp = {
 
         // Adjust Table Header for Trash View
         if (headerRow) {
+            const sortIcon = (col) => {
+                if (inventorySortState.column !== col) return '<span class="inv-sort-icon">⇅</span>';
+                return inventorySortState.direction === 'asc' ? '<span class="inv-sort-icon active">▲</span>' : '<span class="inv-sort-icon active">▼</span>';
+            };
             if (isInventoryTrashView) {
                 headerRow.innerHTML = `
                     <th class="cr-emerald-bg">Item Details</th>
@@ -1039,11 +1044,11 @@ window.adminApp = {
                 `;
             } else {
                 headerRow.innerHTML = `
-                    <th class="cr-emerald-bg">Item Details</th>
-                    <th class="cr-emerald-bg">Category</th>
+                    <th class="cr-emerald-bg inv-sortable" onclick="window.adminApp.sortInventory('name')">Item Details ${sortIcon('name')}</th>
+                    <th class="cr-emerald-bg inv-sortable" onclick="window.adminApp.sortInventory('category')">Category ${sortIcon('category')}</th>
                     <th class="cr-emerald-bg">Location</th>
-                    <th class="cr-emerald-bg text-center">Current Stock</th>
-                    <th class="cr-emerald-bg">Status</th>
+                    <th class="cr-emerald-bg text-center inv-sortable" onclick="window.adminApp.sortInventory('stock')">Current Stock ${sortIcon('stock')}</th>
+                    <th class="cr-emerald-bg inv-sortable" onclick="window.adminApp.sortInventory('status')">Status ${sortIcon('status')}</th>
                     <th class="cr-emerald-bg text-right">Actions</th>
                 `;
             }
@@ -1127,6 +1132,11 @@ window.adminApp = {
                     <td class="p-3 text-right">
                         <div class="flex justify-end gap-2">
                             <button class="pm-c-primary-btn" onclick='window.adminApp.openAdjustStockModal("${item.id}")'>🔄 Adjust</button>
+                            <button class="action-btn" onclick="window.adminApp.editInventoryItem('${item.id}')" title="Edit Item" style="background: #eff6ff !important; color: #2563eb !important;">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                            </button>
                             <button class="action-btn delete" onclick="window.adminApp.trashInventoryItem('${item.id}', '${item.name}')" title="Move to Trash">
                                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1155,8 +1165,24 @@ window.adminApp = {
         setEl('inv-stat-value', '₹' + totalValue.toLocaleString('en-IN'));
     },
 
-    openAddInventoryModal: () => {
+    editInventoryItem: (itemId) => {
+        // Password protection
+        const password = prompt('Enter admin password to edit this item:');
+        if (password === null) return;
+        if (password !== 'IES') {
+            alert('❌ Incorrect password. Edit cancelled.');
+            return;
+        }
+        window.adminApp.openAddInventoryModal(itemId);
+    },
+
+    openAddInventoryModal: (editItemId = null) => {
         const form = document.getElementById('add-inventory-form');
+        const modal = document.getElementById('add-inventory-modal');
+        const modalTitle = modal.querySelector('.modal-title');
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const stockFields = form.querySelector('.inv-stock-fields');
+        const orderField = form.querySelector('.inv-order-field');
         if (form) form.reset();
 
         // Populate Order ID dropdown (Internal Orders)
@@ -1179,6 +1205,48 @@ window.adminApp = {
         const placeholder = document.getElementById('inv-photo-preview-placeholder');
         if (preview) preview.classList.add('hidden');
         if (placeholder) placeholder.classList.remove('hidden');
+
+        if (editItemId) {
+            // EDIT MODE
+            const item = currentInventory.find(i => i.id === editItemId);
+            if (!item) { alert('Item not found.'); return; }
+
+            modal.dataset.editId = editItemId;
+            if (modalTitle) modalTitle.innerHTML = '<span>✏️</span> EDIT INVENTORY ITEM';
+            if (submitBtn) submitBtn.textContent = 'Save Changes';
+
+            // Pre-fill form fields
+            const setVal = (name, val) => { const el = form.querySelector(`[name="${name}"]`); if (el) el.value = val ?? ''; };
+            setVal('name', item.name);
+            setVal('price', item.price);
+            setVal('category', item.category);
+            setVal('unit', item.unit);
+            setVal('currentStock', item.currentStock);
+            setVal('minimumLevel', item.minimumLevel);
+            setVal('location', item.location);
+            setVal('orderId', item.orderId);
+
+            // Show photo section if Tool
+            if (item.category === 'Tool' && photoSection) {
+                photoSection.classList.remove('hidden');
+                if (item.photoUrl && preview) {
+                    preview.src = item.photoUrl;
+                    preview.classList.remove('hidden');
+                    if (placeholder) placeholder.classList.add('hidden');
+                }
+            }
+
+            // Hide stock & order fields in edit mode (stock is managed via Adjust)
+            if (stockFields) stockFields.style.display = 'none';
+            if (orderField) orderField.style.display = 'none';
+        } else {
+            // ADD MODE
+            delete modal.dataset.editId;
+            if (modalTitle) modalTitle.innerHTML = '<span>📦</span> ADD NEW INVENTORY ITEM';
+            if (submitBtn) submitBtn.textContent = 'Add Item';
+            if (stockFields) stockFields.style.display = '';
+            if (orderField) orderField.style.display = '';
+        }
 
         window.adminApp.openModal('add-inventory-modal');
     },
@@ -1222,17 +1290,8 @@ window.adminApp = {
     handleAddInventoryItem: async (event) => {
         event.preventDefault();
         const formData = new FormData(event.target);
-
-        const itemData = {
-            name: formData.get('name'),
-            price: parseFloat(formData.get('price')) || 0,
-            category: formData.get('category'),
-            unit: formData.get('unit'),
-            currentStock: parseInt(formData.get('currentStock')) || 0,
-            minimumLevel: parseInt(formData.get('minimumLevel')) || 0,
-            location: formData.get('location') || '',
-            orderId: formData.get('orderId') || null
-        };
+        const modal = document.getElementById('add-inventory-modal');
+        const editId = modal?.dataset.editId;
 
         const submitBtn = event.target.querySelector('button[type="submit"]');
         const originalText = submitBtn.innerHTML;
@@ -1241,23 +1300,61 @@ window.adminApp = {
             submitBtn.disabled = true;
             submitBtn.innerHTML = "Saving...";
 
-            const { id, error } = await Inventory.addInventoryItem(itemData);
+            if (editId) {
+                // EDIT MODE — only update editable fields
+                const updateData = {
+                    name: formData.get('name'),
+                    price: parseFloat(formData.get('price')) || 0,
+                    category: formData.get('category'),
+                    unit: formData.get('unit'),
+                    minimumLevel: parseInt(formData.get('minimumLevel')) || 0,
+                    location: formData.get('location') || ''
+                };
 
-            if (error) throw new Error(error);
+                const result = await Inventory.updateInventoryItem(editId, updateData);
+                if (!result.success) throw new Error(result.error);
 
-            // If it's a tool and has a photo selected
-            const photoInput = document.getElementById('inv-photo-input');
-            if (itemData.category === 'Tool' && photoInput.files[0]) {
-                submitBtn.innerHTML = "Uploading Photo...";
-                const photoResult = await Inventory.uploadToolPhoto(id, photoInput.files[0]);
-                if (photoResult.error) {
-                    alert("Item saved, but photo upload failed: " + photoResult.error);
+                // If it's a tool and a new photo was selected
+                const photoInput = document.getElementById('inv-photo-input');
+                if (updateData.category === 'Tool' && photoInput?.files[0]) {
+                    submitBtn.innerHTML = "Uploading Photo...";
+                    const photoResult = await Inventory.uploadToolPhoto(editId, photoInput.files[0]);
+                    if (photoResult.error) {
+                        alert("Item updated, but photo upload failed: " + photoResult.error);
+                    }
+                }
+
+                delete modal.dataset.editId;
+            } else {
+                // ADD MODE
+                const itemData = {
+                    name: formData.get('name'),
+                    price: parseFloat(formData.get('price')) || 0,
+                    category: formData.get('category'),
+                    unit: formData.get('unit'),
+                    currentStock: parseInt(formData.get('currentStock')) || 0,
+                    minimumLevel: parseInt(formData.get('minimumLevel')) || 0,
+                    location: formData.get('location') || '',
+                    orderId: formData.get('orderId') || null
+                };
+
+                const { id, error } = await Inventory.addInventoryItem(itemData);
+                if (error) throw new Error(error);
+
+                // If it's a tool and has a photo selected
+                const photoInput = document.getElementById('inv-photo-input');
+                if (itemData.category === 'Tool' && photoInput.files[0]) {
+                    submitBtn.innerHTML = "Uploading Photo...";
+                    const photoResult = await Inventory.uploadToolPhoto(id, photoInput.files[0]);
+                    if (photoResult.error) {
+                        alert("Item saved, but photo upload failed: " + photoResult.error);
+                    }
                 }
             }
 
             window.adminApp.closeModal('add-inventory-modal');
         } catch (err) {
-            alert("Failed to add item: " + err.message);
+            alert("Failed to save item: " + err.message);
         } finally {
             submitBtn.disabled = false;
             submitBtn.innerHTML = originalText;
@@ -1469,7 +1566,7 @@ window.adminApp = {
         const statusFilter = document.getElementById('inv-status-filter')?.value;
 
         if (currentInventoryTab === 'master') {
-            const filteredItems = currentInventory.filter(item => {
+            let filteredItems = currentInventory.filter(item => {
                 const matchesSearch = !searchTerm ||
                     item.name.toLowerCase().includes(searchTerm) ||
                     (item.location && item.location.toLowerCase().includes(searchTerm)) ||
@@ -1487,6 +1584,9 @@ window.adminApp = {
 
                 return matchesSearch && matchesCategory && matchesStatus;
             });
+
+            // Apply sort
+            filteredItems = window.adminApp.applySortToInventory(filteredItems);
             window.adminApp.renderInventoryList(filteredItems);
         } else {
             const filteredTrans = currentTransactions.filter(t => {
@@ -1501,6 +1601,47 @@ window.adminApp = {
             });
             window.adminApp.renderInventoryTransactions(filteredTrans);
         }
+    },
+
+    sortInventory: (column) => {
+        if (inventorySortState.column === column) {
+            inventorySortState.direction = inventorySortState.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            inventorySortState.column = column;
+            inventorySortState.direction = 'asc';
+        }
+        window.adminApp.filterInventory();
+    },
+
+    applySortToInventory: (items) => {
+        const { column, direction } = inventorySortState;
+        const dir = direction === 'asc' ? 1 : -1;
+
+        return [...items].sort((a, b) => {
+            let valA, valB;
+            switch (column) {
+                case 'name':
+                    valA = (a.name || '').toLowerCase();
+                    valB = (b.name || '').toLowerCase();
+                    return valA < valB ? -dir : valA > valB ? dir : 0;
+                case 'category':
+                    valA = (a.category || '').toLowerCase();
+                    valB = (b.category || '').toLowerCase();
+                    return valA < valB ? -dir : valA > valB ? dir : 0;
+                case 'stock':
+                    return ((a.currentStock || 0) - (b.currentStock || 0)) * dir;
+                case 'status':
+                    // Order: Out of Stock (0) < Low Stock (1) < In Stock (2)
+                    const getStatusRank = (item) => {
+                        if (item.currentStock <= 0) return 0;
+                        if (item.currentStock <= item.minimumLevel) return 1;
+                        return 2;
+                    };
+                    return (getStatusRank(a) - getStatusRank(b)) * dir;
+                default:
+                    return 0;
+            }
+        });
     },
 
     openPhotoViewer: (url, name) => {

@@ -4817,6 +4817,12 @@ tr.row-deleted {
     overflow: hidden; /* Contain internal scroll */
 }
 
+/* Scrollability fix for Inventory Management */
+#view-inventory_management {
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
 .wf-btn-save {
     background: linear-gradient(135deg, #2563eb, #1d4ed8);
     color: white;
