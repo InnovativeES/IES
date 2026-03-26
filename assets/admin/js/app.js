@@ -1140,8 +1140,10 @@ window.adminApp = {
     },
 
     updateInventoryStats: (items) => {
-        const total = items.length;
-        const low = items.filter(i => i.currentStock <= i.minimumLevel).length;
+        const activeItems = items.filter(i => !i.isDeleted);
+        const total = activeItems.length;
+        const low = activeItems.filter(i => i.currentStock <= i.minimumLevel).length;
+        const totalValue = activeItems.reduce((sum, i) => sum + ((i.currentStock || 0) * (i.price || 0)), 0);
 
         const setEl = (id, val) => {
             const el = document.getElementById(id);
@@ -1150,7 +1152,7 @@ window.adminApp = {
 
         setEl('inv-stat-total', total);
         setEl('inv-stat-low', low);
-        // More stats can be added if price is tracked
+        setEl('inv-stat-value', '₹' + totalValue.toLocaleString('en-IN'));
     },
 
     openAddInventoryModal: () => {
@@ -1399,7 +1401,7 @@ window.adminApp = {
         if (!body) return;
 
         if (!transactions || transactions.length === 0) {
-            body.innerHTML = '<tr><td colspan="9" class="p-8 text-center text-slate-400 italic">No transactions found.</td></tr>';
+            body.innerHTML = '<tr><td colspan="11" class="p-8 text-center text-slate-400 italic">No transactions found.</td></tr>';
             return;
         }
 
@@ -1410,6 +1412,7 @@ window.adminApp = {
 
             const unitPrice = t.unitPrice || 0;
             const totalCost = t.totalCost || (t.quantity * unitPrice);
+            const performedBy = t.user || t.performedBy || '-';
 
             return `
                 <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
@@ -1425,9 +1428,39 @@ window.adminApp = {
                     <td class="p-3 font-bold text-slate-800 text-xs">₹${totalCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                     <td class="p-3 text-slate-500 text-xs truncate max-w-[150px]" title="${t.reason || ''}">${t.reason || '-'}</td>
                     <td class="p-3 text-teal-600 font-bold text-xs">${t.orderId || '-'}</td>
+                    <td class="p-3 text-slate-500 text-xs">${performedBy}</td>
+                    <td class="p-3 text-center">
+                        <button class="action-btn delete" onclick="window.adminApp.deleteTransactionRow('${t.id}')" title="Delete Transaction">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                        </button>
+                    </td>
                 </tr>
             `;
         }).join('');
+    },
+
+    deleteTransactionRow: async (txId) => {
+        // Prompt for password
+        const password = prompt('Enter admin password to delete this transaction:');
+        if (password === null) return; // User cancelled
+        if (password !== 'IES') {
+            alert('❌ Incorrect password. Deletion cancelled.');
+            return;
+        }
+
+        if (!confirm('Are you sure you want to delete this transaction? The stock will be reversed accordingly.')) return;
+
+        try {
+            const result = await Inventory.deleteTransaction(txId);
+            if (!result.success) {
+                alert('Failed to delete: ' + (result.error || 'Unknown error'));
+            }
+            // Real-time listener will auto-refresh the ledger
+        } catch (err) {
+            alert('Error deleting transaction: ' + err.message);
+        }
     },
 
     filterInventory: () => {

@@ -214,6 +214,44 @@ const recordTransaction = async (transactionData) => {
 };
 
 /**
+ * Delete a transaction and reverse the stock change
+ */
+export const deleteTransaction = async (transactionId) => {
+    try {
+        const txRef = doc(db, TRANSACTIONS_COLLECTION, transactionId);
+        const txSnap = await getDoc(txRef);
+
+        if (!txSnap.exists()) {
+            return { success: false, error: 'Transaction not found.' };
+        }
+
+        const txData = txSnap.data();
+
+        // Reverse the stock change on the inventory item
+        if (txData.itemId) {
+            const itemRef = doc(db, INVENTORY_COLLECTION, txData.itemId);
+            const itemSnap = await getDoc(itemRef);
+            if (itemSnap.exists()) {
+                // If it was IN, we subtract; if it was OUT, we add back
+                const reverseChange = txData.type === 'IN' ? -(txData.quantity || 0) : (txData.quantity || 0);
+                await updateDoc(itemRef, {
+                    currentStock: increment(reverseChange),
+                    updatedAt: serverTimestamp()
+                });
+            }
+        }
+
+        // Delete the transaction document
+        await deleteDoc(txRef);
+
+        return { success: true };
+    } catch (error) {
+        console.error("Error deleting transaction:", error);
+        return { success: false, error: error.message };
+    }
+};
+
+/**
  * Upload tool photo (1MB Limit)
  */
 export const uploadToolPhoto = async (itemId, file) => {

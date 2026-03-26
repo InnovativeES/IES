@@ -1303,6 +1303,7 @@
     margin-bottom: 0 !important;
     /* Flush with content */
     border-bottom: none !important;
+    border-radius: 14px 14px 0 0 !important;
 }
 
 .pm-header-badge.inventory {
@@ -2761,9 +2762,14 @@
    ================================================ */
 
 .pm-header-badge.inventory {
-    background: #f0f9ff;
-    color: #0ea5e9;
-    border: 1px solid #bae6fd;
+    background: rgba(255, 255, 255, 0.95);
+    color: #059669;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    font-weight: 700;
+    font-size: 0.7rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
 }
 
 .inventory-thumb {
