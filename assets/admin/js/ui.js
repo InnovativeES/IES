@@ -45,6 +45,7 @@ export const switchView = (viewName) => {
             'monitoring': 'Internal Orders',
             'team_org': 'Team & Organization',
             'project_management': 'Project Management',
+            'progress_tracker': 'Project Progress Tracker',
             'project_detail': 'Project Deep Dive & Workflow',
             'daily_roster': 'Daily Roster',
             'daily_summary_report': 'Daily Summary Report'

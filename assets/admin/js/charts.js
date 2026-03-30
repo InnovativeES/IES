@@ -7,7 +7,7 @@ export const renderHierarchy = (members, containerId) => {
     const container = document.getElementById(containerId);
     if (!container) return;
 
-    const displayMembers = members || [];
+    const displayMembers = (members || []).filter(m => m.status !== 'Inactive');
 
     // Helper to get roles/depts robustly (case-insensitive)
     const getRoles = (m) => {
@@ -134,10 +134,11 @@ export const renderHierarchy = (members, containerId) => {
                 background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
                 border-radius: 12px;
                 min-height: 400px;
-                overflow-x: auto;
+                /* Remove internal scroll to allow parent container to handle it */
+                overflow: visible; 
             }
             .org-inner-wrapper {
-                min-width: 1000px;
+                min-width: max-content;
                 padding-bottom: 0.5rem;
             }
             .org-header {

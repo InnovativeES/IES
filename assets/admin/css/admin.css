@@ -2232,9 +2232,10 @@ tr.row-deleted td:first-child {
 #subview-hierarchy .card-body {
     min-width: 0;
     max-width: 100%;
-    overflow-x: auto;
+    overflow: auto;
     padding: 0;
     /* Removing padding to allow full flush scrolling */
+    overscroll-behavior: contain;
 }
 
 #hierarchy-container {
@@ -5208,3 +5209,215 @@ tr.row-deleted {
 .wf-modal-group:last-child {
     margin-bottom: 0;
 }
+
+/* === PROJECT PROGRESS TRACKER === */
+#progress-tracker-table th.sortable {
+    position: relative;
+    padding-right: 1.5rem !important;
+}
+
+#progress-tracker-table th.sortable::after {
+    content: '↕';
+    position: absolute;
+    right: 0.5rem;
+    opacity: 0.2;
+}
+
+#progress-tracker-table th.sort-asc::after {
+    content: '↑';
+    opacity: 1;
+    color: #6366f1;
+}
+
+#progress-tracker-table th.sort-desc::after {
+    content: '↓';
+    opacity: 1;
+    color: #6366f1;
+}
+
+#progress-tracker-table input {
+    border: 1px solid transparent;
+    width: 100%;
+    transition: all 0.2s;
+}
+
+#progress-tracker-table input:hover {
+    background: rgba(99, 102, 241, 0.05);
+    border-color: #e2e8f0;
+}
+
+#progress-tracker-table input:focus {
+    background: white;
+    border-color: #6366f1;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+#progress-tracker-table tr:hover input {
+    background: white;
+}
+
+#progress-tracker-table tr:nth-child(even) {
+    background-color: #f8fafc;
+}
+
+#progress-tracker-table .tracker-section-sep {
+    border-right: 2px solid #e2e8f0 !important;
+}
+
+#progress-tracker-table input,
+#progress-tracker-table textarea {
+    border: 1px solid transparent;
+    width: 100%;
+    transition: all 0.2s;
+    background: transparent;
+    font-family: inherit;
+    resize: none;
+    overflow: hidden;
+    padding: 4px;
+}
+
+#progress-tracker-table input:hover,
+#progress-tracker-table textarea:hover {
+    background: rgba(99, 102, 241, 0.05);
+    border-color: #e2e8f0;
+}
+
+#progress-tracker-table input:focus,
+#progress-tracker-table textarea:focus {
+    background: white;
+    border-color: #6366f1;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+#progress-tracker-table tr:hover input,
+#progress-tracker-table tr:hover textarea {
+    background: white;
+}
+
+.btn-add-module {
+    padding: 0.25rem;
+    color: #64748b;
+    border-radius: 4px;
+    transition: all 0.2s;
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+
+.btn-add-module:hover {
+    background: #e0e7ff;
+    color: #4f46e5;
+}
+
+@media print {
+    /* Hide ALL major layout components */
+    aside.sidebar,
+    header,
+    .sidebar-toggle,
+    .dashboard-header,
+    .pm-header,
+    .page-title-container,
+    .no-print,
+    .btn,
+    .h-8.w-px,
+    #tracker-customer-filter,
+    .dashboard-header-row,
+    .sidebar-footer,
+    #page-title {
+        display: none !important;
+    }
+
+    /* Hide all view sections */
+    .view-section {
+        display: none !important;
+    }
+
+    /* ONLY show the Progress Tracker section */
+    #view-progress_tracker {
+        display: block !important;
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        padding: 15mm !important;
+        margin: 0 !important;
+        box-sizing: border-box !important;
+    }
+
+    /* Show professional print header */
+    .print-only {
+        display: block !important;
+        visibility: visible !important;
+    }
+
+    /* Reset layout wrappers */
+    .main-wrapper, 
+    #main-content,
+    body, 
+    html {
+        margin: 0 !important;
+        padding: 0 !important;
+        display: block !important;
+        width: 100% !important;
+        height: auto !important;
+        overflow: visible !important;
+        background: white !important;
+    }
+
+    .table-container {
+        box-shadow: none !important;
+        border: 1px solid #e2e8f0 !important;
+        overflow: visible !important;
+        max-height: none !important;
+        margin-top: 1.5rem !important;
+    }
+
+    #progress-tracker-table {
+        border-collapse: collapse !important;
+        width: 100% !important;
+        table-layout: auto !important;
+    }
+
+    #progress-tracker-table th, 
+    #progress-tracker-table td {
+        border: 1px solid #e2e8f0 !important;
+        padding: 6px !important;
+        font-size: 8pt !important;
+        word-wrap: break-word !important;
+    }
+
+    #progress-tracker-table th {
+        background-color: #f8fafc !important;
+        color: #1e293b !important;
+        text-transform: uppercase !important;
+    }
+
+    #progress-tracker-table input,
+    #progress-tracker-table textarea {
+        border: none !important;
+        background: transparent !important;
+        padding: 0 !important;
+        font-size: 8pt !important;
+        color: #1e293b !important;
+        overflow: visible !important;
+        height: auto !important;
+    }
+
+    #progress-tracker-table tr:nth-child(even) {
+        background-color: #fcfcfc !important;
+    }
+
+    /* Hide sort indicators in print */
+    #progress-tracker-table th.sortable::after {
+        display: none !important;
+    }
+}
+
+/* Force Landscape & Remove Browser Headers/Footers */
+@page {
+    size: A4 landscape;
+    margin: 0mm;
+}
+

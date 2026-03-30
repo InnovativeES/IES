@@ -6,6 +6,7 @@ import * as Monitoring from './monitoring.js';
 import * as Inventory from './inventory.js';
 import * as Workflow from './workflow.js';
 import * as Reporting from './reporting.js';
+import * as Tracker from './progress_tracker.js';
 
 // App State
 let currentMembers = [];
@@ -209,7 +210,17 @@ window.adminApp = {
             }
             Reporting.renderDailySummaryReport(picker.value);
         }
+
+        if (viewName === 'progress_tracker') {
+            Tracker.renderTracker();
+        }
     },
+
+    trackerInlineEdit: (id, field, val) => Tracker.handleInlineEdit(id, field, val),
+    trackerFilterCustomer: (val) => Tracker.setFilterCustomer(val),
+    trackerSort: (key) => Tracker.setSortTracker(key),
+    exportTrackerCSV: () => Tracker.exportTrackerCSV(),
+
 
     refreshDashboard: () => {
         refreshDashboard();
@@ -3803,6 +3814,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (monitoringView && !monitoringView.classList.contains('hidden')) {
             Monitoring.renderTable(currentOrders);
+        }
+
+        const trackerView = document.getElementById('view-progress_tracker');
+        if (trackerView && !trackerView.classList.contains('hidden')) {
+            Tracker.renderTracker();
         }
 
         // --- ADDED: Live Update for Pending Assignment ---
