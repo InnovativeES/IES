@@ -2155,7 +2155,7 @@ window.adminApp = {
             dateInput.value = new Date().toISOString().split('T')[0];
         }
 
-        // Auto-generate next Order ID (YYYYYY-NNN)
+        // Auto-generate next Order ID (YYYYYY-NNNN)
         const now = new Date();
         const yr = now.getFullYear();
         const mo = now.getMonth(); // 0-indexed
@@ -2172,7 +2172,11 @@ window.adminApp = {
                 if (!isNaN(num) && num > maxNum) maxNum = num;
             }
         });
-        const nextNum = String(maxNum + 1).padStart(3, '0');
+        
+        // Use 4 digits padding from financial year 2026 onwards (i.e. prefix "202627-")
+        const padLength = fyStart >= 2026 ? 4 : 3;
+        const nextNum = String(maxNum + 1).padStart(padLength, '0');
+        
         const orderNoInput = form.querySelector('[name="internalOrderNo"]');
         if (orderNoInput) orderNoInput.value = `${prefix}${nextNum}`;
 
