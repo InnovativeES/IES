@@ -309,6 +309,9 @@ export const handleAddOrder = async () => {
         } else {
             data.status = 'Pending';
         }
+        
+        // Ensure delivery quantity is ALWAYS recalculated from DC reports
+        data.deliveryQty = totalDelivered;
     } else {
         // For entirely new orders created here, they won't have deliveries yet.
         const dcNo = data.dcNo ? data.dcNo.trim() : '';
@@ -454,6 +457,11 @@ export const populateForm = (order) => {
 
         if (totalDelEl) totalDelEl.textContent = totalDelivered;
         if (pendingQtyEl) pendingQtyEl.textContent = pendingQty;
+        
+        // Ensure hidden fields match the DC calculation
+        const deliveryQtyInput = form.querySelector('[name="deliveryQty"]');
+        if (deliveryQtyInput) deliveryQtyInput.value = totalDelivered;
+
         if (derivedStatusEl) {
             let sText = 'Pending';
             let sClass = 'status-pending';
@@ -468,6 +476,9 @@ export const populateForm = (order) => {
 
             derivedStatusEl.textContent = sText;
             derivedStatusEl.className = `status-badge ${sClass}`;
+            
+            const statusHiddenInput = form.querySelector('[name="status"]');
+            if (statusHiddenInput) statusHiddenInput.value = sText;
         }
     }
 

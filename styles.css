@@ -1597,8 +1597,9 @@ textarea {
    FOOTER
    ========================================== */
 .footer {
-    background: var(--gray-900);
-    color: var(--gray-300);
+    background: var(--secondary-50);
+    color: var(--gray-600);
+    border-top: 1px solid var(--secondary-200);
     padding: var(--space-16) 0 var(--space-8);
 }
 
@@ -1625,20 +1626,20 @@ textarea {
 }
 
 .footer-logo {
-    height: 60px;
+    height: 70px; /* Slightly larger base size for clarity */
     width: auto;
     margin-bottom: var(--space-4);
 }
 
 .footer-brand h3 {
     font-size: var(--text-lg);
-    color: var(--white);
+    color: var(--gray-900);
     margin-bottom: var(--space-2);
 }
 
 .footer-brand p {
     font-size: var(--text-sm);
-    color: var(--primary-400);
+    color: var(--primary-600);
     margin-bottom: var(--space-2);
 }
 
@@ -1653,7 +1654,7 @@ textarea {
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.1em;
-    color: var(--white);
+    color: var(--gray-900);
     margin-bottom: var(--space-4);
 }
 
@@ -1664,17 +1665,17 @@ textarea {
 
 .footer-links a {
     font-size: var(--text-sm);
-    color: var(--gray-400);
+    color: var(--gray-600);
     transition: color var(--transition-fast);
 }
 
 .footer-links a:hover {
-    color: var(--primary-400);
+    color: var(--primary-600);
 }
 
 .footer-services ul li {
     font-size: var(--text-sm);
-    color: var(--gray-400);
+    color: var(--gray-600);
 }
 
 .footer-contact p {
@@ -1683,16 +1684,16 @@ textarea {
 }
 
 .footer-contact a {
-    color: var(--gray-400);
+    color: var(--gray-600);
 }
 
 .footer-contact a:hover {
-    color: var(--primary-400);
+    color: var(--primary-600);
 }
 
 .footer-bottom {
     padding-top: var(--space-8);
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: 1px solid var(--gray-200);
     text-align: center;
 }
 

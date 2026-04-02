@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Internal Order Delivery Qty Migration</title>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; padding: 2rem; line-height: 1.5; color: #334155; background: #f1f5f9; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+        h1 { color: #0f172a; margin-top: 0; }
+        .log { background: #1e293b; color: #f8fafc; padding: 1rem; border-radius: 8px; font-family: ui-monospace, monospace; height: 400px; overflow-y: auto; margin: 1.5rem 0; font-size: 0.85rem; }
+        .btn { background: #0d9488; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1rem; }
+        .btn:hover { background: #0f766e; }
+        .btn:disabled { background: #94a3b8; cursor: not-allowed; }
+        .status { margin-bottom: 1rem; font-weight: 600; padding: 1rem; border-radius: 8px; background: #f8fafc; border: 1px solid #e2e8f0; }
+        .success { color: #059669; background: #dcfce7; border-color: #bbf7d0; }
+        .error { color: #dc2626; background: #fee2e2; border-color: #fecaca; }
+        .log-entry { margin-bottom: 0.25rem; border-bottom: 1px solid #334155; padding-bottom: 0.25rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📦 Delivery Qty Migration</h1>
+        <p>This tool recalculates existing `deliveryQty` and `status` values for all Internal Orders to ensure they accurately reflect the total quantity from associated delivery challans.</p>
+        
+        <div class="status" id="status">Ready to initialize...</div>
+        <button id="start-btn" class="btn">Start Migration</button>
+
+        <div class="log" id="log"></div>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, getDocs, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        // Initialize Firebase directly to avoid CORS issues from file:// protocol
+        const firebaseConfig = {
+            apiKey: "AIzaSyDA053MUUIG7vG17XLwJGsDqTKF_N-ND0Y",
+            authDomain: "ies-crm.firebaseapp.com",
+            projectId: "ies-crm",
+            storageBucket: "ies-crm.firebasestorage.app",
+            messagingSenderId: "37296676137",
+            appId: "1:37296676137:web:792fa3a9c01204e3e22b38"
+        };
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        const logEl = document.getElementById('log');
+        const statusEl = document.getElementById('status');
+        const startBtn = document.getElementById('start-btn');
+
+        function log(msg, type = '') {
+            const time = new Date().toLocaleTimeString();
+            const div = document.createElement('div');
+            div.className = 'log-entry';
+            div.textContent = `[${time}] ${msg}`;
+            if (type === 'error') div.style.color = '#fca5a5';
+            if (type === 'success') div.style.color = '#86efac';
+            if (type === 'warn') div.style.color = '#fde047';
+            logEl.appendChild(div);
+            // Auto scroll to bottom
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        async function runMigration() {
+            if (!confirm("Are you sure you want to run the migration? This will update records in Firestore.")) {
+                return;
+            }
+
+            startBtn.disabled = true;
+            statusEl.textContent = "Fetching orders...";
+            statusEl.className = "status";
+            log("Starting migration process...");
+
+            try {
+                // 1. Fetch all orders
+                const snapshot = await getDocs(collection(db, "internal_orders"));
+                const allDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                log(`Fetched ${allDocs.length} total documents.`);
+
+                // 2. Separate Base Orders and Delivery Reports
+                const baseOrders = allDocs.filter(o => o.entryType !== 'delivery_report' && !o.isDeleted);
+                const deliveryReports = allDocs.filter(o => o.entryType === 'delivery_report' && !o.isDeleted);
+
+                log(`Base Orders found: ${baseOrders.length}`);
+                log(`Delivery Reports found: ${deliveryReports.length}`);
+
+                let updatedCount = 0;
+                let skipCount = 0;
+
+                // 3. Process each Base Order
+                for (let i = 0; i < baseOrders.length; i++) {
+                    const order = baseOrders[i];
+                    const ioNo = order.internalOrderNo;
+                    
+                    if (!ioNo) {
+                        log(`Skipping order (ID: ${order.id}) - No Internal Order No`, 'warn');
+                        skipCount++;
+                        continue;
+                    }
+
+                    // Find all delivery reports for this IO
+                    const relevantDeliveries = deliveryReports.filter(d => 
+                        d.internalOrderNo && d.internalOrderNo.trim().toUpperCase() === ioNo.trim().toUpperCase()
+                    );
+
+                    const totalDelivered = relevantDeliveries.reduce((sum, d) => sum + (parseFloat(d.deliveryQty) || parseFloat(d.qty) || 0), 0);
+                    const orderedQty = parseFloat(order.qty) || 0;
+
+                    let newStatus = 'Pending';
+                    if (totalDelivered >= orderedQty && orderedQty > 0) {
+                        newStatus = 'Delivered';
+                    } else if (totalDelivered > 0) {
+                        newStatus = 'Partially Delivered';
+                    }
+
+                    // Strict comparison to see if an update is needed
+                    const currentDeliveryQty = parseFloat(order.deliveryQty) || 0;
+                    const needsUpdate = currentDeliveryQty !== totalDelivered || order.status !== newStatus;
+
+                    if (needsUpdate) {
+                        log(`Updating [${ioNo}]: DeliveryQty (${currentDeliveryQty} -> ${totalDelivered}), Status (${order.status || 'None'} -> ${newStatus})`);
+                        await updateDoc(doc(db, "internal_orders", order.id), {
+                            deliveryQty: totalDelivered,
+                            status: newStatus
+                        });
+                        updatedCount++;
+                    } else {
+                        skipCount++;
+                    }
+
+                    // Update UI status text periodically
+                    if (i % 10 === 0) {
+                      statusEl.textContent = `Processing: ${i + 1} / ${baseOrders.length}`;
+                    }
+                }
+
+                statusEl.textContent = `Migration Complete! Updated: ${updatedCount}, Skipped: ${skipCount}`;
+                statusEl.className = "status success";
+                log(`Migration successfully finished.`, 'success');
+
+            } catch (err) {
+                console.error(err);
+                statusEl.textContent = "Error occurred during migration!";
+                statusEl.className = "status error";
+                log(`Error: ${err.message}`, 'error');
+            } finally {
+                startBtn.disabled = false;
+            }
+        }
+
+        startBtn.onclick = runMigration;
+        statusEl.textContent = "Ready. Click button to start.";
+    </script>
+</body>
+</html>
