@@ -2704,22 +2704,23 @@ textarea {
    RESPONSIVE ADJUSTMENTS
    ========================================== */
 @media (max-width: 768px) {
-    .refurb-process-flow {
+    /* Refurbishment & Rapid Proto common optimizations */
+    .refurb-process-flow, .rp-flow {
         flex-direction: column;
         align-items: flex-start;
         gap: var(--space-4);
         padding-left: var(--space-4);
     }
 
-    .refurb-process-arrow {
+    .refurb-process-arrow, .rp-flow-arrow {
         display: none;
     }
 
-    .refurb-process-step {
+    .refurb-process-step, .rp-flow-item {
         position: relative;
     }
 
-    .refurb-process-step:not(:last-child)::after {
+    .refurb-process-step:not(:last-child)::after, .rp-flow-item:not(:last-child)::after {
         content: '';
         position: absolute;
         top: 30px;
@@ -2729,18 +2730,27 @@ textarea {
         background: rgba(94, 234, 212, 0.2);
     }
 
-    .refurb-metrics {
+    .refurb-metrics, .rp-metrics {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
-        gap: var(--space-4);
+        gap: var(--space-8) var(--space-4);
+        padding: var(--space-8) var(--space-4);
     }
 
-    .refurb-metric:not(:last-child) {
-        border-right: none;
+    .refurb-metric, .rp-metric {
+        border-right: none !important;
+        border-bottom: none !important;
+        padding: 0 var(--space-2);
+        text-align: center;
     }
 
-    .refurb-metric:nth-child(odd) {
-        border-right: 1px solid rgba(255, 255, 255, 0.08);
+    /* Standardized grid behavior for better looks on tablet */
+    .refurb-metric:nth-child(n), .rp-metric:nth-child(n) {
+        border-right: none !important;
+    }
+
+    .rp-grid {
+        grid-template-columns: repeat(2, 1fr);
     }
 }
 
@@ -2763,29 +2773,34 @@ textarea {
         font-size: var(--text-2xl);
     }
 
-    /* Refurbishment Mobile Tweaks */
-    .refurb-header h2 {
+    /* Refurbishment & Proto Mobile Tweaks */
+    .refurb-header h2, .rp-header h2 {
         font-size: var(--text-2xl);
     }
 
-    .refurb-subtitle {
+    .refurb-subtitle, .rp-subtitle {
         font-size: var(--text-base);
     }
 
-    .refurb-metrics {
+    .refurb-metrics, .rp-metrics {
         grid-template-columns: 1fr;
+        gap: var(--space-6);
+        padding: var(--space-6) var(--space-4);
     }
 
-    .refurb-metric {
+    .refurb-metric, .rp-metric {
         border-right: none !important;
-        padding-bottom: var(--space-2);
+        border-bottom: none !important;
+        padding-bottom: 0;
+        height: auto;
     }
 
-    .refurb-metric:not(:last-child) {
+    .refurb-metric:not(:last-child), .rp-metric:not(:last-child) {
         border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        padding-bottom: var(--space-6);
     }
 
-    .refurb-strengths-bar {
+    .refurb-strengths-bar, .rp-bottom {
         border-radius: var(--radius-2xl);
     }
 
@@ -2801,5 +2816,17 @@ textarea {
     .refurb-device-icon {
         width: 28px;
         height: 28px;
+    }
+
+    .rp-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .rp-metric-value {
+        font-size: var(--text-base);
+    }
+
+    .rp-metric-label {
+        font-size: 10px;
     }
 }
