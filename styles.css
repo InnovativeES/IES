@@ -299,15 +299,13 @@ h6 {
     left: 0;
     right: 0;
     z-index: var(--z-nav);
-    background: rgba(255, 255, 255, 0.97);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    background: #ffffff;
     border-bottom: 1px solid rgba(0, 0, 0, 0.08);
     transition: all var(--transition-base);
 }
 
 .navbar.scrolled {
-    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.08);
 }
 
 .nav-container {
@@ -326,7 +324,7 @@ h6 {
 }
 
 .logo-img {
-    height: 100px;
+    height: 95px;
     width: auto;
 }
 
@@ -382,14 +380,14 @@ h6 {
     padding: var(--space-3) var(--space-4);
     font-size: var(--text-base);
     font-weight: 500;
-    color: var(--gray-700);
+    color: var(--gray-900);
     border-radius: var(--radius-md);
     transition: all var(--transition-fast);
 }
 
 .nav-link:hover {
     color: var(--primary-600);
-    background: var(--primary-50);
+    background: rgba(0, 0, 0, 0.05);
 }
 
 .nav-cta {
@@ -421,7 +419,7 @@ h6 {
     display: block;
     width: 24px;
     height: 2px;
-    background: var(--gray-700);
+    background: var(--gray-900);
     border-radius: 2px;
     transition: all var(--transition-fast);
 }
@@ -1596,8 +1594,8 @@ textarea {
    FOOTER
    ========================================== */
 .footer {
-    background: #f8f9fa;
-    color: var(--gray-600);
+    background: #ffffff;
+    color: var(--gray-700);
     border-top: 1px solid var(--gray-200);
     padding: var(--space-16) 0 var(--space-8);
 }
@@ -1625,7 +1623,7 @@ textarea {
 }
 
 .footer-logo {
-    height: 100px;
+    height: 95px;
     width: auto;
     margin-bottom: var(--space-4);
 }
@@ -1664,7 +1662,7 @@ textarea {
 
 .footer-links a {
     font-size: var(--text-sm);
-    color: var(--gray-600);
+    color: var(--gray-800);
     transition: color var(--transition-fast);
 }
 
@@ -1674,7 +1672,7 @@ textarea {
 
 .footer-services ul li {
     font-size: var(--text-sm);
-    color: var(--gray-600);
+    color: var(--gray-800);
 }
 
 .footer-contact p {
@@ -1683,7 +1681,7 @@ textarea {
 }
 
 .footer-contact a {
-    color: var(--gray-600);
+    color: var(--gray-800);
 }
 
 .footer-contact a:hover {
@@ -2381,8 +2379,8 @@ textarea {
     text-align: center;
     padding: var(--space-16) var(--space-8);
     background: linear-gradient(180deg,
-        rgba(15, 32, 39, 0.65) 0%,
-        rgba(15, 32, 39, 0.85) 100%);
+            rgba(15, 32, 39, 0.65) 0%,
+            rgba(15, 32, 39, 0.85) 100%);
     min-height: 280px;
 }
 
@@ -2654,7 +2652,7 @@ textarea {
     flex-shrink: 0;
 }
 
-.refurb-process-step > span:last-child {
+.refurb-process-step>span:last-child {
     font-size: var(--text-sm);
     font-weight: 600;
     color: var(--gray-300);
@@ -2703,23 +2701,28 @@ textarea {
    RESPONSIVE ADJUSTMENTS
    ========================================== */
 @media (max-width: 768px) {
+
     /* Refurbishment & Rapid Proto common optimizations */
-    .refurb-process-flow, .rp-flow {
+    .refurb-process-flow,
+    .rp-flow {
         flex-direction: column;
         align-items: flex-start;
         gap: var(--space-4);
         padding-left: var(--space-4);
     }
 
-    .refurb-process-arrow, .rp-flow-arrow {
+    .refurb-process-arrow,
+    .rp-flow-arrow {
         display: none;
     }
 
-    .refurb-process-step, .rp-flow-item {
+    .refurb-process-step,
+    .rp-flow-item {
         position: relative;
     }
 
-    .refurb-process-step:not(:last-child)::after, .rp-flow-item:not(:last-child)::after {
+    .refurb-process-step:not(:last-child)::after,
+    .rp-flow-item:not(:last-child)::after {
         content: '';
         position: absolute;
         top: 30px;
@@ -2729,14 +2732,16 @@ textarea {
         background: rgba(94, 234, 212, 0.2);
     }
 
-    .refurb-metrics, .rp-metrics {
+    .refurb-metrics,
+    .rp-metrics {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
         gap: var(--space-8) var(--space-4);
         padding: var(--space-8) var(--space-4);
     }
 
-    .refurb-metric, .rp-metric {
+    .refurb-metric,
+    .rp-metric {
         border-right: none !important;
         border-bottom: none !important;
         padding: 0 var(--space-2);
@@ -2744,7 +2749,8 @@ textarea {
     }
 
     /* Standardized grid behavior for better looks on tablet */
-    .refurb-metric:nth-child(n), .rp-metric:nth-child(n) {
+    .refurb-metric:nth-child(n),
+    .rp-metric:nth-child(n) {
         border-right: none !important;
     }
 
@@ -2773,33 +2779,39 @@ textarea {
     }
 
     /* Refurbishment & Proto Mobile Tweaks */
-    .refurb-header h2, .rp-header h2 {
+    .refurb-header h2,
+    .rp-header h2 {
         font-size: var(--text-2xl);
     }
 
-    .refurb-subtitle, .rp-subtitle {
+    .refurb-subtitle,
+    .rp-subtitle {
         font-size: var(--text-base);
     }
 
-    .refurb-metrics, .rp-metrics {
+    .refurb-metrics,
+    .rp-metrics {
         grid-template-columns: 1fr;
         gap: var(--space-6);
         padding: var(--space-6) var(--space-4);
     }
 
-    .refurb-metric, .rp-metric {
+    .refurb-metric,
+    .rp-metric {
         border-right: none !important;
         border-bottom: none !important;
         padding-bottom: 0;
         height: auto;
     }
 
-    .refurb-metric:not(:last-child), .rp-metric:not(:last-child) {
+    .refurb-metric:not(:last-child),
+    .rp-metric:not(:last-child) {
         border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         padding-bottom: var(--space-6);
     }
 
-    .refurb-strengths-bar, .rp-bottom {
+    .refurb-strengths-bar,
+    .rp-bottom {
         border-radius: var(--radius-2xl);
     }
 
