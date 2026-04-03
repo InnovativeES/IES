@@ -2703,6 +2703,47 @@ textarea {
 /* ==========================================
    RESPONSIVE ADJUSTMENTS
    ========================================== */
+@media (max-width: 768px) {
+    .refurb-process-flow {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-4);
+        padding-left: var(--space-4);
+    }
+
+    .refurb-process-arrow {
+        display: none;
+    }
+
+    .refurb-process-step {
+        position: relative;
+    }
+
+    .refurb-process-step:not(:last-child)::after {
+        content: '';
+        position: absolute;
+        top: 30px;
+        left: 13px;
+        width: 1px;
+        height: calc(100% + var(--space-4) - 20px);
+        background: rgba(94, 234, 212, 0.2);
+    }
+
+    .refurb-metrics {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: var(--space-4);
+    }
+
+    .refurb-metric:not(:last-child) {
+        border-right: none;
+    }
+
+    .refurb-metric:nth-child(odd) {
+        border-right: 1px solid rgba(255, 255, 255, 0.08);
+    }
+}
+
 @media (max-width: 480px) {
     :root {
         --text-5xl: 2.5rem;
@@ -2720,5 +2761,45 @@ textarea {
 
     .stat-number {
         font-size: var(--text-2xl);
+    }
+
+    /* Refurbishment Mobile Tweaks */
+    .refurb-header h2 {
+        font-size: var(--text-2xl);
+    }
+
+    .refurb-subtitle {
+        font-size: var(--text-base);
+    }
+
+    .refurb-metrics {
+        grid-template-columns: 1fr;
+    }
+
+    .refurb-metric {
+        border-right: none !important;
+        padding-bottom: var(--space-2);
+    }
+
+    .refurb-metric:not(:last-child) {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .refurb-strengths-bar {
+        border-radius: var(--radius-2xl);
+    }
+
+    .refurb-banner-quote {
+        font-size: var(--text-lg);
+    }
+
+    .refurb-device {
+        min-width: 80px;
+        padding: var(--space-3) var(--space-4);
+    }
+
+    .refurb-device-icon {
+        width: 28px;
+        height: 28px;
     }
 }
