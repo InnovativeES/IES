@@ -324,7 +324,7 @@ h6 {
 }
 
 .logo-img {
-    height: 95px;
+    height: 90px;
     width: auto;
 }
 
@@ -1623,7 +1623,7 @@ textarea {
 }
 
 .footer-logo {
-    height: 95px;
+    height: 80px;
     width: auto;
     margin-bottom: var(--space-4);
 }
