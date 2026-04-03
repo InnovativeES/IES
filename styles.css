@@ -299,14 +299,15 @@ h6 {
     left: 0;
     right: 0;
     z-index: var(--z-nav);
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(10px);
-    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    background: rgba(10, 22, 40, 0.97);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     transition: all var(--transition-base);
 }
 
 .navbar.scrolled {
-    box-shadow: var(--shadow-md);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 .nav-container {
@@ -315,7 +316,7 @@ h6 {
     justify-content: space-between;
     max-width: 1280px;
     margin: 0 auto;
-    padding: var(--space-4) var(--space-6);
+    padding: var(--space-3) var(--space-6);
 }
 
 .nav-logo {
@@ -325,7 +326,7 @@ h6 {
 }
 
 .logo-img {
-    height: 60px;
+    height: 80px;
     width: auto;
 }
 
@@ -333,7 +334,7 @@ h6 {
     font-family: var(--font-display);
     font-size: var(--text-lg);
     font-weight: 700;
-    color: var(--gray-900);
+    color: var(--white);
     display: none;
 }
 
@@ -347,19 +348,17 @@ h6 {
     display: none;
     flex-direction: column;
     align-items: center;
-    /* FORCED CENTER */
     justify-content: center;
     position: absolute;
     top: 100%;
     left: 0;
     right: 0;
-    background: var(--white);
+    background: rgba(10, 22, 40, 0.98);
     padding: var(--space-6);
-    border-bottom: 1px solid var(--gray-200);
-    box-shadow: var(--shadow-lg);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
     text-align: center;
     gap: var(--space-4);
-    /* Increased gap for better spacing */
 }
 
 .nav-menu.active {
@@ -383,14 +382,14 @@ h6 {
     padding: var(--space-3) var(--space-4);
     font-size: var(--text-base);
     font-weight: 500;
-    color: var(--gray-600);
+    color: var(--gray-300);
     border-radius: var(--radius-md);
     transition: all var(--transition-fast);
 }
 
 .nav-link:hover {
-    color: var(--primary-600);
-    background: var(--primary-50);
+    color: var(--primary-400);
+    background: rgba(16, 185, 129, 0.08);
 }
 
 .nav-cta {
@@ -422,7 +421,7 @@ h6 {
     display: block;
     width: 24px;
     height: 2px;
-    background: var(--gray-700);
+    background: var(--gray-200);
     border-radius: 2px;
     transition: all var(--transition-fast);
 }
@@ -1597,9 +1596,9 @@ textarea {
    FOOTER
    ========================================== */
 .footer {
-    background: var(--secondary-50);
-    color: var(--gray-600);
-    border-top: 1px solid var(--secondary-200);
+    background: #0a1628;
+    color: var(--gray-400);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
     padding: var(--space-16) 0 var(--space-8);
 }
 
@@ -1626,20 +1625,20 @@ textarea {
 }
 
 .footer-logo {
-    height: 70px; /* Slightly larger base size for clarity */
+    height: 90px;
     width: auto;
     margin-bottom: var(--space-4);
 }
 
 .footer-brand h3 {
     font-size: var(--text-lg);
-    color: var(--gray-900);
+    color: var(--white);
     margin-bottom: var(--space-2);
 }
 
 .footer-brand p {
     font-size: var(--text-sm);
-    color: var(--primary-600);
+    color: var(--primary-400);
     margin-bottom: var(--space-2);
 }
 
@@ -1654,7 +1653,7 @@ textarea {
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.1em;
-    color: var(--gray-900);
+    color: var(--white);
     margin-bottom: var(--space-4);
 }
 
@@ -1665,17 +1664,17 @@ textarea {
 
 .footer-links a {
     font-size: var(--text-sm);
-    color: var(--gray-600);
+    color: var(--gray-400);
     transition: color var(--transition-fast);
 }
 
 .footer-links a:hover {
-    color: var(--primary-600);
+    color: var(--primary-400);
 }
 
 .footer-services ul li {
     font-size: var(--text-sm);
-    color: var(--gray-600);
+    color: var(--gray-400);
 }
 
 .footer-contact p {
@@ -1684,16 +1683,16 @@ textarea {
 }
 
 .footer-contact a {
-    color: var(--gray-600);
+    color: var(--gray-400);
 }
 
 .footer-contact a:hover {
-    color: var(--primary-600);
+    color: var(--primary-400);
 }
 
 .footer-bottom {
     padding-top: var(--space-8);
-    border-top: 1px solid var(--gray-200);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
     text-align: center;
 }
 
