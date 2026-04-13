@@ -1725,14 +1725,146 @@ window.adminApp = {
 
 
     printContractReview: () => {
-        const section = document.getElementById('contract-review-section');
-        if (section) section.classList.add('open');
-        // Populate print header date
-        const printDate = document.getElementById('cr-print-date');
-        if (printDate) {
-            printDate.textContent = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-        }
-        setTimeout(() => window.print(), 200);
+        const printWindow = window.open('', '_blank', 'width=1100,height=850');
+        const crContainer = document.querySelector('.cr-modern-container');
+        if (!crContainer || !printWindow) return;
+
+        // Collect essential styles
+        const styles = Array.from(document.styleSheets)
+            .map(sheet => {
+                try {
+                    return Array.from(sheet.cssRules).map(rule => rule.cssText).join('');
+                } catch (e) { return ''; }
+            }).join('');
+
+        const ioNo = document.getElementById('cr-review-no')?.value || '-';
+
+        printWindow.document.write(`
+            <html>
+            <head>
+                <title>Contract Review - ${ioNo}</title>
+                <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+                <style>
+                    ${styles}
+                    @page { 
+                        size: A4 landscape; 
+                        margin: 5mm; 
+                    }
+                    body { 
+                        font-family: 'Inter', sans-serif; 
+                        padding: 0; 
+                        margin: 0;
+                        background: white; 
+                        color: black;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                        zoom: 0.68; /* Aggressive scale for single page */
+                    }
+                    
+                    /* Ultra-compact Header */
+                    .cr-print-header { 
+                        display: block !important; 
+                        margin-bottom: 2px !important; 
+                        padding-bottom: 5px !important;
+                        border-bottom: 2px solid #0f172a !important;
+                    }
+                    .cr-print-header div[style*="font-size: 24pt"] { font-size: 16pt !important; }
+                    .cr-print-header div[style*="font-size: 20pt"] { font-size: 14pt !important; }
+                    .cr-print-header div[style*="font-size: 11pt"] { font-size: 8pt !important; }
+                    
+                    /* UI Elements Hiding */
+                    .cr-footer-actions, .cr-no-print, .btn, .cr-item-delete-btn, .cr-no-print-custom, .cr-status-badge { display: none !important; }
+                    
+                    /* Table Compaction */
+                    .cr-modern-container { 
+                        display: flex !important; 
+                        flex-direction: column !important; 
+                        gap: 4px !important; 
+                        padding: 0 !important;
+                        width: 100% !important;
+                    }
+                    .cr-section-card { 
+                        box-shadow: none !important; 
+                        border: 1px solid #94a3b8 !important;
+                        margin-bottom: 0 !important;
+                        page-break-inside: avoid !important;
+                        border-radius: 4px !important;
+                    }
+                    .cr-card-table td, .cr-card-table th { 
+                        border: 1px solid #94a3b8 !important;
+                        padding: 2px 4px !important;
+                        font-size: 8pt !important;
+                        line-height: 1.1 !important;
+                    }
+                    .cr-emerald-bg { 
+                        background-color: #f0fdf4 !important; 
+                        color: #166534 !important;
+                        font-weight: 800 !important;
+                        font-size: 7.5pt !important;
+                        padding: 2px 4px !important;
+                    }
+                    .cr-master-label { font-size: 7.5pt !important; font-weight: 700 !important; background: #f8fafc !important; }
+                    
+                    /* Form Controls to Text */
+                    input, textarea, select {
+                        border: none !important;
+                        background: transparent !important;
+                        font-weight: 600 !important;
+                        padding: 0 !important;
+                        margin: 0 !important;
+                        font-size: 8pt !important;
+                        min-height: 0 !important;
+                    }
+                    
+                    .outcome-tile { 
+                        width: 16px !important; 
+                        height: 16px !important; 
+                        margin: auto !important;
+                        border: 1px solid #cbd5e1 !important; 
+                    }
+                    .cr-tick { font-weight: 800 !important; font-size: 8pt !important; }
+                    
+                    /* Force Textareas to collapse if small */
+                    #cr-important-instructions { min-height: 40px !important; height: auto !important; }
+                    
+                    /* Final Section Layout */
+                    .cr-decision-notes { padding: 4px !important; margin-top: 2px !important; font-size: 7pt !important; }
+                    .cr-decision-notes strong { font-size: 7.5pt !important; }
+                </style>
+            </head>
+            <body>
+                <div class="cr-modern-container">
+                    ${crContainer.innerHTML}
+                </div>
+                <script>
+                    document.querySelectorAll('input, select, textarea').forEach(el => {
+                        let val = '';
+                        if (el.tagName === 'SELECT') {
+                            val = el.options[el.selectedIndex]?.text || '';
+                            if (val === '-' || val.includes('Select')) val = ''; 
+                        } else {
+                            val = el.value || '';
+                        }
+                        
+                        const wrapper = document.createElement('span');
+                        wrapper.textContent = val;
+                        wrapper.style.display = 'inline-block';
+                        wrapper.style.minWidth = '5px';
+                        
+                        el.parentNode.insertBefore(wrapper, el);
+                        el.style.display = 'none';
+                    });
+                    
+                    window.onload = () => {
+                         setTimeout(() => {
+                            window.print();
+                         }, 600);
+                    };
+                </script>
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
     },
 
     renderProjectCards: (projects) => {
@@ -2773,6 +2905,64 @@ window.adminApp = {
         );
     },
 
+    forceCloseOrder: (id) => {
+        const password = prompt("Enter Administration Password to Force Close:");
+        if (password !== 'IES') {
+            alert("Incorrect Password. Access Denied.");
+            return;
+        }
+
+        // Open choices modal
+        window.adminApp.openModal('force-close-modal');
+
+        // Setup listeners for the choice buttons
+        const delBtn = document.getElementById('force-delivered-btn');
+        const admBtn = document.getElementById('force-admin-close-btn');
+
+        // Clone and replace to remove old listeners
+        const newDelBtn = delBtn.cloneNode(true);
+        const newAdmBtn = admBtn.cloneNode(true);
+        delBtn.parentNode.replaceChild(newDelBtn, delBtn);
+        admBtn.parentNode.replaceChild(newAdmBtn, admBtn);
+
+        newDelBtn.onclick = async () => {
+            if (confirm("Mark this order as DELIVERED directly?")) {
+                try {
+                    await DB.updateOrder(id, {
+                        status: 'Delivered',
+                        deliveryDateActual: new Date().toISOString().slice(0, 10),
+                        forceClosed: true,
+                        closedBy: 'Administration'
+                    });
+                    window.adminApp.closeModal('force-close-modal');
+                    alert("Order marked as Delivered.");
+                    // Refresh view
+                    if (window.adminApp.loadOrders) window.adminApp.loadOrders();
+                } catch (e) {
+                    alert("Error updating order: " + e.message);
+                }
+            }
+        };
+
+        newAdmBtn.onclick = async () => {
+            if (confirm("Mark this order as CLOSED BY ADMIN? (Will hide from pending)")) {
+                try {
+                    await DB.updateOrder(id, {
+                        status: 'Closed by Admin',
+                        forceClosed: true,
+                        closedBy: 'Administration'
+                    });
+                    window.adminApp.closeModal('force-close-modal');
+                    alert("Order marked as Closed by Admin.");
+                    // Refresh view
+                    if (window.adminApp.loadOrders) window.adminApp.loadOrders();
+                } catch (e) {
+                    alert("Error updating order: " + e.message);
+                }
+            }
+        };
+    },
+
     softDeleteOrder: (id) => {
         window.adminApp.showConfirmModal(
             "Move to Trash?",
@@ -2915,8 +3105,8 @@ window.adminApp = {
         Monitoring.sort(key);
     },
 
-    exportToPDF: () => {
-        Monitoring.exportToPDF(currentOrders);
+    exportToCSV: () => {
+        Monitoring.exportToCSV();
     },
 
     // New: Delivery Report Helpers

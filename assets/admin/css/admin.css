@@ -1489,6 +1489,26 @@ tr.row-deleted td:first-child {
     background-color: #dcfce7;
 }
 
+.status-badge.status-closed {
+    border-color: #ddd6fe;
+    color: #5b21b6;
+    background-color: #ede9fe;
+}
+
+tr.row-closed {
+    background-color: #f5f3ff !important;
+}
+
+.action-btn.force-close {
+    color: #f59e0b;
+}
+
+.action-btn.force-close:hover {
+    background: #fef3c7;
+    color: #d97706;
+}
+
+
 .status-badge {
     display: inline-block;
     padding: 0.2rem 0.6rem;

@@ -813,14 +813,14 @@
                                 </svg>
                                 Add Order
                             </button>
-                            <button onclick="window.adminApp.exportToPDF()" class="btn btn-pdf btn-lg flex items-center"
-                                title="Export monthly report to PDF">
+                            <button onclick="window.adminApp.exportToCSV()" class="btn btn-emerald btn-lg flex items-center"
+                                title="Export current view to CSV">
                                 <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z">
+                                        d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
                                     </path>
                                 </svg>
-                                Export PDF
+                                Export CSV
                             </button>
                         </div>
                     </div>
@@ -3637,6 +3637,39 @@
             </button>
             <img id="inventory-viewer-img" src="" alt="Inventory Detail"
                 style="max-width: 100%; max-height: 85vh; object-fit: contain; border-radius: 8px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);">
+        </div>
+    </div>
+
+    <!-- Modal: Force Close Options -->
+    <div id="force-close-modal" class="modal hidden">
+        <div class="modal-backdrop" onclick="window.adminApp.closeModal('force-close-modal')"></div>
+        <div class="modal-content" style="max-width: 450px;">
+            <div class="modal-header">
+                <h3 class="text-xl font-bold text-slate-800">Force Close Order</h3>
+                <button class="modal-close" onclick="window.adminApp.closeModal('force-close-modal')">×</button>
+            </div>
+            <div class="modal-body p-6 text-center">
+                <div class="w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg width="32" height="32" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                    </svg>
+                </div>
+                <p class="text-slate-600 mb-6">Password verified. How would you like to close this order?</p>
+                <div class="flex flex-col gap-3">
+                    <button id="force-delivered-btn" class="btn btn-success w-full py-3 flex items-center justify-center gap-2">
+                        <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        Mark as Delivered
+                    </button>
+                    <button id="force-admin-close-btn" class="btn btn-secondary w-full py-3 flex items-center justify-center gap-2">
+                        <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        Mark Closed by Admin
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 

@@ -171,6 +171,7 @@ export const renderTable = (orders) => {
             if (status === 'DELIVERED') tr.className = 'row-delivered';
             else if (status === 'PARTIALLY DELIVERED' || status === 'PORTION DELIVERED') tr.className = 'row-portion';
             else if (status === 'PENDING') tr.className = 'row-pending';
+            else if (status === 'CLOSED BY ADMIN') tr.className = 'row-closed';
         } else {
             tr.className = 'row-deleted';
         }
@@ -188,6 +189,7 @@ export const renderTable = (orders) => {
             let badgeClass = 'status-pending';
             if (statusVal === 'Delivered') badgeClass = 'status-delivered';
             else if (statusVal === 'Partially Delivered' || statusVal === 'Portion Delivered') badgeClass = 'status-portion';
+            else if (statusVal === 'Closed by Admin') badgeClass = 'status-closed';
             statusHtml = `<span class="status-badge ${badgeClass}">${statusVal}</span>`;
         }
 
@@ -207,6 +209,9 @@ export const renderTable = (orders) => {
                 <div class="action-btns">
                     <button class="action-btn edit" onclick="window.adminApp.editOrder('${order.id}')" title="Edit">
                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                    </button>
+                    <button class="action-btn force-close" onclick="window.adminApp.forceCloseOrder('${order.id}')" title="Force Close">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
                     </button>
                     <button class="action-btn delete" onclick="window.adminApp.softDeleteOrder('${order.id}')" title="Move to Trash">
                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
@@ -534,9 +539,8 @@ const calculateOrderCosts = () => {
  * Export orders for the current VIEW to PDF
  * Uses jsPDF and jspdf-autotable
  */
-export const exportToPDF = () => {
+export const exportToCSV = () => {
     // 1. Get currently filtered orders (State Awareness)
-    // We need to re-apply the current filters to get the exact list user is seeing
     const allOrders = window.adminApp.getCurrentOrders ? window.adminApp.getCurrentOrders() : [];
 
     // Re-run filter logic to match UI
@@ -566,115 +570,65 @@ export const exportToPDF = () => {
     }
 
     try {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF('l', 'mm', 'a4'); // Landscape
-
         // Sort by Date (Descending default)
         exportOrders.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-        // Header
-        doc.setFontSize(18);
-        doc.setTextColor(20, 184, 166); // Teal
-        doc.text('INTERNAL ORDERS REPORT', 14, 15);
-
-        doc.setFontSize(10);
-        doc.setTextColor(100);
-        let periodStr = filterMonthFrom;
-        if (filterMonthFrom !== filterMonthTo) periodStr += ` to ${filterMonthTo}`;
-        doc.text(`Period: ${periodStr}`, 14, 22);
-        doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 27);
-
-        // 21-Column Mapping (Matching UI)
+        // Define Headers
         const headers = [
-            [
-                { content: '#', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
-                { content: 'Internal Order', colSpan: 2, styles: { halign: 'center' } },
-                { content: 'Item Details', colSpan: 3, styles: { halign: 'center' } },
-                { content: 'Pricing & Production', colSpan: 5, styles: { halign: 'center' } },
-                { content: 'Customer Data', colSpan: 6, styles: { halign: 'center' } },
-                { content: 'Delivery Actual', colSpan: 5, styles: { halign: 'center' } },
-                { content: 'Status', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } }
-            ],
-            [
-                'IO No', 'Date', 'Drg No', 'Description',
-                'Qty', 'Unit', 'Sale', 'InH', 'Out', 'Total',
-                'Customer', 'PO No', 'PO Date', 'Drg', 'Raw', 'Fin',
-                'Del Date', 'DC No', 'Del Qty', 'Bill No', 'Stat'
-            ]
+            'S.No', 'Internal Order No', 'Date', 'Drg No', 'Description', 'Qty', 'Unit',
+            'Sale Value Ea', 'In-House Value', 'Outsource Value', 'Total Value',
+            'Customer', 'PO No', 'PO Date', 'Drg Available', 'Raw Available', 'Finish Available',
+            'Del Date Actual', 'DC No', 'Del Qty', 'Bill No', 'Status'
         ];
 
+        // Map Rows
         const rows = exportOrders.map((o, index) => [
             index + 1,
-            o.internalOrderNo || '-',
+            `"${o.internalOrderNo || '-'}"`, // Quote to prevent CSV issues with leading zeros
             formatDate(o.date),
-            o.drawingNo || '-',
-            o.description || '-',
+            `"${o.drawingNo || '-'}"`,
+            `"${(o.description || '-').replace(/"/g, '""')}"`, // Escape quotes
             o.qty || 0,
             o.qtyUnit || '-',
             o.saleValueEa || o.value || 0,
             o.prodValueEa || 0,
             o.outsourceValue || 0,
             o.total || 0,
-            o.customer || '-',
-            o.poNo || '-',
+            `"${(o.customer || '-').replace(/"/g, '""')}"`,
+            `"${o.poNo || '-'}"`,
             formatDate(o.poDate),
             o.drgAvail === 'y' ? 'Y' : '-',
             o.rawAvail === 'y' ? 'Y' : '-',
             o.finishAvail === 'y' ? 'Y' : '-',
             formatDate(o.deliveryDateActual),
-            o.dcNo || '-',
+            `"${o.dcNo || '-'}"`,
             o.deliveryQty || 0,
-            o.billNo || '-',
+            `"${o.billNo || '-'}"`,
             o.status || 'Pending'
         ]);
 
-        doc.autoTable({
-            head: headers,
-            body: rows,
-            startY: 32,
-            theme: 'grid',
-            headStyles: { fillColor: [20, 184, 166], textColor: 255, fontSize: 7, valign: 'middle', halign: 'center' },
-            bodyStyles: { fontSize: 6, cellPadding: 1, valign: 'middle' },
-            columnStyles: {
-                0: { cellWidth: 7 },  // #
-                1: { cellWidth: 16 }, // IO No
-                2: { cellWidth: 13 }, // Date
-                3: { cellWidth: 12 }, // Code
-                4: { cellWidth: 12 }, // Drg No
-                5: { cellWidth: 22 }, // Desc
-                6: { cellWidth: 7 },  // Qty
-                7: { cellWidth: 8 },  // Unit
-                8: { cellWidth: 10 }, // Sale
-                9: { cellWidth: 9 },  // InH
-                10: { cellWidth: 9 }, // Out
-                11: { cellWidth: 12 }, // Total
-                12: { cellWidth: 16 }, // Cust
-                13: { cellWidth: 12 }, // PO
-                14: { cellWidth: 13 }, // PO Date
-                15: { cellWidth: 6 },  // Drg
-                16: { cellWidth: 6 },  // Raw
-                17: { cellWidth: 6 },  // Fin
-                18: { cellWidth: 13 }, // Del Date
-                19: { cellWidth: 9 },  // DC
-                20: { cellWidth: 7 },  // Del Qty
-                21: { cellWidth: 9 },  // Bill
-                22: { cellWidth: 14 }  // Status
-            },
-            didParseCell: (data) => {
-                // Color coding for status
-                if (data.section === 'body' && data.column.index === 22) {
-                    const status = data.cell.raw;
-                    if (status === 'Delivered') data.cell.styles.textColor = [22, 163, 74];
-                    else if (status === 'Pending') data.cell.styles.textColor = [202, 138, 4];
-                }
-            }
-        });
+        // Combine into CSV string
+        const csvContent = [
+            headers.join(','),
+            ...rows.map(row => row.join(','))
+        ].join('\n');
 
-        window.open(doc.output('bloburl'), '_blank');
+        // Create download link
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        const filename = `Internal_Orders_${new Date().toISOString().slice(0, 10)}.csv`;
+        
+        link.setAttribute('href', url);
+        link.setAttribute('download', filename);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
 
     } catch (error) {
-        console.error('PDF Export failed:', error);
-        alert('Failed to generate PDF. See console.');
+        console.error('CSV Export failed:', error);
+        alert('Failed to generate CSV. See console.');
     }
 };
 
