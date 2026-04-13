@@ -1820,18 +1820,21 @@ window.adminApp = {
             .hdr-right .io { font-size: 11pt; font-weight: 700; color: #059669; margin-top: 2px; white-space: nowrap; }
 
             /* === TABLES === */
-            table { width: 100%; border-collapse: collapse; margin-bottom: 0; table-layout: fixed; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 0; }
             td, th { border: 1.5px solid #94a3b8; padding: 4px 8px; font-size: 9pt; vertical-align: middle; }
 
             /* Section headers */
             .sec-hdr { background: #f0fdf4; color: #166534; font-weight: 800; font-size: 9pt; text-transform: uppercase; letter-spacing: 0.06em; padding: 6px 10px; }
 
             /* Master data labels */
-            .lbl { background: #f8fafc; font-weight: 700; font-size: 8.5pt; color: #334155; white-space: normal; overflow: visible; }
+            .lbl { background: #f8fafc; font-weight: 700; font-size: 8pt; color: #334155; white-space: normal; overflow: visible; }
             .val { font-weight: 600; color: #0f172a; white-space: normal; overflow-wrap: break-word; overflow: visible; }
             .val.nowrap { white-space: nowrap; }
 
-            /* Checklist */
+            /* Checklist Table specifically needs fixed layout for alignment */
+            .chk-table { table-layout: fixed; }
+
+            /* Checklist Colors */
             .chk { text-align: center; width: 35px; font-size: 11pt; color: #cbd5e1; }
             .chk.yes, .chk.ok { background: #dcfce7; color: #16a34a; font-weight: 800; }
             .chk.no, .chk.nok { background: #fee2e2; color: #dc2626; font-weight: 800; }
@@ -1871,20 +1874,20 @@ window.adminApp = {
         </div>
 
         <!-- SECTION 1: CUSTOMER DATA + INTERNAL ORDER -->
-        <table style="width: 100%;">
+        <table>
             <tr>
                 <td colspan="4" class="sec-hdr">Customer Data</td>
-                <td colspan="5" class="sec-hdr">Internal Order</td>
+                <td colspan="4" class="sec-hdr">Internal Order</td>
             </tr>
             <tr>
-                <td class="lbl" style="width:11%">PO No</td>
-                <td class="val" style="width:13%">${poNo}</td>
-                <td class="lbl" style="width:10%">Date</td>
-                <td class="val nowrap" style="width:16%">${crDate}</td>
-                <td class="lbl" style="width:10%">Date</td>
-                <td class="val nowrap" style="width:16%">${intDate}</td>
+                <td class="lbl" style="width:14%">PO No</td>
+                <td class="val" style="width:11%">${poNo}</td>
+                <td class="lbl" style="width:12%">Date</td>
+                <td class="val nowrap" style="width:13%">${crDate}</td>
+                <td class="lbl" style="width:12%">Date</td>
+                <td class="val nowrap" style="width:13%">${intDate}</td>
                 <td class="lbl" style="width:11%">IO Num</td>
-                <td class="val nowrap" colspan="2" style="color:#059669;font-weight:700;">${ioNumber}</td>
+                <td class="val nowrap" style="width:14%;color:#059669;font-weight:800;">${ioNumber}</td>
             </tr>
             <tr>
                 <td class="lbl">Drg No</td>
@@ -1911,7 +1914,7 @@ window.adminApp = {
         <div class="spacer"></div>
 
         <!-- SECTION 2: CHECKLIST -->
-        <table>
+        <table class="chk-table">
             <tr class="sub-hdr">
                 <td rowspan="2" style="width:40px;">S.No</td>
                 <td rowspan="2">Checklist Items</td>
