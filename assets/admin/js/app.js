@@ -1827,9 +1827,9 @@ window.adminApp = {
             .sec-hdr { background: #f0fdf4; color: #166534; font-weight: 800; font-size: 9pt; text-transform: uppercase; letter-spacing: 0.06em; padding: 6px 10px; }
 
             /* Master data labels */
-            .lbl { background: #f8fafc; font-weight: 700; font-size: 8.5pt; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-            .val { font-weight: 600; color: #0f172a; overflow-wrap: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-            .val.wrap { white-space: normal; overflow-wrap: break-word; }
+            .lbl { background: #f8fafc; font-weight: 700; font-size: 8.5pt; color: #334155; white-space: normal; overflow: visible; }
+            .val { font-weight: 600; color: #0f172a; white-space: normal; overflow-wrap: break-word; overflow: visible; }
+            .val.nowrap { white-space: nowrap; }
 
             /* Checklist */
             .chk { text-align: center; width: 35px; font-size: 11pt; color: #cbd5e1; }
@@ -1878,21 +1878,21 @@ window.adminApp = {
             </tr>
             <tr>
                 <td class="lbl" style="width:11%">PO No</td>
-                <td class="val" style="width:14%">${poNo}</td>
-                <td class="lbl" style="width:11%">Date</td>
-                <td class="val" style="width:14%">${crDate}</td>
-                <td class="lbl" style="width:11%">Date</td>
-                <td class="val" style="width:14%">${intDate}</td>
+                <td class="val" style="width:13%">${poNo}</td>
+                <td class="lbl" style="width:10%">Date</td>
+                <td class="val nowrap" style="width:16%">${crDate}</td>
+                <td class="lbl" style="width:10%">Date</td>
+                <td class="val nowrap" style="width:16%">${intDate}</td>
                 <td class="lbl" style="width:11%">IO Num</td>
-                <td class="val" colspan="2" style="color:#059669;font-weight:700;">${ioNumber}</td>
+                <td class="val nowrap" colspan="2" style="color:#059669;font-weight:700;">${ioNumber}</td>
             </tr>
             <tr>
                 <td class="lbl">Drg No</td>
                 <td class="val">${drgNo}</td>
                 <td class="lbl">Del Date</td>
-                <td class="val">${delDate}</td>
-                <td class="lbl">Account/PL</td>
-                <td class="val wrap" colspan="2">${accountability}</td>
+                <td class="val nowrap">${delDate}</td>
+                <td class="lbl">Accountability/PL</td>
+                <td class="val" colspan="2">${accountability}</td>
                 <td class="lbl">Team</td>
                 <td class="val">${team}</td>
             </tr>
@@ -1900,11 +1900,11 @@ window.adminApp = {
                 <td class="lbl">Contact</td>
                 <td class="val">${contactPerson}</td>
                 <td class="lbl">Ph No</td>
-                <td class="val">${phone}</td>
-                <td class="lbl">Team Ldr</td>
-                <td class="val wrap" colspan="2">${teamLeader}</td>
+                <td class="val nowrap">${phone}</td>
+                <td class="lbl">Team leader</td>
+                <td class="val" colspan="2">${teamLeader}</td>
                 <td class="lbl">Members</td>
-                <td class="val wrap">${members}</td>
+                <td class="val">${members}</td>
             </tr>
         </table>
 
