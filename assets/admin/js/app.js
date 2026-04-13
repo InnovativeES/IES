@@ -1725,146 +1725,260 @@ window.adminApp = {
 
 
     printContractReview: () => {
-        const printWindow = window.open('', '_blank', 'width=1100,height=850');
-        const crContainer = document.querySelector('.cr-modern-container');
-        if (!crContainer || !printWindow) return;
+        const pw = window.open('', '_blank', 'width=900,height=1000');
+        if (!pw) return;
 
-        // Collect essential styles
-        const styles = Array.from(document.styleSheets)
-            .map(sheet => {
-                try {
-                    return Array.from(sheet.cssRules).map(rule => rule.cssText).join('');
-                } catch (e) { return ''; }
-            }).join('');
+        // --- Read all field values from the live DOM ---
+        const v = (id) => document.getElementById(id)?.value || '';
+        const selText = (id) => { const s = document.getElementById(id); return s ? (s.options?.[s.selectedIndex]?.text || s.value || '') : ''; };
+        const tagText = (containerId) => {
+            const c = document.getElementById(containerId);
+            if (!c) return '';
+            return Array.from(c.querySelectorAll('.search-tag-text, .tag-text')).map(t => t.textContent.trim()).join(', ') || c.querySelector('input[type=hidden]')?.value || '';
+        };
 
-        const ioNo = document.getElementById('cr-review-no')?.value || '-';
+        const ioNo = v('cr-review-no');
+        const poNo = v('cr-po-no');
+        const drgNo = v('cr-drawing-no');
+        const crDate = v('cr-date');
+        const delDate = v('cr-delivery-date');
+        const contactPerson = v('cr-contact-person');
+        const phone = v('cr-phone');
+        const intDate = v('cr-internal-date');
+        const ioNumber = v('cr-io-number');
+        const team = selText('cr-team').replace('Select Team', '');
+        const accountability = tagText('cr-search-accountability');
+        const teamLeader = tagText('cr-search-team-leader');
+        const members = tagText('cr-search-members');
+        const instructions = v('cr-important-instructions');
+        const printDate = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
-        printWindow.document.write(`
-            <html>
-            <head>
-                <title>Contract Review - ${ioNo}</title>
-                <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-                <style>
-                    ${styles}
-                    @page { 
-                        size: A4 landscape; 
-                        margin: 5mm; 
-                    }
-                    body { 
-                        font-family: 'Inter', sans-serif; 
-                        padding: 0; 
-                        margin: 0;
-                        background: white; 
-                        color: black;
-                        -webkit-print-color-adjust: exact !important;
-                        print-color-adjust: exact !important;
-                        zoom: 0.68; /* Aggressive scale for single page */
-                    }
-                    
-                    /* Ultra-compact Header */
-                    .cr-print-header { 
-                        display: block !important; 
-                        margin-bottom: 2px !important; 
-                        padding-bottom: 5px !important;
-                        border-bottom: 2px solid #0f172a !important;
-                    }
-                    .cr-print-header div[style*="font-size: 24pt"] { font-size: 16pt !important; }
-                    .cr-print-header div[style*="font-size: 20pt"] { font-size: 14pt !important; }
-                    .cr-print-header div[style*="font-size: 11pt"] { font-size: 8pt !important; }
-                    
-                    /* UI Elements Hiding */
-                    .cr-footer-actions, .cr-no-print, .btn, .cr-item-delete-btn, .cr-no-print-custom, .cr-status-badge { display: none !important; }
-                    
-                    /* Table Compaction */
-                    .cr-modern-container { 
-                        display: flex !important; 
-                        flex-direction: column !important; 
-                        gap: 4px !important; 
-                        padding: 0 !important;
-                        width: 100% !important;
-                    }
-                    .cr-section-card { 
-                        box-shadow: none !important; 
-                        border: 1px solid #94a3b8 !important;
-                        margin-bottom: 0 !important;
-                        page-break-inside: avoid !important;
-                        border-radius: 4px !important;
-                    }
-                    .cr-card-table td, .cr-card-table th { 
-                        border: 1px solid #94a3b8 !important;
-                        padding: 2px 4px !important;
-                        font-size: 8pt !important;
-                        line-height: 1.1 !important;
-                    }
-                    .cr-emerald-bg { 
-                        background-color: #f0fdf4 !important; 
-                        color: #166534 !important;
-                        font-weight: 800 !important;
-                        font-size: 7.5pt !important;
-                        padding: 2px 4px !important;
-                    }
-                    .cr-master-label { font-size: 7.5pt !important; font-weight: 700 !important; background: #f8fafc !important; }
-                    
-                    /* Form Controls to Text */
-                    input, textarea, select {
-                        border: none !important;
-                        background: transparent !important;
-                        font-weight: 600 !important;
-                        padding: 0 !important;
-                        margin: 0 !important;
-                        font-size: 8pt !important;
-                        min-height: 0 !important;
-                    }
-                    
-                    .outcome-tile { 
-                        width: 16px !important; 
-                        height: 16px !important; 
-                        margin: auto !important;
-                        border: 1px solid #cbd5e1 !important; 
-                    }
-                    .cr-tick { font-weight: 800 !important; font-size: 8pt !important; }
-                    
-                    /* Force Textareas to collapse if small */
-                    #cr-important-instructions { min-height: 40px !important; height: auto !important; }
-                    
-                    /* Final Section Layout */
-                    .cr-decision-notes { padding: 4px !important; margin-top: 2px !important; font-size: 7pt !important; }
-                    .cr-decision-notes strong { font-size: 7.5pt !important; }
-                </style>
-            </head>
-            <body>
-                <div class="cr-modern-container">
-                    ${crContainer.innerHTML}
-                </div>
-                <script>
-                    document.querySelectorAll('input, select, textarea').forEach(el => {
-                        let val = '';
-                        if (el.tagName === 'SELECT') {
-                            val = el.options[el.selectedIndex]?.text || '';
-                            if (val === '-' || val.includes('Select')) val = ''; 
-                        } else {
-                            val = el.value || '';
-                        }
-                        
-                        const wrapper = document.createElement('span');
-                        wrapper.textContent = val;
-                        wrapper.style.display = 'inline-block';
-                        wrapper.style.minWidth = '5px';
-                        
-                        el.parentNode.insertBefore(wrapper, el);
-                        el.style.display = 'none';
-                    });
-                    
-                    window.onload = () => {
-                         setTimeout(() => {
-                            window.print();
-                         }, 600);
-                    };
-                </script>
-            </body>
-            </html>
-        `);
-        printWindow.document.close();
+        // 6M comments
+        const cmt = (f) => document.querySelector(`[data-field="cmt-${f}"]`)?.value || '';
+        const sixM = [
+            ['Matl', cmt('matl')], ['Machine', cmt('machine')], ['Man', cmt('man')],
+            ['Method', cmt('method')], ['Measure', cmt('measure')], ['Tools', cmt('tools')]
+        ];
+
+        // Decisions
+        const decCap = selText('cr-decision-cap') === '-' ? '' : (document.querySelector('[data-field="cr-decision-cap"]')?.value || '');
+        const decOA = selText('cr-decision-oa') === '-' ? '' : (document.querySelector('[data-field="cr-decision-oa"]')?.value || '');
+        const preparedBy = tagText('cr-search-prepared');
+        const reviewedBy = tagText('cr-search-reviewed');
+        const approvedBy = tagText('cr-search-approved');
+
+        // Checklist rows from DOM
+        const checklistRows = [];
+        document.querySelectorAll('#cr-excel-checklist .cr-item-row').forEach((row, i) => {
+            const label = row.querySelector('.cr-custom-label')?.value || row.querySelector('span.px-3')?.textContent?.trim() || '';
+            const req = row.dataset.reqVal || '';
+            const out = row.dataset.outVal || '';
+            const more = row.dataset.moreVal || 'false';
+            const remarks = row.querySelector('.cr-remarks-input')?.value || '';
+            checklistRows.push({ num: i + 1, label, req, out, more, remarks });
+        });
+
+        // --- Build checklist rows HTML ---
+        const tick = '✓';
+        const circle = '○';
+        const checklistHTML = checklistRows.map(r => `
+            <tr>
+                <td style="text-align:center;color:#64748b;">${r.num}</td>
+                <td style="font-weight:600;">${r.label}</td>
+                <td class="chk ${r.req === 'yes' ? 'yes' : ''}">${r.req === 'yes' ? tick : circle}</td>
+                <td class="chk ${r.req === 'no' ? 'no' : ''}">${r.req === 'no' ? tick : circle}</td>
+                <td class="chk ${r.out === 'ok' ? 'ok' : ''}">${r.out === 'ok' ? tick : circle}</td>
+                <td class="chk ${r.out === 'nok' ? 'nok' : ''}">${r.out === 'nok' ? tick : circle}</td>
+                <td class="chk ${r.out === 'na' ? 'na' : ''}">${r.out === 'na' ? tick : circle}</td>
+                <td class="chk ${r.more === 'true' ? 'more' : ''}">${r.more === 'true' ? tick : circle}</td>
+                <td style="color:#475569;">${r.remarks}</td>
+            </tr>
+        `).join('');
+
+        // --- 6M HTML ---
+        const sixMHTML = sixM.map(([label, val]) => `
+            <tr><td class="lbl">${label}</td><td class="val">${val}</td></tr>
+        `).join('');
+
+        // --- Write the complete self-contained document ---
+        pw.document.write(`<!DOCTYPE html><html><head>
+        <title>Contract Review - ${ioNo}</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+        <style>
+            @page { size: A4 portrait; margin: 6mm 8mm; }
+            * { box-sizing: border-box; margin: 0; padding: 0; }
+            body { font-family: 'Inter', sans-serif; font-size: 7.5pt; color: #1e293b; line-height: 1.25;
+                -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+
+            /* === HEADER === */
+            .hdr { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2.5px solid #0f172a; padding-bottom: 4px; margin-bottom: 5px; }
+            .hdr-left .company { font-size: 13pt; font-weight: 800; color: #0f172a; letter-spacing: 0.03em; }
+            .hdr-left .tagline { font-size: 7pt; color: #64748b; letter-spacing: 0.08em; margin-top: 1px; }
+            .hdr-right { text-align: right; }
+            .hdr-right .title { font-size: 11pt; font-weight: 700; color: #0f172a; }
+            .hdr-right .date { font-size: 7pt; color: #64748b; }
+            .hdr-right .io { font-size: 8pt; font-weight: 700; color: #059669; margin-top: 1px; }
+
+            /* === TABLES === */
+            table { width: 100%; border-collapse: collapse; }
+            td, th { border: 1px solid #94a3b8; padding: 2px 4px; font-size: 7.5pt; vertical-align: middle; }
+
+            /* Section headers */
+            .sec-hdr { background: #f0fdf4; color: #166534; font-weight: 800; font-size: 7pt; text-transform: uppercase; letter-spacing: 0.06em; padding: 3px 5px; }
+
+            /* Master data labels */
+            .lbl { background: #f8fafc; font-weight: 700; font-size: 7pt; color: #334155; white-space: nowrap; }
+            .val { font-weight: 600; color: #0f172a; }
+
+            /* Checklist */
+            .chk { text-align: center; width: 28px; font-size: 8pt; color: #94a3b8; }
+            .chk.yes, .chk.ok { background: #dcfce7; color: #16a34a; font-weight: 800; }
+            .chk.no, .chk.nok { background: #fee2e2; color: #dc2626; font-weight: 800; }
+            .chk.na { background: #f1f5f9; color: #64748b; font-weight: 700; }
+            .chk.more { background: #fef3c7; color: #d97706; font-weight: 800; }
+
+            /* Sub-header row */
+            .sub-hdr td { background: #f0fdf4; color: #166534; font-weight: 800; font-size: 6.5pt; text-align: center; text-transform: uppercase; }
+
+            /* Spacing between sections */
+            .spacer { height: 4px; }
+
+            /* Instructions area */
+            .instr-box { min-height: 55px; padding: 3px 5px; white-space: pre-wrap; font-size: 7pt; color: #334155; vertical-align: top; }
+
+            /* Decision */
+            .dec-val { font-weight: 800; text-align: center; font-size: 8pt; }
+            .dec-ok { color: #16a34a; }
+            .dec-nok { color: #dc2626; }
+
+            /* Footer notes */
+            .notes { font-size: 6.5pt; color: #64748b; padding: 3px 5px; border-top: 1px dashed #cbd5e1; margin-top: 3px; }
+            .notes strong { font-size: 6.5pt; color: #334155; text-transform: uppercase; letter-spacing: 0.05em; }
+        </style></head><body>
+
+        <!-- HEADER -->
+        <div class="hdr">
+            <div class="hdr-left">
+                <div class="company">INNOVATIVE ENGINEERING SOLUTIONS</div>
+                <div class="tagline">PRECISION • QUALITY • DELIVERY</div>
+            </div>
+            <div class="hdr-right">
+                <div class="title">Contract Review</div>
+                <div class="date">${printDate}</div>
+                <div class="io">${ioNo}</div>
+            </div>
+        </div>
+
+        <!-- SECTION 1: CUSTOMER DATA + INTERNAL ORDER -->
+        <table>
+            <tr>
+                <td colspan="4" class="sec-hdr">Customer Data</td>
+                <td colspan="5" class="sec-hdr">Internal Order</td>
+            </tr>
+            <tr>
+                <td class="lbl" style="width:11%">PO No</td>
+                <td class="val" style="width:14%">${poNo}</td>
+                <td class="lbl" style="width:11%">Date</td>
+                <td class="val" style="width:14%">${crDate}</td>
+                <td class="lbl" style="width:11%">Date</td>
+                <td class="val" style="width:14%">${intDate}</td>
+                <td class="lbl" style="width:11%">IO Number</td>
+                <td class="val" colspan="2" style="color:#059669;font-weight:700;">${ioNumber}</td>
+            </tr>
+            <tr>
+                <td class="lbl">Drg No</td>
+                <td class="val">${drgNo}</td>
+                <td class="lbl">Del Date</td>
+                <td class="val">${delDate}</td>
+                <td class="lbl">Account/PL</td>
+                <td class="val" colspan="2">${accountability}</td>
+                <td class="lbl">Team</td>
+                <td class="val">${team}</td>
+            </tr>
+            <tr>
+                <td class="lbl">Contact</td>
+                <td class="val">${contactPerson}</td>
+                <td class="lbl">Ph No</td>
+                <td class="val">${phone}</td>
+                <td class="lbl">Team Ldr</td>
+                <td class="val" colspan="2">${teamLeader}</td>
+                <td class="lbl">Members</td>
+                <td class="val">${members}</td>
+            </tr>
+        </table>
+
+        <div class="spacer"></div>
+
+        <!-- SECTION 2: CHECKLIST -->
+        <table>
+            <tr class="sub-hdr">
+                <td rowspan="2" style="width:4%;">S.No</td>
+                <td rowspan="2" style="width:22%;">Checklist Items</td>
+                <td colspan="2">Requirement</td>
+                <td colspan="4">Review Outcome</td>
+                <td rowspan="2" style="width:22%;">Remarks</td>
+            </tr>
+            <tr class="sub-hdr">
+                <td>Yes</td><td>No</td><td>Ok</td><td>Nok</td><td>N.A</td><td>Clarity</td>
+            </tr>
+            ${checklistHTML}
+        </table>
+
+        <div class="spacer"></div>
+
+        <!-- SECTION 3: INSTRUCTIONS + 6M -->
+        <table>
+            <tr>
+                <td colspan="2" class="sec-hdr" style="width:55%;">Important Instructions</td>
+                <td class="sec-hdr" style="width:15%;">Points</td>
+                <td class="sec-hdr" style="width:30%;">Comments</td>
+            </tr>
+            <tr>
+                <td colspan="2" rowspan="6" class="instr-box">${instructions.replace(/\n/g, '<br>')}</td>
+                <td class="lbl">Matl</td><td class="val">${sixM[0][1]}</td>
+            </tr>
+            <tr><td class="lbl">Machine</td><td class="val">${sixM[1][1]}</td></tr>
+            <tr><td class="lbl">Man</td><td class="val">${sixM[2][1]}</td></tr>
+            <tr><td class="lbl">Method</td><td class="val">${sixM[3][1]}</td></tr>
+            <tr><td class="lbl">Measure</td><td class="val">${sixM[4][1]}</td></tr>
+            <tr><td class="lbl">Tools</td><td class="val">${sixM[5][1]}</td></tr>
+        </table>
+
+        <div class="spacer"></div>
+
+        <!-- SECTION 4: FINAL VERIFICATION -->
+        <table>
+            <tr><td colspan="8" class="sec-hdr">Final Verification & Order Acceptance</td></tr>
+            <tr class="sub-hdr">
+                <td colspan="2">Decision</td>
+                <td>Ok/Nok</td>
+                <td colspan="2">Prepared By</td>
+                <td colspan="2">Reviewed By</td>
+                <td>Approved By</td>
+            </tr>
+            <tr>
+                <td colspan="2" class="lbl" style="text-align:right;">Capability</td>
+                <td class="dec-val ${decCap === 'ok' ? 'dec-ok' : decCap === 'nok' ? 'dec-nok' : ''}">${decCap ? decCap.toUpperCase() : ''}</td>
+                <td colspan="2" rowspan="2" class="val" style="text-align:center;">${preparedBy}</td>
+                <td colspan="2" rowspan="2" class="val" style="text-align:center;">${reviewedBy}</td>
+                <td rowspan="2" class="val" style="text-align:center;">${approvedBy}</td>
+            </tr>
+            <tr>
+                <td colspan="2" class="lbl" style="text-align:right;">Order Acceptance</td>
+                <td class="dec-val ${decOA === 'ok' ? 'dec-ok' : decOA === 'nok' ? 'dec-nok' : ''}">${decOA ? decOA.toUpperCase() : ''}</td>
+            </tr>
+        </table>
+
+        <!-- FOOTER NOTES -->
+        <div class="notes">
+            <strong>Execution Guidelines:</strong>
+            1. PL to prepare Job Card and plan for resources from Day 1 itself for smooth completion.
+            2. TL to own full Responsibility for Job Quality and Delivery.
+        </div>
+
+        <script>window.onload = () => setTimeout(() => window.print(), 400);</script>
+        </body></html>`);
+        pw.document.close();
     },
 
     renderProjectCards: (projects) => {
