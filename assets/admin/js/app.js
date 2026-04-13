@@ -1728,8 +1728,13 @@ window.adminApp = {
         const pw = window.open('', '_blank', 'width=900,height=1000');
         if (!pw) return;
 
-        // --- Read all field values from the live DOM ---
+        // --- Helpers ---
         const v = (id) => document.getElementById(id)?.value || '';
+        const formatDate = (isoStr) => {
+            if (!isoStr || !isoStr.includes('-')) return isoStr || '';
+            const [y, m, d] = isoStr.split('-');
+            return `${d}-${m}-${y}`;
+        };
         const selText = (id) => { const s = document.getElementById(id); return s ? (s.options?.[s.selectedIndex]?.text || s.value || '') : ''; };
         const tagText = (containerId) => {
             const c = document.getElementById(containerId);
@@ -1740,18 +1745,18 @@ window.adminApp = {
         const ioNo = v('cr-review-no');
         const poNo = v('cr-po-no');
         const drgNo = v('cr-drawing-no');
-        const crDate = v('cr-date');
-        const delDate = v('cr-delivery-date');
+        const crDate = formatDate(v('cr-date'));
+        const delDate = formatDate(v('cr-delivery-date'));
         const contactPerson = v('cr-contact-person');
         const phone = v('cr-phone');
-        const intDate = v('cr-internal-date');
+        const intDate = formatDate(v('cr-internal-date'));
         const ioNumber = v('cr-io-number');
         const team = selText('cr-team').replace('Select Team', '');
         const accountability = tagText('cr-search-accountability');
         const teamLeader = tagText('cr-search-team-leader');
         const members = tagText('cr-search-members');
         const instructions = v('cr-important-instructions');
-        const printDate = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+        const printDate = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
 
         // 6M comments
         const cmt = (f) => document.querySelector(`[data-field="cmt-${f}"]`)?.value || '';
@@ -1795,11 +1800,6 @@ window.adminApp = {
             </tr>
         `).join('');
 
-        // --- 6M HTML ---
-        const sixMHTML = sixM.map(([label, val]) => `
-            <tr><td class="lbl">${label}</td><td class="val">${val}</td></tr>
-        `).join('');
-
         // --- Write the complete self-contained document ---
         pw.document.write(`<!DOCTYPE html><html><head>
         <title>Contract Review - ${ioNo}</title>
@@ -1816,8 +1816,8 @@ window.adminApp = {
             .hdr-left .tagline { font-size: 8.5pt; color: #64748b; letter-spacing: 0.08em; margin-top: 2px; }
             .hdr-right { text-align: right; }
             .hdr-right .title { font-size: 15pt; font-weight: 700; color: #0f172a; }
-            .hdr-right .date { font-size: 9pt; color: #64748b; }
-            .hdr-right .io { font-size: 11pt; font-weight: 700; color: #059669; margin-top: 2px; }
+            .hdr-right .date { font-size: 9pt; color: #64748b; white-space: nowrap; }
+            .hdr-right .io { font-size: 11pt; font-weight: 700; color: #059669; margin-top: 2px; white-space: nowrap; }
 
             /* === TABLES === */
             table { width: 100%; border-collapse: collapse; margin-bottom: 0; table-layout: fixed; }
@@ -1827,8 +1827,9 @@ window.adminApp = {
             .sec-hdr { background: #f0fdf4; color: #166534; font-weight: 800; font-size: 9pt; text-transform: uppercase; letter-spacing: 0.06em; padding: 6px 10px; }
 
             /* Master data labels */
-            .lbl { background: #f8fafc; font-weight: 700; font-size: 8.5pt; color: #334155; white-space: nowrap; }
-            .val { font-weight: 600; color: #0f172a; overflow-wrap: break-word; }
+            .lbl { background: #f8fafc; font-weight: 700; font-size: 8.5pt; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .val { font-weight: 600; color: #0f172a; overflow-wrap: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .val.wrap { white-space: normal; overflow-wrap: break-word; }
 
             /* Checklist */
             .chk { text-align: center; width: 35px; font-size: 11pt; color: #cbd5e1; }
@@ -1891,7 +1892,7 @@ window.adminApp = {
                 <td class="lbl">Del Date</td>
                 <td class="val">${delDate}</td>
                 <td class="lbl">Account/PL</td>
-                <td class="val" colspan="2">${accountability}</td>
+                <td class="val wrap" colspan="2">${accountability}</td>
                 <td class="lbl">Team</td>
                 <td class="val">${team}</td>
             </tr>
@@ -1901,9 +1902,9 @@ window.adminApp = {
                 <td class="lbl">Ph No</td>
                 <td class="val">${phone}</td>
                 <td class="lbl">Team Ldr</td>
-                <td class="val" colspan="2">${teamLeader}</td>
+                <td class="val wrap" colspan="2">${teamLeader}</td>
                 <td class="lbl">Members</td>
-                <td class="val">${members}</td>
+                <td class="val wrap">${members}</td>
             </tr>
         </table>
 
@@ -1961,9 +1962,9 @@ window.adminApp = {
             <tr>
                 <td colspan="2" class="lbl" style="text-align:right;">Capability</td>
                 <td class="dec-val ${decCap === 'ok' ? 'dec-ok' : decCap === 'nok' ? 'dec-nok' : ''}">${decCap ? decCap.toUpperCase() : ''}</td>
-                <td colspan="2" rowspan="2" class="val" style="text-align:center;height:45px;">${preparedBy}</td>
-                <td colspan="2" rowspan="2" class="val" style="text-align:center;">${reviewedBy}</td>
-                <td rowspan="2" class="val" style="text-align:center;">${approvedBy}</td>
+                <td colspan="2" rowspan="2" class="val wrap" style="text-align:center;height:45px;">${preparedBy}</td>
+                <td colspan="2" rowspan="2" class="val wrap" style="text-align:center;">${reviewedBy}</td>
+                <td rowspan="2" class="val wrap" style="text-align:center;">${approvedBy}</td>
             </tr>
             <tr>
                 <td colspan="2" class="lbl" style="text-align:right;">Order Acceptance</td>
