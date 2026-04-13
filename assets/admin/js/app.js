@@ -1805,55 +1805,55 @@ window.adminApp = {
         <title>Contract Review - ${ioNo}</title>
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
         <style>
-            @page { size: A4 portrait; margin: 6mm 8mm; }
+            @page { size: A4 portrait; margin: 10mm 12mm; }
             * { box-sizing: border-box; margin: 0; padding: 0; }
-            body { font-family: 'Inter', sans-serif; font-size: 7.5pt; color: #1e293b; line-height: 1.25;
+            body { font-family: 'Inter', sans-serif; font-size: 9.5pt; color: #1e293b; line-height: 1.4;
                 -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 
             /* === HEADER === */
-            .hdr { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2.5px solid #0f172a; padding-bottom: 4px; margin-bottom: 5px; }
-            .hdr-left .company { font-size: 13pt; font-weight: 800; color: #0f172a; letter-spacing: 0.03em; }
-            .hdr-left .tagline { font-size: 7pt; color: #64748b; letter-spacing: 0.08em; margin-top: 1px; }
+            .hdr { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #0f172a; padding-bottom: 6px; margin-bottom: 10px; }
+            .hdr-left .company { font-size: 18pt; font-weight: 800; color: #0f172a; letter-spacing: 0.02em; }
+            .hdr-left .tagline { font-size: 8.5pt; color: #64748b; letter-spacing: 0.08em; margin-top: 2px; }
             .hdr-right { text-align: right; }
-            .hdr-right .title { font-size: 11pt; font-weight: 700; color: #0f172a; }
-            .hdr-right .date { font-size: 7pt; color: #64748b; }
-            .hdr-right .io { font-size: 8pt; font-weight: 700; color: #059669; margin-top: 1px; }
+            .hdr-right .title { font-size: 15pt; font-weight: 700; color: #0f172a; }
+            .hdr-right .date { font-size: 9pt; color: #64748b; }
+            .hdr-right .io { font-size: 11pt; font-weight: 700; color: #059669; margin-top: 2px; }
 
             /* === TABLES === */
-            table { width: 100%; border-collapse: collapse; }
-            td, th { border: 1px solid #94a3b8; padding: 2px 4px; font-size: 7.5pt; vertical-align: middle; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 0; table-layout: fixed; }
+            td, th { border: 1.5px solid #94a3b8; padding: 4px 8px; font-size: 9pt; vertical-align: middle; }
 
             /* Section headers */
-            .sec-hdr { background: #f0fdf4; color: #166534; font-weight: 800; font-size: 7pt; text-transform: uppercase; letter-spacing: 0.06em; padding: 3px 5px; }
+            .sec-hdr { background: #f0fdf4; color: #166534; font-weight: 800; font-size: 9pt; text-transform: uppercase; letter-spacing: 0.06em; padding: 6px 10px; }
 
             /* Master data labels */
-            .lbl { background: #f8fafc; font-weight: 700; font-size: 7pt; color: #334155; white-space: nowrap; }
-            .val { font-weight: 600; color: #0f172a; }
+            .lbl { background: #f8fafc; font-weight: 700; font-size: 8.5pt; color: #334155; white-space: nowrap; }
+            .val { font-weight: 600; color: #0f172a; overflow-wrap: break-word; }
 
             /* Checklist */
-            .chk { text-align: center; width: 28px; font-size: 8pt; color: #94a3b8; }
+            .chk { text-align: center; width: 35px; font-size: 11pt; color: #cbd5e1; }
             .chk.yes, .chk.ok { background: #dcfce7; color: #16a34a; font-weight: 800; }
             .chk.no, .chk.nok { background: #fee2e2; color: #dc2626; font-weight: 800; }
             .chk.na { background: #f1f5f9; color: #64748b; font-weight: 700; }
             .chk.more { background: #fef3c7; color: #d97706; font-weight: 800; }
 
             /* Sub-header row */
-            .sub-hdr td { background: #f0fdf4; color: #166534; font-weight: 800; font-size: 6.5pt; text-align: center; text-transform: uppercase; }
+            .sub-hdr td { background: #f0fdf4; color: #166534; font-weight: 800; font-size: 8pt; text-align: center; text-transform: uppercase; padding: 4px; }
 
             /* Spacing between sections */
-            .spacer { height: 4px; }
+            .spacer { height: 8px; }
 
             /* Instructions area */
-            .instr-box { min-height: 55px; padding: 3px 5px; white-space: pre-wrap; font-size: 7pt; color: #334155; vertical-align: top; }
+            .instr-box { min-height: 80px; padding: 8px 10px; white-space: pre-wrap; font-size: 9pt; color: #334155; vertical-align: top; }
 
             /* Decision */
-            .dec-val { font-weight: 800; text-align: center; font-size: 8pt; }
+            .dec-val { font-weight: 800; text-align: center; font-size: 10pt; }
             .dec-ok { color: #16a34a; }
             .dec-nok { color: #dc2626; }
 
             /* Footer notes */
-            .notes { font-size: 6.5pt; color: #64748b; padding: 3px 5px; border-top: 1px dashed #cbd5e1; margin-top: 3px; }
-            .notes strong { font-size: 6.5pt; color: #334155; text-transform: uppercase; letter-spacing: 0.05em; }
+            .notes { font-size: 8pt; color: #64748b; padding: 8px 10px; border-top: 1px dashed #cbd5e1; margin-top: 10px; }
+            .notes strong { font-size: 8.5pt; color: #334155; text-transform: uppercase; letter-spacing: 0.05em; }
         </style></head><body>
 
         <!-- HEADER -->
@@ -1870,7 +1870,7 @@ window.adminApp = {
         </div>
 
         <!-- SECTION 1: CUSTOMER DATA + INTERNAL ORDER -->
-        <table>
+        <table style="width: 100%;">
             <tr>
                 <td colspan="4" class="sec-hdr">Customer Data</td>
                 <td colspan="5" class="sec-hdr">Internal Order</td>
@@ -1882,7 +1882,7 @@ window.adminApp = {
                 <td class="val" style="width:14%">${crDate}</td>
                 <td class="lbl" style="width:11%">Date</td>
                 <td class="val" style="width:14%">${intDate}</td>
-                <td class="lbl" style="width:11%">IO Number</td>
+                <td class="lbl" style="width:11%">IO Num</td>
                 <td class="val" colspan="2" style="color:#059669;font-weight:700;">${ioNumber}</td>
             </tr>
             <tr>
@@ -1912,14 +1912,16 @@ window.adminApp = {
         <!-- SECTION 2: CHECKLIST -->
         <table>
             <tr class="sub-hdr">
-                <td rowspan="2" style="width:4%;">S.No</td>
-                <td rowspan="2" style="width:22%;">Checklist Items</td>
-                <td colspan="2">Requirement</td>
-                <td colspan="4">Review Outcome</td>
-                <td rowspan="2" style="width:22%;">Remarks</td>
+                <td rowspan="2" style="width:40px;">S.No</td>
+                <td rowspan="2">Checklist Items</td>
+                <td colspan="2" style="width:80px;">Req</td>
+                <td colspan="4" style="width:160px;">Review Outcome</td>
+                <td rowspan="2" style="width:250px;">Remarks</td>
             </tr>
             <tr class="sub-hdr">
-                <td>Yes</td><td>No</td><td>Ok</td><td>Nok</td><td>N.A</td><td>Clarity</td>
+                <td style="width:40px;">Yes</td><td style="width:40px;">No</td>
+                <td style="width:40px;">Ok</td><td style="width:40px;">Nok</td>
+                <td style="width:40px;">N.A</td><td style="width:40px;">Clarity</td>
             </tr>
             ${checklistHTML}
         </table>
@@ -1930,7 +1932,7 @@ window.adminApp = {
         <table>
             <tr>
                 <td colspan="2" class="sec-hdr" style="width:55%;">Important Instructions</td>
-                <td class="sec-hdr" style="width:15%;">Points</td>
+                <td class="sec-hdr" style="width:15%;">6M Points</td>
                 <td class="sec-hdr" style="width:30%;">Comments</td>
             </tr>
             <tr>
@@ -1951,7 +1953,7 @@ window.adminApp = {
             <tr><td colspan="8" class="sec-hdr">Final Verification & Order Acceptance</td></tr>
             <tr class="sub-hdr">
                 <td colspan="2">Decision</td>
-                <td>Ok/Nok</td>
+                <td style="width:80px;">Ok/Nok</td>
                 <td colspan="2">Prepared By</td>
                 <td colspan="2">Reviewed By</td>
                 <td>Approved By</td>
@@ -1959,7 +1961,7 @@ window.adminApp = {
             <tr>
                 <td colspan="2" class="lbl" style="text-align:right;">Capability</td>
                 <td class="dec-val ${decCap === 'ok' ? 'dec-ok' : decCap === 'nok' ? 'dec-nok' : ''}">${decCap ? decCap.toUpperCase() : ''}</td>
-                <td colspan="2" rowspan="2" class="val" style="text-align:center;">${preparedBy}</td>
+                <td colspan="2" rowspan="2" class="val" style="text-align:center;height:45px;">${preparedBy}</td>
                 <td colspan="2" rowspan="2" class="val" style="text-align:center;">${reviewedBy}</td>
                 <td rowspan="2" class="val" style="text-align:center;">${approvedBy}</td>
             </tr>
