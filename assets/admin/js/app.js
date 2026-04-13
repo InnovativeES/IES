@@ -1739,7 +1739,13 @@ window.adminApp = {
         const tagText = (containerId) => {
             const c = document.getElementById(containerId);
             if (!c) return '';
-            return Array.from(c.querySelectorAll('.search-tag-text, .tag-text')).map(t => t.textContent.trim()).join(', ') || c.querySelector('input[type=hidden]')?.value || '';
+            // Try reading visible tag text first
+            const tags = Array.from(c.querySelectorAll('.search-tag-text, .tag-text')).map(t => t.textContent.trim()).filter(Boolean);
+            if (tags.length) return tags.join(', ');
+            // Fallback: hidden input (may contain JSON array string like '["Name"]')
+            let raw = c.querySelector('input[type=hidden]')?.value || '';
+            try { const arr = JSON.parse(raw); if (Array.isArray(arr)) return arr.join(', '); } catch(e) {}
+            return raw.replace(/^\["?|"?\]$/g, '').replace(/","/g, ', ');
         };
 
         const ioNo = v('cr-review-no');
@@ -1874,28 +1880,35 @@ window.adminApp = {
         </div>
 
         <!-- SECTION 1: CUSTOMER DATA + INTERNAL ORDER -->
-        <table style="table-layout: fixed;">
+        <table>
+            <colgroup>
+                <col style="width:8%"><col style="width:15%">
+                <col style="width:8%"><col style="width:14%">
+                <col style="width:9%"><col style="width:18%">
+                <col style="width:8%"><col style="width:14%">
+                <col style="width:6%">
+            </colgroup>
             <tr>
                 <td colspan="4" class="sec-hdr">Customer Data</td>
-                <td colspan="4" class="sec-hdr">Internal Order</td>
+                <td colspan="5" class="sec-hdr">Internal Order</td>
             </tr>
             <tr>
-                <td class="lbl" style="width:9%">PO No</td>
-                <td class="val" style="width:18%">${poNo}</td>
-                <td class="lbl" style="width:9%">Date</td>
-                <td class="val nowrap" style="width:14%">${crDate}</td>
-                <td class="lbl" style="width:9%">Date</td>
-                <td class="val nowrap" style="width:18%">${intDate}</td>
-                <td class="lbl" style="width:9%">IO Num</td>
-                <td class="val nowrap" style="width:14%;color:#059669;font-weight:800;">${ioNumber}</td>
+                <td class="lbl">PO No</td>
+                <td class="val">${poNo}</td>
+                <td class="lbl">Date</td>
+                <td class="val nowrap">${crDate}</td>
+                <td class="lbl">Date</td>
+                <td class="val nowrap">${intDate}</td>
+                <td class="lbl">IO Num</td>
+                <td class="val nowrap" colspan="2" style="color:#059669;font-weight:800;">${ioNumber}</td>
             </tr>
             <tr>
                 <td class="lbl">Drg No</td>
                 <td class="val">${drgNo}</td>
                 <td class="lbl">Del Date</td>
                 <td class="val nowrap">${delDate}</td>
-                <td class="lbl">Account/PL</td>
-                <td class="val">${accountability}</td>
+                <td class="lbl">Account</td>
+                <td class="val" colspan="2">${accountability}</td>
                 <td class="lbl">Team</td>
                 <td class="val">${team}</td>
             </tr>
@@ -1905,7 +1918,7 @@ window.adminApp = {
                 <td class="lbl">Ph No</td>
                 <td class="val nowrap">${phone}</td>
                 <td class="lbl">Team Ldr</td>
-                <td class="val">${teamLeader}</td>
+                <td class="val" colspan="2">${teamLeader}</td>
                 <td class="lbl">Members</td>
                 <td class="val">${members}</td>
             </tr>
