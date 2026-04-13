@@ -1874,19 +1874,19 @@ window.adminApp = {
         </div>
 
         <!-- SECTION 1: CUSTOMER DATA + INTERNAL ORDER -->
-        <table>
+        <table style="table-layout: fixed;">
             <tr>
                 <td colspan="4" class="sec-hdr">Customer Data</td>
                 <td colspan="4" class="sec-hdr">Internal Order</td>
             </tr>
             <tr>
-                <td class="lbl" style="width:14%">PO No</td>
-                <td class="val" style="width:11%">${poNo}</td>
-                <td class="lbl" style="width:12%">Date</td>
-                <td class="val nowrap" style="width:13%">${crDate}</td>
-                <td class="lbl" style="width:12%">Date</td>
-                <td class="val nowrap" style="width:13%">${intDate}</td>
-                <td class="lbl" style="width:11%">IO Num</td>
+                <td class="lbl" style="width:9%">PO No</td>
+                <td class="val" style="width:18%">${poNo}</td>
+                <td class="lbl" style="width:9%">Date</td>
+                <td class="val nowrap" style="width:14%">${crDate}</td>
+                <td class="lbl" style="width:9%">Date</td>
+                <td class="val nowrap" style="width:18%">${intDate}</td>
+                <td class="lbl" style="width:9%">IO Num</td>
                 <td class="val nowrap" style="width:14%;color:#059669;font-weight:800;">${ioNumber}</td>
             </tr>
             <tr>
@@ -1894,8 +1894,8 @@ window.adminApp = {
                 <td class="val">${drgNo}</td>
                 <td class="lbl">Del Date</td>
                 <td class="val nowrap">${delDate}</td>
-                <td class="lbl">Accountability/PL</td>
-                <td class="val" colspan="2">${accountability}</td>
+                <td class="lbl">Account/PL</td>
+                <td class="val">${accountability}</td>
                 <td class="lbl">Team</td>
                 <td class="val">${team}</td>
             </tr>
@@ -1904,8 +1904,8 @@ window.adminApp = {
                 <td class="val">${contactPerson}</td>
                 <td class="lbl">Ph No</td>
                 <td class="val nowrap">${phone}</td>
-                <td class="lbl">Team leader</td>
-                <td class="val" colspan="2">${teamLeader}</td>
+                <td class="lbl">Team Ldr</td>
+                <td class="val">${teamLeader}</td>
                 <td class="lbl">Members</td>
                 <td class="val">${members}</td>
             </tr>
