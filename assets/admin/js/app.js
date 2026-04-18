@@ -3051,6 +3051,8 @@ window.adminApp = {
         // Setup listeners for the choice buttons
         const delBtn = document.getElementById('force-delivered-btn');
         const admBtn = document.getElementById('force-admin-close-btn');
+        const commentEl = document.getElementById('force-close-comment');
+        if (commentEl) commentEl.value = ''; // Reset
 
         // Clone and replace to remove old listeners
         const newDelBtn = delBtn.cloneNode(true);
@@ -3059,13 +3061,15 @@ window.adminApp = {
         admBtn.parentNode.replaceChild(newAdmBtn, admBtn);
 
         newDelBtn.onclick = async () => {
+            const comment = document.getElementById('force-close-comment')?.value.trim() || '';
             if (confirm("Mark this order as DELIVERED directly?")) {
                 try {
                     await DB.updateOrder(id, {
                         status: 'Delivered',
                         deliveryDateActual: new Date().toISOString().slice(0, 10),
                         forceClosed: true,
-                        closedBy: 'Administration'
+                        closedBy: 'Administration',
+                        forceCloseComment: comment
                     });
                     window.adminApp.closeModal('force-close-modal');
                     alert("Order marked as Delivered.");
@@ -3078,12 +3082,14 @@ window.adminApp = {
         };
 
         newAdmBtn.onclick = async () => {
+            const comment = document.getElementById('force-close-comment')?.value.trim() || '';
             if (confirm("Mark this order as CLOSED BY ADMIN? (Will hide from pending)")) {
                 try {
                     await DB.updateOrder(id, {
                         status: 'Closed by Admin',
                         forceClosed: true,
-                        closedBy: 'Administration'
+                        closedBy: 'Administration',
+                        forceCloseComment: comment
                     });
                     window.adminApp.closeModal('force-close-modal');
                     alert("Order marked as Closed by Admin.");
@@ -3094,6 +3100,20 @@ window.adminApp = {
                 }
             }
         };
+    },
+
+    editFCComment: async (id) => {
+        const order = currentOrders.find(o => o.id === id);
+        if (!order) return;
+        const newComment = prompt("Edit FC Comment:", order.forceCloseComment || '');
+        if (newComment !== null) {
+            try {
+                await DB.updateOrder(id, { forceCloseComment: newComment });
+                if (window.adminApp.loadOrders) window.adminApp.loadOrders();
+            } catch(e) {
+                alert("Failed to update comment: " + e.message);
+            }
+        }
     },
 
     softDeleteOrder: (id) => {
@@ -3332,6 +3352,18 @@ window.adminApp = {
     // PENDING ASSIGNMENT FUNCTIONS
     // ============================================
 
+    pendingSortState: { key: '', direction: 'asc' },
+
+    pendingSort: (key) => {
+        if (window.adminApp.pendingSortState.key === key) {
+            window.adminApp.pendingSortState.direction = window.adminApp.pendingSortState.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            window.adminApp.pendingSortState.key = key;
+            window.adminApp.pendingSortState.direction = 'asc';
+        }
+        window.adminApp.renderPendingAssignment();
+    },
+
     renderPendingAssignment: () => {
         const view = document.getElementById('view-pending_assignment');
         if (!view || view.classList.contains('hidden')) return;
@@ -3347,7 +3379,7 @@ window.adminApp = {
 
         // Filter pending orders
         let pendingOrders = currentOrders.filter(o =>
-            o.status === 'Pending' && !o.deleted
+            (o.status === 'Pending' || o.status === 'Partially Delivered' || o.status === 'Portion Delivered') && !o.deleted
         );
 
         // Apply department filter
@@ -3367,30 +3399,47 @@ window.adminApp = {
             pendingOrders = pendingOrders.filter(o => (o.priority || 'normal') === priorityFilter);
         }
 
-        // Get sort option
-        const sortBy = document.getElementById('pending-sort-by')?.value || 'priority';
+        // Get sort options
+        const dropdownSortBy = document.getElementById('pending-sort-by')?.value || 'priority';
+        const clickSortKey = window.adminApp.pendingSortState.key;
+        const clickSortDir = window.adminApp.pendingSortState.direction;
 
         // Sort based on selection
         pendingOrders.sort((a, b) => {
-            if (sortBy === 'priority') {
-                // Urgent first, then by due date
-                const priorityA = a.priority === 'urgent' ? 0 : 1;
-                const priorityB = b.priority === 'urgent' ? 0 : 1;
-                if (priorityA !== priorityB) return priorityA - priorityB;
-                // Then by due date
-                const dateA = new Date(a.estimatedCompletion || '2099-12-31');
-                const dateB = new Date(b.estimatedCompletion || '2099-12-31');
-                return dateA - dateB;
-            } else if (sortBy === 'dueDate') {
-                const dateA = new Date(a.estimatedCompletion || '2099-12-31');
-                const dateB = new Date(b.estimatedCompletion || '2099-12-31');
-                return dateA - dateB;
-            } else if (sortBy === 'orderId') {
-                const idA = a.internalOrderNo || a.id || '';
-                const idB = b.internalOrderNo || b.id || '';
-                return idA.localeCompare(idB);
+            if (clickSortKey) {
+                let valA = a[clickSortKey] || '';
+                let valB = b[clickSortKey] || '';
+                
+                if (clickSortKey === 'total' || clickSortKey === 'priorityNumber' || clickSortKey === 'qty') {
+                    valA = parseFloat(valA) || 0;
+                    valB = parseFloat(valB) || 0;
+                } else {
+                    valA = valA.toString().toLowerCase();
+                    valB = valB.toString().toLowerCase();
+                }
+
+                if (valA < valB) return clickSortDir === 'asc' ? -1 : 1;
+                if (valA > valB) return clickSortDir === 'asc' ? 1 : -1;
+                return 0;
+            } else {
+                if (dropdownSortBy === 'priority') {
+                    const priorityA = a.priority === 'urgent' ? 0 : 1;
+                    const priorityB = b.priority === 'urgent' ? 0 : 1;
+                    if (priorityA !== priorityB) return priorityA - priorityB;
+                    const dateA = new Date(a.estimatedCompletion || '2099-12-31');
+                    const dateB = new Date(b.estimatedCompletion || '2099-12-31');
+                    return dateA - dateB;
+                } else if (dropdownSortBy === 'dueDate') {
+                    const dateA = new Date(a.estimatedCompletion || '2099-12-31');
+                    const dateB = new Date(b.estimatedCompletion || '2099-12-31');
+                    return dateA - dateB;
+                } else if (dropdownSortBy === 'orderId') {
+                    const idA = a.internalOrderNo || a.id || '';
+                    const idB = b.internalOrderNo || b.id || '';
+                    return idA.localeCompare(idB);
+                }
+                return 0;
             }
-            return 0;
         });
 
         // Update count badge
@@ -3409,179 +3458,308 @@ window.adminApp = {
             `<option value="${m.id}">${m.name}</option>`
         ).join('');
 
-        tbody.innerHTML = pendingOrders.map(order => {
-            const isUrgent = order.priority === 'urgent';
+        tbody.innerHTML = pendingOrders.map((order, index) => {
             const assignedList = (order.assignedTo || []).map(id => {
+                const member = currentMembers.find(m => m.id === id);
+                let displayName = id;
+                if(member) {
+                    const roleSuffix = member.role ? ` - ${member.role}` : (member.designation ? ` - ${member.designation}` : '');
+                    displayName = `${member.name}${roleSuffix}`;
+                }
                 return {
                     id: id,
-                    name: currentMembers.find(m => m.id === id)?.name || id
+                    name: displayName,
+                    rawName: member?.name || id
                 };
             });
+            
+            const formatDateForInput = (dateStr) => {
+                if (!dateStr || dateStr === '-') return '';
+                try {
+                    return new Date(dateStr).toISOString().split('T')[0];
+                } catch(e) {
+                    return '';
+                }
+            };
+            
+            const formatDateForDisplay = (dateStr) => {
+                if (!dateStr || dateStr === '-') return '-';
+                try {
+                    return new Date(dateStr).toLocaleDateString('en-IN');
+                } catch(e) {
+                    return '-';
+                }
+            };
 
-            // Format due date for input (YYYY-MM-DD)
-            const dueDateValue = order.estimatedCompletion
-                ? new Date(order.estimatedCompletion).toISOString().split('T')[0]
-                : '';
+            const assignedDateValue = order.assignedDate ? formatDateForInput(order.assignedDate) : '';
+            const internalOrderDate = formatDateForDisplay(order.date);
 
-            const rowClass = isUrgent ? 'pending-row-urgent' : 'pending-row-normal';
+            let priorityOptions = '<option value="">-</option>';
+            for(let i = 1; i <= 100; i++) {
+                priorityOptions += `<option value="${i}" ${order.priorityNumber == i ? 'selected' : ''}>${i}</option>`;
+            }
 
+            const depts = ['Fab', 'CNC', 'VMC', 'Turning', 'Assembly'];
+            let deptOptions = '<option value="">-</option>';
+            depts.forEach(d => {
+                deptOptions += `<option value="${d}" ${order.department === d ? 'selected' : ''}>${d}</option>`;
+            });
+
+            const activeMembers = currentMembers.filter(m => m.status !== 'Inactive');
+            const memberDropdownOptions = `<option value="">+ Add Member</option>` + activeMembers.map(m => {
+                const roleSuffix = m.role ? ` - ${m.role}` : (m.designation ? ` - ${m.designation}` : '');
+                return `<option value="${m.id}">${m.name}${roleSuffix}</option>`;
+            }).join('');
+
+            const sNo = index + 1;
+            const ioNo = order.internalOrderNo || order.id;
+            const statusVal = order.status || 'Pending';
+            const valueDisplay = order.saleValueEa || order.total || order.value || '-';
+            const rowColorStyle = assignedList.length > 0 ? 'background-color: #dcfce7;' : 'background-color: #fce8e8;';
+            
             return `
-                <tr class="pending-assignment-row ${rowClass}">
-                    <td style="text-align: center; vertical-align: middle;">
-                        <button onclick="window.adminApp.togglePriority('${order.id}')" 
-                                class="priority-toggle ${isUrgent ? 'is-urgent' : ''}"
-                                title="${isUrgent ? 'Mark as Normal' : 'Mark as Urgent'}">
-                            ${isUrgent ? '🔥' : '⚪'}
-                        </button>
+                <tr class="pending-assignment-row" style="${rowColorStyle}">
+                    <td style="text-align: center; vertical-align: top; padding-top: 1rem;">${sNo}</td>
+                    <td style="vertical-align: top; padding-top: 1rem;"><span class="order-id-badge">${ioNo}</span></td>
+                    <td style="vertical-align: top; padding-top: 1rem; color: #64748b; font-size: 13px; font-weight: 500;">${internalOrderDate}</td>
+                    <td style="vertical-align: top; padding-top: 1rem;"><span style="font-weight: 600; color: var(--brand-600);">${order.drawingNo || '-'}</span></td>
+                    <td style="vertical-align: top; padding-top: 1rem;"><div style="max-height: 80px; overflow-y: auto; font-size: 13px;">${order.description || '-'}</div></td>
+                    <td style="font-weight: 600; text-align: center; vertical-align: top; padding-top: 1rem;">${order.qty || '-'}</td>
+                    <td style="text-align: center; vertical-align: top; padding-top: 1rem;">${order.qtyUnit || '-'}</td>
+                    <td style="text-align: right; font-weight: 600; vertical-align: top; padding-top: 1rem;">${valueDisplay}</td>
+                    <td style="font-weight: 500; vertical-align: top; padding-top: 1rem;">${order.customer || '-'}</td>
+                    <td style="vertical-align: top; padding-top: 1rem;"><span class="status-badge status-pending">${statusVal}</span></td>
+                    <td style="vertical-align: top; padding: 0.5rem;">
+                        <textarea class="table-form-input p-2" 
+                                  placeholder="Update remarks..."
+                                  onblur="window.adminApp.pendingInlineUpdate('${order.id}', 'updateRemarks', this.value)"
+                                  style="min-height: 80px; width: 100%; resize: vertical; font-size: 11px; line-height: 1.4;"
+                        >${order.updateRemarks || ''}</textarea>
                     </td>
-                    <td><span class="order-id-badge">${order.internalOrderNo || order.id}</span></td>
-                    <td style="font-weight: 500;">${order.customer || '-'}</td>
-                    <td>${order.description || '-'}</td>
-                    <td><span style="font-weight: 600; color: var(--brand-600);">${order.drawingNo || '-'}</span></td>
-                    <td style="font-weight: 600; text-align: center;">${order.qty || '-'}</td>
-                    <td style="text-align: center;">${order.qtyUnit || '-'}</td>
-                    <td>
-                        <input type="date" class="table-form-input" 
-                               value="${dueDateValue}"
-                               onchange="window.adminApp.updateDueDate('${order.id}', this.value)"
-                               title="Click to set/change due date">
+                    <td style="vertical-align: top; padding: 0.5rem;">
+                        <select class="table-form-input p-2"
+                                onchange="window.adminApp.pendingInlineUpdate('${order.id}', 'priorityNumber', this.value)"
+                                style="width: 100%; font-size: 11px;">
+                            ${priorityOptions}
+                        </select>
                     </td>
-                    <td class="assign-cell">
+                    <td style="vertical-align: top; padding: 0.5rem;">
+                        <select class="table-form-input p-2"
+                                onchange="window.adminApp.pendingInlineUpdate('${order.id}', 'department', this.value)"
+                                style="width: 100%; font-size: 11px;">
+                            ${deptOptions}
+                        </select>
+                    </td>
+                    <td style="vertical-align: top; padding: 0.5rem;">
+                        <textarea class="table-form-input p-2"
+                                  placeholder="Add comments..."
+                                  onblur="window.adminApp.pendingInlineUpdate('${order.id}', 'remarks', this.value)"
+                                  style="min-height: 80px; width: 100%; resize: vertical; font-size: 11px; line-height: 1.4;"
+                        >${order.remarks || ''}</textarea>
+                    </td>
+                    <td style="vertical-align: top; padding: 0.5rem;">
+                        <input type="date" class="table-form-input p-2" 
+                               value="${assignedDateValue}"
+                               onchange="window.adminApp.pendingInlineUpdate('${order.id}', 'assignedDate', this.value)"
+                               title="Set assigned date"
+                               style="font-size: 11px; width: 100%;">
+                    </td>
+                    <td class="assign-cell" style="vertical-align: top; padding: 0.5rem;">
                         <select class="assign-dropdown" 
-                                onchange="window.adminApp.updateAssignment('${order.id}', this.value)"
+                                onchange="window.adminApp.updateAssignment('${order.id}', this.value); this.value='';"
+                                style="width: 100%; font-size: 11px; padding: 0.3rem;"
                                 id="assign-${order.id}">
-                            <option value="">+ Add</option>
-                            ${memberOptions}
+                            ${memberDropdownOptions}
                         </select>
                         ${assignedList.length > 0 ? `
-                        <div class="assign-chips">
+                        <div class="assign-chips mt-2" style="display: flex; flex-wrap: wrap; gap: 4px;">
                             ${assignedList.map(m => {
-                const initials = m.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
-                return `
-                                <span class="assign-chip">
-                                    <span class="assign-chip-avatar">${initials}</span>
+                                const initials = m.rawName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+                                return `
+                                <span class="assign-chip" style="font-size: 10px; background: #f1f5f9; border-radius: 4px; padding: 2px 6px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid #e2e8f0;">
+                                    <span style="background: #0f172a; color: white; display: inline-block; width: 16px; height: 16px; border-radius: 50%; text-align: center; line-height: 16px; font-size: 8px;">${initials}</span>
                                     <span class="assign-chip-name">${m.name}</span>
                                     <button class="assign-chip-remove" 
                                             onclick="window.adminApp.removeAssignment('${order.id}', '${m.id}')"
-                                            title="Remove">×</button>
+                                            title="Remove" style="color: #ef4444; font-weight: bold; cursor: pointer; border:none; background:none;">×</button>
                                 </span>`;
-            }).join('')}
+                            }).join('')}
                         </div>` : ''}
-                    </td>
-                    <td>
-                        <input type="text" class="table-form-input"
-                               placeholder="Add remarks..."
-                               value="${order.remarks || ''}"
-                               onblur="window.adminApp.saveRemarks('${order.id}', this.value)"
-                               id="remarks-${order.id}">
                     </td>
                 </tr>
             `;
         }).join('');
+    },
 
+    pendingInlineUpdate: async (orderId, fieldName, value) => {
+        if (fieldName === 'priorityNumber' && value) {
+            const existing = currentOrders.find(o => o.priorityNumber == value && o.id !== orderId && (o.status === 'Pending' || o.status === 'Partially Delivered' || o.status === 'Portion Delivered') && !o.deleted);
+            if (existing) {
+                alert(`Priority ${value} is already assigned to Order No ${existing.internalOrderNo || existing.id}. Please choose another.`);
+                window.adminApp.renderPendingAssignment();
+                return;
+            }
+        }
 
+        const updateData = {};
+        updateData[fieldName] = value;
+        const result = await DB.updateOrder(orderId, updateData);
+        if (result.error) {
+            console.error(`Failed to save ${fieldName}:`, result.error);
+        } else {
+            // Optional: Show visual success cue without fully re-rendering table
+            // However, depending on priority filtering/sorting, we might want to re-render.
+            if(fieldName === 'priorityNumber' || fieldName === 'assignedTo') {
+                window.adminApp.renderPendingAssignment();
+            }
+        }
     },
 
     updateAssignment: async (orderId, memberId) => {
         if (!memberId) return;
-
         const order = currentOrders.find(o => o.id === orderId);
         if (!order) return;
-
-        const currentAssigned = order.assignedTo || [];
-        if (!currentAssigned.includes(memberId)) {
-            currentAssigned.push(memberId);
-        }
-
-        // Log history
-        const historyEntry = {
-            action: 'assigned',
-            memberId: memberId,
-            memberName: currentMembers.find(m => m.id === memberId)?.name || memberId,
-            timestamp: new Date().toISOString(),
-            assignedBy: 'admin' // TODO: Get current user
-        };
-
-        const assignmentHistory = order.assignmentHistory || [];
-        assignmentHistory.push(historyEntry);
-
-        // Update in Firestore
-        const result = await DB.updateOrder(orderId, {
-            assignedTo: currentAssigned,
-            assignmentHistory: assignmentHistory
-        });
-
-        if (!result.error) {
-            window.adminApp.renderPendingAssignment();
+        
+        let assigned = order.assignedTo || [];
+        if (!assigned.includes(memberId)) {
+            assigned = [...assigned, memberId];
+            await window.adminApp.pendingInlineUpdate(orderId, 'assignedTo', assigned);
         }
     },
 
     removeAssignment: async (orderId, memberId) => {
         const order = currentOrders.find(o => o.id === orderId);
         if (!order) return;
-
-        const currentAssigned = (order.assignedTo || []).filter(id => id !== memberId);
-        const memberName = currentMembers.find(m => m.id === memberId)?.name || memberId;
-
-        // Log history
-        const historyEntry = {
-            action: 'removed',
-            memberId: memberId,
-            memberName: memberName,
-            timestamp: new Date().toISOString(),
-            assignedBy: 'admin'
-        };
-
-        const assignmentHistory = order.assignmentHistory || [];
-        assignmentHistory.push(historyEntry);
-
-        // Update in Firestore
-        const result = await DB.updateOrder(orderId, {
-            assignedTo: currentAssigned,
-            assignmentHistory: assignmentHistory
-        });
-
-        if (!result.error) {
-            window.adminApp.renderPendingAssignment();
-        }
+        
+        let assigned = order.assignedTo || [];
+        assigned = assigned.filter(id => id !== memberId);
+        await window.adminApp.pendingInlineUpdate(orderId, 'assignedTo', assigned);
     },
+    
+    exportPendingToCSV: () => {
+        const pendingOrders = currentOrders.filter(o => 
+            (o.status === 'Pending' || o.status === 'Partially Delivered' || o.status === 'Portion Delivered') && !o.deleted
+        );
 
-    saveRemarks: async (orderId, remarks) => {
-        const result = await DB.updateOrder(orderId, {
-            remarks: remarks
+        // Get filters
+        const deptFilter = document.getElementById('pending-filter-department')?.value || '';
+        const assignedFilter = document.getElementById('pending-filter-assigned')?.value || '';
+        const priorityFilter = document.getElementById('pending-filter-priority')?.value || '';
+
+        // Apply filters
+        let exportOrders = pendingOrders;
+        if (deptFilter) exportOrders = exportOrders.filter(o => o.department === deptFilter);
+        if (assignedFilter === 'assigned') exportOrders = exportOrders.filter(o => o.assignedTo && o.assignedTo.length > 0);
+        else if (assignedFilter === 'unassigned') exportOrders = exportOrders.filter(o => !o.assignedTo || o.assignedTo.length === 0);
+        if (priorityFilter) exportOrders = exportOrders.filter(o => (o.priority || 'normal') === priorityFilter);
+
+        // Sort based on selection
+        const dropdownSortBy = document.getElementById('pending-sort-by')?.value || 'priority';
+        const clickSortKey = window.adminApp.pendingSortState.key;
+        const clickSortDir = window.adminApp.pendingSortState.direction;
+
+        exportOrders.sort((a, b) => {
+            if (clickSortKey) {
+                let valA = a[clickSortKey] || '';
+                let valB = b[clickSortKey] || '';
+                
+                if (clickSortKey === 'total' || clickSortKey === 'priorityNumber' || clickSortKey === 'qty') {
+                    valA = parseFloat(valA) || 0;
+                    valB = parseFloat(valB) || 0;
+                } else {
+                    valA = valA.toString().toLowerCase();
+                    valB = valB.toString().toLowerCase();
+                }
+
+                if (valA < valB) return clickSortDir === 'asc' ? -1 : 1;
+                if (valA > valB) return clickSortDir === 'asc' ? 1 : -1;
+                return 0;
+            } else {
+                if (dropdownSortBy === 'priority') {
+                    const priorityA = a.priority === 'urgent' ? 0 : 1;
+                    const priorityB = b.priority === 'urgent' ? 0 : 1;
+                    if (priorityA !== priorityB) return priorityA - priorityB;
+                    const dateA = new Date(a.estimatedCompletion || '2099-12-31');
+                    const dateB = new Date(b.estimatedCompletion || '2099-12-31');
+                    return dateA - dateB;
+                } else if (dropdownSortBy === 'dueDate') {
+                    const dateA = new Date(a.estimatedCompletion || '2099-12-31');
+                    const dateB = new Date(b.estimatedCompletion || '2099-12-31');
+                    return dateA - dateB;
+                } else if (dropdownSortBy === 'orderId') {
+                    const idA = a.internalOrderNo || a.id || '';
+                    const idB = b.internalOrderNo || b.id || '';
+                    return idA.localeCompare(idB);
+                }
+                return 0;
+            }
         });
 
-        if (result.error) {
-            console.error('Failed to save remarks:', result.error);
+        if (exportOrders.length === 0) {
+            alert('No pending orders to export.');
+            return;
         }
-    },
 
-    updateDueDate: async (orderId, dateValue) => {
-        const result = await DB.updateOrder(orderId, {
-            estimatedCompletion: dateValue
+        const headers = [
+            'S.No', 'In. Order No', 'IO Date', 'Drg No', 'Description', 'Qty', 'Unit', 'Value', 
+            'Customer', 'Status', 'Update', 'Priority', 'Department', 'Comments', 
+            'Assigned Date', 'Assigned To'
+        ];
+
+        const rows = exportOrders.map((o, index) => {
+            const escapeCSV = (str) => {
+                if (!str) return '-';
+                const s = String(str).replace(/"/g, '""');
+                return /[",\n]/.test(s) ? `"${s}"` : s;
+            };
+
+            const assignedUserNames = (o.assignedTo && o.assignedTo.length > 0) 
+                 ? o.assignedTo.map(id => currentMembers.find(m => m.id === id)?.name || id).join(', ') 
+                 : '-';
+            
+            const formatDate = (dateStr) => {
+                if (!dateStr || dateStr === '-') return '-';
+                try {
+                    return new Date(dateStr).toLocaleDateString('en-IN');
+                } catch(e) {
+                    return '-';
+                }
+            };
+
+            return [
+                index + 1,
+                escapeCSV(o.internalOrderNo || o.id),
+                formatDate(o.date),
+                escapeCSV(o.drawingNo),
+                escapeCSV(o.description),
+                escapeCSV(o.qty),
+                escapeCSV(o.qtyUnit),
+                escapeCSV(o.saleValueEa || o.total || o.value),
+                escapeCSV(o.customer),
+                escapeCSV(o.status || 'Pending'),
+                escapeCSV(o.updateRemarks),
+                escapeCSV(o.priorityNumber),
+                escapeCSV(o.department),
+                escapeCSV(o.remarks),
+                formatDate(o.assignedDate),
+                escapeCSV(assignedUserNames)
+            ];
         });
 
-        if (!result.error) {
-            // Refresh to re-sort if needed
-            window.adminApp.renderPendingAssignment();
-        } else {
-            console.error('Failed to save due date:', result.error);
-        }
-    },
+        const csvContent = [
+            headers.join(','),
+            ...rows.map(r => r.join(','))
+        ].join('\n');
 
-    togglePriority: async (orderId) => {
-        const order = currentOrders.find(o => o.id === orderId);
-        if (!order) return;
-
-        const newPriority = order.priority === 'urgent' ? 'normal' : 'urgent';
-
-        const result = await DB.updateOrder(orderId, {
-            priority: newPriority
-        });
-
-        if (!result.error) {
-            window.adminApp.renderPendingAssignment();
-        }
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', `Pending_Assignments_${new Date().toISOString().slice(0, 10)}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     },
 
 

@@ -960,12 +960,11 @@
                             <span id="pending-assignment-count" class="pa-count-badge">0 orders</span>
                         </div>
                         <div class="pa-header-right">
-                            <button class="pa-btn-generate" onclick="window.adminApp.generatePendingReport()">
+                            <button class="pa-btn-generate" onclick="window.adminApp.exportPendingToCSV()">
                                 <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                                 </svg>
-                                Generate Report
+                                Export CSV
                             </button>
                         </div>
                     </div>
@@ -974,7 +973,7 @@
                     <div class="pa-filters">
                         <div class="pa-filter-group">
                             <label class="pa-filter-label">Department</label>
-                            <select id="pending-filter-department" class="pa-filter-select">
+                            <select id="pending-filter-department" class="pa-filter-select" onchange="window.adminApp.renderPendingAssignment()">
                                 <option value="">All Departments</option>
                                 <option value="Fab">Fab</option>
                                 <option value="CNC">CNC</option>
@@ -985,28 +984,13 @@
                         </div>
                         <div class="pa-filter-group">
                             <label class="pa-filter-label">Assigned</label>
-                            <select id="pending-filter-assigned" class="pa-filter-select">
+                            <select id="pending-filter-assigned" class="pa-filter-select" onchange="window.adminApp.renderPendingAssignment()">
                                 <option value="">All</option>
                                 <option value="assigned">Assigned</option>
                                 <option value="unassigned">Unassigned</option>
                             </select>
                         </div>
-                        <div class="pa-filter-group">
-                            <label class="pa-filter-label">Priority</label>
-                            <select id="pending-filter-priority" class="pa-filter-select">
-                                <option value="">All</option>
-                                <option value="urgent">Urgent Only</option>
-                                <option value="normal">Normal Only</option>
-                            </select>
-                        </div>
-                        <div class="pa-filter-group" style="margin-left: auto;">
-                            <label class="pa-filter-label">Sort By</label>
-                            <select id="pending-sort-by" class="pa-filter-select">
-                                <option value="priority">Priority (Urgent First)</option>
-                                <option value="dueDate">Due Date (Earliest)</option>
-                                <option value="orderId">Order ID</option>
-                            </select>
-                        </div>
+
                     </div>
 
                     <!-- Modern Table Container -->
@@ -1015,16 +999,22 @@
                             <table class="pa-table" id="pending-assignment-table">
                                 <thead>
                                     <tr>
-                                        <th style="width: 50px;">⚡</th>
-                                        <th>Order ID</th>
-                                        <th>Customer</th>
-                                        <th>Description</th>
-                                        <th class="text-center">Drg No</th>
-                                        <th style="width: 70px;">Qty</th>
+                                        <th style="width: 50px;">S.No</th>
+                                        <th class="cursor-pointer hover:bg-slate-50 transition-colors" onclick="window.adminApp.pendingSort('internalOrderNo')">In. Order No</th>
+                                        <th class="cursor-pointer hover:bg-slate-50 transition-colors" style="min-width: 90px;" onclick="window.adminApp.pendingSort('date')">IO Date</th>
+                                        <th class="text-center cursor-pointer hover:bg-slate-50 transition-colors" onclick="window.adminApp.pendingSort('drawingNo')">Drg No</th>
+                                        <th style="min-width: 200px;" class="cursor-pointer hover:bg-slate-50 transition-colors" onclick="window.adminApp.pendingSort('description')">Description</th>
+                                        <th style="width: 70px;" class="cursor-pointer hover:bg-slate-50 transition-colors" onclick="window.adminApp.pendingSort('qty')">Qty</th>
                                         <th style="width: 60px;">Unit</th>
-                                        <th style="width: 150px;">Due Date</th>
-                                        <th style="min-width: 220px;">Assigned To</th>
-                                        <th style="min-width: 200px;">Remarks</th>
+                                        <th class="cursor-pointer hover:bg-slate-50 transition-colors" onclick="window.adminApp.pendingSort('total')">Value</th>
+                                        <th class="cursor-pointer hover:bg-slate-50 transition-colors" onclick="window.adminApp.pendingSort('customer')">Customer</th>
+                                        <th class="cursor-pointer hover:bg-slate-50 transition-colors" onclick="window.adminApp.pendingSort('status')">Status</th>
+                                        <th style="min-width: 250px;">Update</th>
+                                        <th style="width: 90px;" class="cursor-pointer hover:bg-slate-50 transition-colors" onclick="window.adminApp.pendingSort('priorityNumber')">Priority</th>
+                                        <th style="min-width: 110px;" class="cursor-pointer hover:bg-slate-50 transition-colors" onclick="window.adminApp.pendingSort('department')">Department</th>
+                                        <th style="min-width: 250px;">Comments</th>
+                                        <th style="width: 110px;" class="cursor-pointer hover:bg-slate-50 transition-colors" onclick="window.adminApp.pendingSort('assignedDate')">Assigned Date</th>
+                                        <th style="min-width: 120px;">Assigned To</th>
                                     </tr>
                                 </thead>
                                 <tbody id="pending-assignment-body">
@@ -3656,6 +3646,7 @@
                 </div>
                 <p class="text-slate-600 mb-6">Password verified. How would you like to close this order?</p>
                 <div class="flex flex-col gap-3">
+                    <textarea id="force-close-comment" class="form-input mb-4" placeholder="Add closing comments (Optional)"></textarea>
                     <button id="force-delivered-btn" class="btn btn-success w-full py-3 flex items-center justify-center gap-2">
                         <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>

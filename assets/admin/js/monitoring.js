@@ -179,18 +179,23 @@ export const renderTable = (orders) => {
         const t = (val) => val || '-';
 
         let statusHtml = '';
+        const isFC = order.forceClosed === true;
+        const fcText = isFC ? ' (FC)' : '';
+        const forceCloseNote = order.forceCloseComment ? `\nComment: ${order.forceCloseComment.replace(/"/g, '&quot;')}` : (isFC ? '\nClick to add FC comment' : '');
+        const onClickHtml = isFC ? `onclick="window.adminApp.editFCComment('${order.id}')" style="cursor: pointer;"` : '';
+
         if (isTrashMode) {
             let badgeClass = 'badge-default';
             if (status === 'DELIVERED') badgeClass = 'badge-success';
             else if (status === 'PENDING') badgeClass = 'badge-warning';
-            statusHtml = `<span class="badge ${badgeClass}">${status || '-'}</span>`;
+            statusHtml = `<span class="badge ${badgeClass}" ${onClickHtml} title="Status: ${status || '-'}${forceCloseNote}">${status || '-'}${fcText}</span>`;
         } else {
             const statusVal = order.status || 'Pending';
             let badgeClass = 'status-pending';
             if (statusVal === 'Delivered') badgeClass = 'status-delivered';
             else if (statusVal === 'Partially Delivered' || statusVal === 'Portion Delivered') badgeClass = 'status-portion';
             else if (statusVal === 'Closed by Admin') badgeClass = 'status-closed';
-            statusHtml = `<span class="status-badge ${badgeClass}">${statusVal}</span>`;
+            statusHtml = `<span class="status-badge ${badgeClass}" ${onClickHtml} title="Status: ${statusVal}${forceCloseNote}">${statusVal}${fcText}</span>`;
         }
 
         let actionsHtml = '';
