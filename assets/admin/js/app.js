@@ -3423,9 +3423,22 @@ window.adminApp = {
                 return 0;
             } else {
                 if (dropdownSortBy === 'priority') {
-                    const priorityA = a.priority === 'urgent' ? 0 : 1;
-                    const priorityB = b.priority === 'urgent' ? 0 : 1;
-                    if (priorityA !== priorityB) return priorityA - priorityB;
+                    // 1. Group by Department
+                    const deptA = a.department || 'zzz';
+                    const deptB = b.department || 'zzz';
+                    if (deptA !== deptB) return deptA.localeCompare(deptB);
+
+                    // 2. Sort by Priority Number
+                    const pNumA = parseInt(a.priorityNumber) || 999;
+                    const pNumB = parseInt(b.priorityNumber) || 999;
+                    if (pNumA !== pNumB) return pNumA - pNumB;
+
+                    // 3. Original urgency
+                    const urgentA = a.priority === 'urgent' ? 0 : 1;
+                    const urgentB = b.priority === 'urgent' ? 0 : 1;
+                    if (urgentA !== urgentB) return urgentA - urgentB;
+
+                    // 4. Due Date
                     const dateA = new Date(a.estimatedCompletion || '2099-12-31');
                     const dateB = new Date(b.estimatedCompletion || '2099-12-31');
                     return dateA - dateB;
@@ -3592,10 +3605,23 @@ window.adminApp = {
     },
 
     pendingInlineUpdate: async (orderId, fieldName, value) => {
-        if (fieldName === 'priorityNumber' && value) {
-            const existing = currentOrders.find(o => o.priorityNumber == value && o.id !== orderId && (o.status === 'Pending' || o.status === 'Partially Delivered' || o.status === 'Portion Delivered') && !o.deleted);
+        const targetOrder = currentOrders.find(o => o.id === orderId);
+        if (!targetOrder) return;
+
+        // Use the new value for the field being updated, else use the existing value
+        const targetDept = fieldName === 'department' ? value : (targetOrder.department || '');
+        const targetPriority = fieldName === 'priorityNumber' ? value : (targetOrder.priorityNumber || '');
+
+        if (targetPriority && (fieldName === 'priorityNumber' || fieldName === 'department')) {
+            const existing = currentOrders.find(o => 
+                o.priorityNumber == targetPriority && 
+                o.department == targetDept &&
+                o.id !== orderId && 
+                (o.status === 'Pending' || o.status === 'Partially Delivered' || o.status === 'Portion Delivered') && 
+                !o.deleted
+            );
             if (existing) {
-                alert(`Priority ${value} is already assigned to Order No ${existing.internalOrderNo || existing.id}. Please choose another.`);
+                alert(`Priority ${targetPriority} is already assigned to Order No ${existing.internalOrderNo || existing.id} in the ${targetDept} department. Please choose another.`);
                 window.adminApp.renderPendingAssignment();
                 return;
             }
