@@ -555,6 +555,7 @@
                                     class="bg-white border-0 text-xs font-bold text-slate-700 rounded-full px-4 py-1.5 ring-1 ring-slate-200 focus:ring-2 focus:ring-teal-500 transition-all cursor-pointer outline-none shadow-sm"
                                     onchange="window.adminApp.refreshDashboard()">
                                     <option value="all">All Departments</option>
+                                    <option value="Admin">Admin</option>
                                     <option value="Fab">Fabrication</option>
                                     <option value="CNC">CNC</option>
                                     <option value="VMC">VMC</option>
@@ -975,6 +976,7 @@
                             <label class="pa-filter-label">Department</label>
                             <select id="pending-filter-department" class="pa-filter-select" onchange="window.adminApp.renderPendingAssignment()">
                                 <option value="">All Departments</option>
+                                <option value="Admin">Admin</option>
                                 <option value="Fab">Fab</option>
                                 <option value="CNC">CNC</option>
                                 <option value="VMC">VMC</option>
@@ -1679,6 +1681,7 @@
                             <select id="project-type-filter" class="filter-input"
                                 onchange="window.adminApp.filterProjects()">
                                 <option value="all">All Types</option>
+                                <option value="Admin">Admin</option>
                                 <option value="CNC">CNC</option>
                                 <option value="VMC">VMC</option>
                                 <option value="Fabrication">Fabrication</option>
@@ -2415,6 +2418,7 @@
                                     <label class="wf-label">Department</label>
                                     <select id="wf-dept-filter" class="form-input wf-dept-select">
                                         <option value="All">All Departments</option>
+                                        <option value="Admin">Admin</option>
                                         <option value="Fab">Fab</option>
                                         <option value="CNC">CNC</option>
                                         <option value="VMC">VMC</option>
@@ -2662,6 +2666,7 @@
                                         <label class="form-label">Department</label>
                                         <select name="department" class="form-input">
                                             <option value="">Select Dept</option>
+                                            <option value="Admin" selected>Admin</option>
                                             <option value="Fab">Fab</option>
                                             <option value="CNC">CNC</option>
                                             <option value="VMC">VMC</option>
@@ -3005,6 +3010,7 @@
                                         <label class="form-label">Department</label>
                                         <select name="department" class="form-input">
                                             <option value="">Select Dept</option>
+                                            <option value="Admin">Admin</option>
                                             <option value="Fab">Fab</option>
                                             <option value="CNC">CNC</option>
                                             <option value="VMC">VMC</option>
@@ -3184,6 +3190,7 @@
                                 <div class="form-group">
                                     <label class="form-label">Job Type</label>
                                     <select name="jobType" class="form-input">
+                                        <option value="Admin">Admin</option>
                                         <option value="CNC">CNC</option>
                                         <option value="VMC">VMC</option>
                                         <option value="Fabrication">Fabrication</option>

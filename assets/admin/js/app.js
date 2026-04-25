@@ -494,7 +494,7 @@ window.adminApp = {
     },
 
     // Department Multi-Select - Matching Org Tree + Management
-    departmentsList: ["Management", "Fabrication", "CNC & VMC", "SPM", "HR"],
+    departmentsList: ["Management", "Admin", "Fabrication", "CNC & VMC", "SPM", "HR"],
     selectedDepts: new Set(),
 
     toggleDeptDropdown: () => {
@@ -2420,6 +2420,10 @@ window.adminApp = {
             dateInput.value = new Date().toISOString().split('T')[0];
         }
 
+        // Set default department to Admin
+        const deptInput = form ? form.querySelector('[name="department"]') : null;
+        if (deptInput) deptInput.value = 'Admin';
+
         // Auto-generate next Order ID (YYYYYY-NNNN)
         const now = new Date();
         const yr = now.getFullYear();
@@ -3512,7 +3516,7 @@ window.adminApp = {
                 priorityOptions += `<option value="${i}" ${order.priorityNumber == i ? 'selected' : ''}>${i}</option>`;
             }
 
-            const depts = ['Fab', 'CNC', 'VMC', 'Turning', 'Assembly'];
+            const depts = ['Admin', 'Fab', 'CNC', 'VMC', 'Turning', 'Assembly'];
             let deptOptions = '<option value="">-</option>';
             depts.forEach(d => {
                 deptOptions += `<option value="${d}" ${order.department === d ? 'selected' : ''}>${d}</option>`;
