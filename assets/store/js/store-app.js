@@ -96,11 +96,7 @@ async function initStore() {
             storeConfig = configSnap.data();
             categories = storeConfig.categories || [];
         }
-        const productsSnap = await getDocs(query(collection(db, 'store_products')));
-        console.log("Total products fetched:", productsSnap.size);
-        if (productsSnap.empty) {
-            alert("No products found in the database at all!");
-        }
+        const productsSnap = await getDocs(query(collection(db, 'store_products'), where('status', '==', 'active')));
         products = productsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         products.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
         
@@ -115,8 +111,6 @@ async function initStore() {
         }
     } catch (e) {
         console.error("Error initializing store:", e);
-        if (typeof toast === 'function') toast('Store initialization failed. Please check your connection.', 'error');
-        alert("Init Error: " + e.message); // Temporary alert for debugging
     }
 }
 
