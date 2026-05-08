@@ -2,6 +2,8 @@ import { auth, db } from '../../../firebase-config.js';
 import { GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import { collection, doc, getDocs, getDoc, setDoc, addDoc, updateDoc, query, where, orderBy, serverTimestamp, runTransaction, increment, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
+const googleProvider = new GoogleAuthProvider();
+
 const $ = id => document.getElementById(id);
 
 // --- STATE ---
