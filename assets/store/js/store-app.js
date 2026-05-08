@@ -594,6 +594,20 @@ async function applyCoupon() {
                 msg.style.color = '#dc2626';
                 appliedCoupon = null;
             } else {
+                // Check per-user limit
+                if (coupon.limitPerUser > 0 && currentUser) {
+                    const ordersSnap = await getDocs(query(collection(db, 'store_orders'), 
+                        where('customer.uid', '==', currentUser.uid),
+                        where('couponCode', '==', code)
+                    ));
+                    if (ordersSnap.size >= coupon.limitPerUser) {
+                        msg.textContent = `You have already used this coupon ${coupon.limitPerUser} time(s).`;
+                        msg.style.color = '#dc2626';
+                        appliedCoupon = null;
+                        return;
+                    }
+                }
+
                 appliedCoupon = coupon;
                 const discountText = coupon.type === 'percentage' ? `${coupon.value}%` : `₹${coupon.value}`;
                 msg.textContent = `${discountText} discount applied successfully!`;

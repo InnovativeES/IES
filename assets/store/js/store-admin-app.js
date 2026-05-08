@@ -874,6 +874,7 @@ function renderCoupons() {
         <td>₹${c.minOrder || 0}</td>
         <td>${c.expiry ? (c.expiry.toDate ? c.expiry.toDate().toLocaleDateString('en-IN') : new Date(c.expiry).toLocaleDateString('en-IN')) : 'Never'}</td>
         <td class="text-center">${c.usageCount || 0}</td>
+        <td class="text-center">${c.limitPerUser ? c.limitPerUser : '∞'}</td>
         <td><span class="badge badge-${c.status === 'active' ? 'emerald' : 'slate'}">${c.status}</span></td>
         <td class="text-center"><div class="action-btns">
             <button class="btn btn-ghost btn-sm" onclick="window.storeAdmin.editCoupon('${c.id}')" title="Edit">
@@ -894,6 +895,7 @@ function openCouponModal(coupon) {
     $('coupon-type').value = coupon?.type || 'percentage';
     $('coupon-value').value = coupon?.value || '';
     $('coupon-min-order').value = coupon?.minOrder || 0;
+    $('coupon-limit-per-user').value = coupon?.limitPerUser || 0;
     
     let expiryVal = '';
     if (coupon?.expiry) {
@@ -921,6 +923,7 @@ $('coupon-form')?.addEventListener('submit', async e => {
             type: $('coupon-type').value,
             value: parseFloat($('coupon-value').value) || 0,
             minOrder: parseFloat($('coupon-min-order').value) || 0,
+            limitPerUser: parseInt($('coupon-limit-per-user').value) || 0,
             expiry: $('coupon-expiry').value ? new Date($('coupon-expiry').value) : null,
             status: $('coupon-status').value,
             updatedAt: serverTimestamp()

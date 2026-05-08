@@ -222,8 +222,8 @@
                     <div class="card">
                         <div class="card-body table-container">
                             <table class="data-table">
-                                <thead><tr><th>Code</th><th>Discount</th><th>Type</th><th>Min Order</th><th>Expiry</th><th>Uses</th><th>Status</th><th class="text-center">Actions</th></tr></thead>
-                                <tbody id="coupons-list"><tr><td colspan="7" class="table-loading">Loading coupons...</td></tr></tbody>
+                                <thead><tr><th>Code</th><th>Discount</th><th>Type</th><th>Min Order</th><th>Expiry</th><th class="text-center">Uses</th><th class="text-center">Limit</th><th>Status</th><th class="text-center">Actions</th></tr></thead>
+                                <tbody id="coupons-list"><tr><td colspan="9" class="table-loading">Loading coupons...</td></tr></tbody>
                             </table>
                         </div>
                     </div>
@@ -447,12 +447,19 @@
                             <input type="date" id="coupon-expiry" class="form-input">
                         </div>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">Status</label>
-                        <select id="coupon-status" class="form-select">
-                            <option value="active">Active</option>
-                            <option value="inactive">Inactive</option>
-                        </select>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Usage Limit per User</label>
+                            <input type="number" id="coupon-limit-per-user" class="form-input" value="0" min="0">
+                            <small style="color:var(--slate-400); font-size: 0.75rem">0 = Unlimited</small>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Status</label>
+                            <select id="coupon-status" class="form-select">
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
