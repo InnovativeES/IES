@@ -1204,7 +1204,7 @@ function renderAccount() {
                                 <div class="form-group"><label class="form-label">City</label><input type="text" id="prof-ship-city" class="store-input" value="${s.city||''}"></div>
                                 <div class="form-group">
                                     <label class="form-label">State</label>
-                                    <select id="prof-ship-state" class="store-input">${renderStateOptions(s.state)}</select>
+                                    <input type="text" id="prof-ship-state" class="store-input" list="indian-states" value="${s.state||''}" placeholder="Type or select state">
                                 </div>
                             </div>
                             <div class="form-group"><label class="form-label">Pincode</label><input type="text" id="prof-ship-pincode" class="store-input" value="${s.pincode||''}"></div>
@@ -1218,7 +1218,7 @@ function renderAccount() {
                                 <div class="form-group"><label class="form-label">City</label><input type="text" id="prof-bill-city" class="store-input" value="${b.city||''}"></div>
                                 <div class="form-group">
                                     <label class="form-label">State</label>
-                                    <select id="prof-bill-state" class="store-input">${renderStateOptions(b.state)}</select>
+                                    <input type="text" id="prof-bill-state" class="store-input" list="indian-states" value="${b.state||''}" placeholder="Type or select state">
                                 </div>
                             </div>
                             <div class="form-group"><label class="form-label">Pincode</label><input type="text" id="prof-bill-pincode" class="store-input" value="${b.pincode||''}"></div>
