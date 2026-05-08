@@ -14,9 +14,11 @@
         href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap"
         rel="stylesheet">
     <link rel="icon" href="assets/logo%20ver.png" type="image/png">
+    <link rel="stylesheet" href="assets/store/css/store.css">
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 </head>
 
-<body>
+<body class="store-body">
     <!-- Navigation -->
     <nav class="navbar" id="navbar">
         <div class="nav-container">
@@ -45,46 +47,247 @@
         </div>
     </nav>
 
-    <!-- Under Construction Section -->
-    <section class="shop-construction">
-        <div class="shop-construction-bg"></div>
-        <div class="shop-construction-content">
-            <!-- Animated Gear Icon -->
-            <div class="shop-gear-wrapper">
-                <svg class="shop-gear" xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24"
-                    fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
-                    stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="3" />
-                    <path
-                        d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-                </svg>
+    <!-- Storefront App Container -->
+    <div class="store-container" style="padding-top: 100px;">
+        
+        <!-- Store Header (Cart & Auth) -->
+        <div class="store-header-inner">
+            <a href="#home" class="store-brand">IES Store</a>
+            <div class="store-nav-actions">
+                <button id="nav-cart-btn" class="nav-pill-btn" title="Cart">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                    <span>Cart</span>
+                    <span class="cart-badge" id="cart-badge" style="display:none;">0</span>
+                </button>
+                <button id="nav-auth-btn" class="nav-pill-btn" title="Sign In">
+                    <!-- dynamic via JS -->
+                </button>
             </div>
-
-            <span class="shop-tag">Online Store</span>
-            <h1 class="shop-title">Coming Soon</h1>
-            <p class="shop-description">
-                We're building something exciting. Our online shop for precision-engineered
-                components and custom solutions will be available soon.
-            </p>
-
-            <!-- Progress indicator -->
-            <div class="shop-progress">
-                <div class="shop-progress-bar">
-                    <div class="shop-progress-fill"></div>
-                </div>
-                <span class="shop-progress-label">Under Development</span>
-            </div>
-
-            <a href="index.html" class="btn btn-primary shop-back-btn">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="19" y1="12" x2="5" y2="12"></line>
-                    <polyline points="12 19 5 12 12 5"></polyline>
-                </svg>
-                Back to Home
-            </a>
         </div>
-    </section>
+
+        <!-- VIEWS -->
+        <div id="view-home" class="store-view active">
+            <div class="store-hero">
+                <div class="store-hero-content">
+                    <h1>Welcome to IES Store</h1>
+                    <p>Premium quality industrial hardware, kitchen equipment, and custom components.</p>
+                    <a href="#products" class="s-btn s-btn-primary" style="background: white; color: var(--store-primary);">Shop Collection</a>
+                </div>
+            </div>
+            <h3>Featured Products</h3>
+            <div class="product-grid" id="home-featured-grid"></div>
+
+            <div class="amazon-promo-section">
+                <div class="amazon-promo-content">
+                    <h2>Shop with us on Amazon</h2>
+                    <p>Prefer shopping on Amazon? Browse our entire collection of precision hardware and industrial tools on our official Amazon storefront.</p>
+                    <a href="https://www.amazon.in/storefront?me=A16N486OBS7Q9O&ref_=ssf_share" target="_blank" class="s-btn amazon-btn">
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/4/4a/Amazon_icon.svg" width="24" height="24" alt="Amazon">
+                        Visit Amazon Store
+                    </a>
+                </div>
+                <div class="amazon-promo-card-wrapper">
+                    <div class="amazon-brand-card">
+                        <img src="assets/logo.png" class="amazon-card-logo" alt="IES Logo">
+                        <div class="amazon-card-name">IES Store</div>
+                        <div class="amazon-card-rating">
+                            <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
+                        </div>
+                        <div class="amazon-card-badge">Official Amazon Brand</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-products" class="store-view">
+            <div class="toolbar-filters">
+                <div class="category-chips" id="category-filters"></div>
+                <div class="search-input-wrapper">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    <input type="text" id="store-search-input" class="store-input" placeholder="Search products...">
+                </div>
+            </div>
+            <div class="product-grid" id="products-grid"></div>
+        </div>
+
+        <div id="view-product-detail" class="store-view">
+            <a href="#products" style="display:inline-flex; align-items:center; gap:0.5rem; margin-bottom: 1rem; color: var(--store-text-muted)"><svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg> Back to products</a>
+            <div id="product-detail-container" class="detail-layout"></div>
+        </div>
+
+        <div id="view-cart" class="store-view">
+            <h1>Your Cart</h1>
+            <div class="cart-layout">
+                <div id="cart-items-container" class="cart-items"></div>
+                <div id="cart-summary-container" class="cart-summary">
+                    <div id="cart-summary-content"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-checkout" class="store-view">
+            <h1 style="margin-bottom: 2rem">Checkout</h1>
+            <div id="checkout-auth-prompt" class="auth-prompt">
+                <h2>Sign in to continue</h2>
+                <p style="color:var(--store-text-muted); margin-bottom: 1.5rem">Save your addresses and track your orders easily.</p>
+                <button class="s-btn s-btn-outline" onclick="window.storeApp.loginWithGoogle()">
+                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right:0.5rem"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                    Sign in with Google
+                </button>
+            </div>
+
+            <div id="checkout-form-container" style="display:none">
+                <div class="cart-layout">
+                    <div>
+                        <div style="margin-bottom: 1.5rem; padding: 1rem; background: var(--store-bg); border-radius: 8px; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--store-border)">
+                            <div><span style="color:var(--store-text-muted)">Signed in securely as:</span> <strong id="checkout-current-email"></strong></div>
+                            <button type="button" class="s-btn s-btn-outline" onclick="window.storeApp.logout()" style="padding: 0.5rem 1rem; font-size: 0.875rem">Switch Account</button>
+                        </div>
+                        <form id="checkout-form">
+                            <div class="checkout-section">
+                                <h3>Contact Information</h3>
+                                <div class="form-grid">
+                                    <div class="form-group"><label class="form-label">Full Name *</label><input type="text" id="checkout-name" class="store-input" required></div>
+                                    <div class="form-group"><label class="form-label">Email *</label><input type="email" id="checkout-email" class="store-input" required></div>
+                                    <div class="form-group"><label class="form-label">Phone Number *</label><input type="tel" id="checkout-phone" class="store-input" required></div>
+                                </div>
+                            </div>
+                            
+                            <div class="checkout-section">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1.25rem; border-bottom: 1px solid var(--store-border); padding-bottom: 0.75rem">
+                                    <h3 style="margin:0; border:none; padding:0">Delivery Address</h3>
+                                </div>
+                                <div class="form-group"><label class="form-label">Street Address *</label><input type="text" id="checkout-line1" class="store-input" required></div>
+                                <div class="form-group"><label class="form-label">Landmark (Optional)</label><input type="text" id="checkout-landmark" class="store-input" placeholder="e.g. Near City Mall"></div>
+                                <div class="form-grid">
+                                    <div class="form-group"><label class="form-label">City *</label><input type="text" id="checkout-city" class="store-input" required></div>
+                                    <div class="form-group"><label class="form-label">State *</label><input type="text" id="checkout-state" class="store-input" required></div>
+                                    <div class="form-group"><label class="form-label">Pincode *</label><input type="text" id="checkout-pincode" class="store-input" required></div>
+                                </div>
+                            </div>
+
+                            <div class="checkout-section">
+                                <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom: 1.5rem">
+                                    <input type="checkbox" id="billing-same-as-shipping" checked style="width: 18px; height: 18px; cursor: pointer">
+                                    <label for="billing-same-as-shipping" style="font-size: 0.9375rem; font-weight: 500; cursor: pointer">Billing address is same as delivery address</label>
+                                </div>
+                                
+                                <div id="billing-address-fields" style="display:none">
+                                    <h3 style="margin-bottom: 1.25rem; border-bottom: 1px solid var(--store-border); padding-bottom: 0.75rem">Billing Address</h3>
+                                    <div class="form-group"><label class="form-label">Billing Street Address *</label><input type="text" id="billing-line1" class="store-input"></div>
+                                    <div class="form-group"><label class="form-label">Landmark (Optional)</label><input type="text" id="billing-landmark" class="store-input"></div>
+                                    <div class="form-grid">
+                                        <div class="form-group"><label class="form-label">City *</label><input type="text" id="billing-city" class="store-input"></div>
+                                        <div class="form-group"><label class="form-label">State *</label><input type="text" id="billing-state" class="store-input"></div>
+                                        <div class="form-group"><label class="form-label">Pincode *</label><input type="text" id="billing-pincode" class="store-input"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div>
+                        <div class="cart-summary">
+                            <h3 style="margin-bottom: 1.5rem; border-bottom: 1px solid var(--store-border); padding-bottom: 0.75rem">Order Summary</h3>
+                            <div id="free-shipping-tip" style="margin-bottom: 1rem;"></div>
+                            <div id="checkout-items-list" style="margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px dashed var(--store-border)"></div>
+                            
+                            <div style="margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px dashed var(--store-border)">
+                                <label class="form-label" style="font-size: 0.75rem">Coupon Code</label>
+                                <div style="display:flex; gap: 0.5rem">
+                                    <input type="text" id="coupon-input" class="store-input" style="padding: 0.5rem; font-size: 0.875rem; text-transform: uppercase" placeholder="have a coupon code?">
+                                    <button type="button" class="s-btn s-btn-outline" style="padding: 0.5rem 1rem; font-size: 0.875rem" onclick="window.storeApp.applyCoupon()">Apply</button>
+                                </div>
+                                <div id="coupon-message" style="font-size: 0.75rem; margin-top: 0.25rem"></div>
+                            </div>
+
+                            <div class="summary-row"><span>Subtotal</span><span id="checkout-subtotal"></span></div>
+                            <div class="summary-row" id="checkout-discount-row" style="display:none; color: #10b981; font-weight: 500">
+                                <span>Discount (<span id="applied-coupon-code"></span>)</span>
+                                <span id="checkout-discount"></span>
+                            </div>
+                            <div class="summary-row"><span>Shipping</span><span id="checkout-shipping"></span></div>
+                            <div class="summary-row" id="checkout-gst-row">
+                                <span id="checkout-gst-label">18% GST</span>
+                                <span id="checkout-gst"></span>
+                            </div>
+                            <div class="summary-row total" style="flex-direction: column; align-items: flex-end; gap: 0.25rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--store-border);">
+                                <div style="display: flex; justify-content: space-between; width: 100%;">
+                                    <span>Total</span>
+                                    <span id="checkout-total"></span>
+                                </div>
+                                <div style="font-size: 0.75rem; color: var(--store-text-muted); font-weight: normal;" id="gst-bracket-text"></div>
+                            </div>
+                            
+                            <button type="submit" form="checkout-form" class="s-btn s-btn-primary s-btn-full" id="btn-place-order" style="padding: 1.25rem; font-size: 1.1rem; margin-top: 1.5rem; display: flex; flex-direction: column; align-items: center; gap: 0.25rem;">
+                                <span>Place Order</span>
+                                <span style="font-size: 0.7rem; font-weight: 400; opacity: 0.9; display: flex; align-items: center; gap: 0.25rem;">
+                                    <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                                    Secure SSL Encrypted Checkout
+                                </span>
+                            </button>
+                            
+                            <div style="margin-top: 1.5rem; display: flex; justify-content: center; align-items: center; gap: 0.4rem; color: var(--store-text-muted); font-size: 0.8rem;">
+                                <span>Secured by</span>
+                                <span style="font-weight: 800; color: #02042b; display: flex; align-items: center; gap: 0.2rem;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #338cf0"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                                    Razorpay
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-order-success" class="store-view">
+            <div class="auth-prompt" style="max-width: 600px; margin: 4rem auto">
+                <div style="width: 80px; height: 80px; background: #ecfdf5; color: #10b981; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem">
+                    <svg width="40" height="40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                </div>
+                <h1 style="color: #10b981; margin-bottom: 0.5rem">Order Placed Successfully!</h1>
+                <p style="color: var(--store-text-muted); margin-bottom: 2rem">Thank you for your purchase. We've received your order and payment details. It is currently awaiting verification.</p>
+                <div style="display: flex; gap: 1rem; justify-content: center">
+                    <a href="#account" class="s-btn s-btn-outline">Track Order</a>
+                    <a href="#products" class="s-btn s-btn-primary">Continue Shopping</a>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-account" class="store-view">
+            <div id="account-container"></div>
+        </div>
+    </div>
+
+    <!-- Slide-out Cart -->
+    <div class="cart-overlay" id="cart-overlay"></div>
+    <div class="cart-drawer" id="cart-drawer">
+        <div class="cart-header">
+            <h2>Your Cart</h2>
+            <button class="cart-close-btn" id="cart-close-btn">
+                <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="cart-drawer-body" id="cart-drawer-items">
+            <!-- Items injected by JS -->
+        </div>
+        <div class="cart-drawer-footer">
+            <div style="display:flex; justify-content:space-between; margin-bottom: 1rem; color: var(--store-primary); font-weight: 800; font-size: 1.25rem;">
+                <span>Total</span>
+                <span id="cart-drawer-total">₹0</span>
+            </div>
+            <button class="s-btn s-btn-primary s-btn-full" id="cart-drawer-checkout" onclick="location.hash='#checkout'; document.getElementById('cart-drawer').classList.remove('active'); document.getElementById('cart-overlay').classList.remove('active');">Proceed to Checkout</button>
+        </div>
+    </div>
+
+    <!-- Mobile Cart Bar -->
+    <div class="mobile-cart-bar" id="mobile-cart-bar" onclick="document.getElementById('nav-cart-btn').click()">
+        <div>
+            <div class="mc-items" id="mc-items">0 items</div>
+            <div class="mc-price" id="mc-price">₹0</div>
+        </div>
+        <div class="s-btn s-btn-primary" style="padding: 0.5rem 1rem">View Cart</div>
+    </div>
 
     <script>
         // Mobile nav toggle
@@ -105,6 +308,95 @@
             }
         });
     </script>
+    <!-- Printable Invoice Template (Hidden on screen) -->
+    <div id="printable-invoice" class="print-only">
+        <div class="invoice-container">
+            <header class="inv-header">
+                <div class="inv-header-left">
+                    <img src="assets/logo.png" alt="IES Logo" class="inv-logo">
+                    <div class="inv-company-name">Innovative Engineering Solutions</div>
+                    <div class="inv-company-details">
+                        <p id="inv-from-address">Innovative Engineering Solutions, Plot 19, Self Help Industrial Estate, Echangadu, Chennai - 600117</p>
+                        <p><strong>GSTIN:</strong> <span id="inv-from-gst">33AOMPM0883R1Z7</span></p>
+                        <p><strong>Email:</strong> info@iesgroups.com</p>
+                    </div>
+                </div>
+                <div class="inv-header-right">
+                    <h1 class="inv-type-label">TAX INVOICE</h1>
+                    <div class="inv-meta-grid">
+                        <div class="inv-meta-item"><span>Invoice No:</span> <strong id="inv-number"></strong></div>
+                        <div class="inv-meta-item"><span>Date:</span> <strong id="inv-date"></strong></div>
+                        <div class="inv-meta-item"><span>Place of Supply:</span> <strong id="inv-supply-place"></strong></div>
+                        <div class="inv-meta-item"><span>Payment Status:</span> <strong id="inv-payment" style="text-transform: uppercase;"></strong></div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="inv-address-section">
+                <div class="inv-address-col">
+                    <div class="inv-label">Bill To:</div>
+                    <div class="inv-address-card">
+                        <strong id="inv-to-name"></strong>
+                        <p id="inv-to-address"></p>
+                        <p id="inv-to-phone"></p>
+                    </div>
+                </div>
+                <div class="inv-address-col">
+                    <div class="inv-label">Ship To:</div>
+                    <div class="inv-address-card">
+                        <strong id="inv-ship-name"></strong>
+                        <p id="inv-ship-address"></p>
+                    </div>
+                </div>
+            </div>
+
+            <table class="inv-table">
+                <thead>
+                    <tr>
+                        <th style="width: 40px">#</th>
+                        <th>Item Description</th>
+                        <th class="text-center">Qty</th>
+                        <th class="text-right">Unit Price</th>
+                        <th class="text-right">Total</th>
+                    </tr>
+                </thead>
+                <tbody id="inv-items"></tbody>
+            </table>
+
+            <div class="inv-summary-section">
+                <div class="inv-notes">
+                    <div class="inv-label">Terms & Conditions:</div>
+                    <ul class="inv-notes-list">
+                        <li>Goods once sold will not be taken back or exchanged.</li>
+                        <li>This is a computer generated invoice and does not require a physical signature.</li>
+                    </ul>
+                </div>
+                <div class="inv-totals">
+                    <div class="inv-total-row"><span>Gross Total:</span><span id="inv-gross"></span></div>
+                    <div class="inv-total-row discount" id="inv-discount-row"><span>Discount (<span id="inv-coupon"></span>):</span><span id="inv-discount"></span></div>
+                    <div class="inv-total-row border-top"><span>Taxable Value:</span><span id="inv-taxable"></span></div>
+                    <div class="inv-total-row"><span>CGST (9%):</span><span id="inv-cgst-amount"></span></div>
+                    <div class="inv-total-row"><span>SGST (9%):</span><span id="inv-sgst-amount"></span></div>
+                    <div class="inv-total-row"><span>Shipping Charges:</span><span id="inv-shipping"></span></div>
+                    <div class="inv-grand-total">
+                        <span>Grand Total:</span>
+                        <span id="inv-total"></span>
+                    </div>
+                    <div class="inv-total-words" id="inv-total-words"></div>
+                </div>
+            </div>
+
+            <footer class="inv-footer">
+                <p>Thank you for choosing Innovative Engineering Solutions!</p>
+                <div class="inv-footer-bottom">
+                    <span>Visit us at: www.iesgroups.com</span>
+                    <span>IES Store — Quality & Precision</span>
+                </div>
+            </footer>
+        </div>
+    </div>
+
+    <script type="module" src="assets/store/js/store-app.js"></script>
 </body>
 
 </html>

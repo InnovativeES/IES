@@ -4438,6 +4438,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (result.error) {
                     UI.showLoginError(result.error);
                 } else {
+                    const user = result.user;
+                    if (!user.email || !user.email.endsWith('@iesgroups.com')) {
+                        const errEl = document.getElementById('login-error');
+                        if (errEl) {
+                            errEl.innerHTML = `Access Denied: <strong>${user.email}</strong> does not have administrator privileges. <a href="#" id="force-logout-btn" style="color:#6366f1;text-decoration:underline">Sign out</a>`;
+                            errEl.classList.remove('hidden');
+                            document.getElementById('force-logout-btn')?.addEventListener('click', (e) => { 
+                                e.preventDefault(); 
+                                Auth.logout(); 
+                            });
+                        }
+                        return;
+                    }
+
                     // Force View Switch
                     const authDiv = document.getElementById('auth-container');
                     const dashDiv = document.getElementById('dashboard-container');
@@ -4563,7 +4577,36 @@ document.addEventListener('DOMContentLoaded', () => {
         const emailSpan = document.getElementById('user-email-display');
 
         if (user) {
-            if (authDiv) authDiv.style.display = 'none';
+            // Enforce Admin Access (Only @iesgroups.com emails)
+            if (!user.email || !user.email.endsWith('@iesgroups.com')) {
+                const errEl = document.getElementById('login-error');
+                if (errEl) {
+                    errEl.innerHTML = `Access Denied: <strong>${user.email}</strong> does not have administrator privileges. <a href="#" id="force-logout-btn" style="color:#6366f1;text-decoration:underline">Sign out</a>`;
+                    errEl.classList.remove('hidden');
+                    document.getElementById('force-logout-btn')?.addEventListener('click', (e) => { 
+                        e.preventDefault(); 
+                        Auth.logout(); 
+                    });
+                }
+                if (authDiv) {
+                    authDiv.style.display = 'flex';
+                    authDiv.classList.remove('hidden');
+                }
+                if (dashDiv) {
+                    dashDiv.style.display = 'none';
+                    dashDiv.classList.add('hidden');
+                }
+                return;
+            }
+
+            // Valid Admin
+            const errEl = document.getElementById('login-error');
+            if (errEl) errEl.classList.add('hidden');
+
+            if (authDiv) {
+                authDiv.style.display = 'none';
+                authDiv.classList.add('hidden');
+            }
             if (dashDiv) {
                 dashDiv.style.display = 'flex';
                 dashDiv.classList.remove('hidden');
@@ -4614,8 +4657,16 @@ document.addEventListener('DOMContentLoaded', () => {
             // Auto-generate report if past 7 PM IST
             window.adminApp.checkAutoGenerateReport();
         } else {
-            if (authDiv) authDiv.style.display = 'flex';
-            if (dashDiv) dashDiv.style.display = 'none';
+            const errEl = document.getElementById('login-error');
+            if (errEl) errEl.classList.add('hidden');
+            if (authDiv) {
+                authDiv.style.display = 'flex';
+                authDiv.classList.remove('hidden');
+            }
+            if (dashDiv) {
+                dashDiv.style.display = 'none';
+                dashDiv.classList.add('hidden');
+            }
         }
     });
 });

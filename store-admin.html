@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Store Admin — IES Store</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/store/css/store-admin.css">
+    <link rel="icon" href="assets/logo%20ver.png" type="image/png">
+</head>
+<body>
+
+    <!-- AUTH CONTAINER -->
+    <div id="auth-container">
+        <div class="login-card">
+            <img src="assets/logo.png" alt="IES Logo" class="login-logo">
+            <h1 class="login-title">IES Store</h1>
+            <p class="login-subtitle">Store Admin Portal</p>
+            <form id="login-form">
+                <div class="form-group">
+                    <label class="form-label" for="login-email">Email Address</label>
+                    <input type="email" id="login-email" class="form-input" placeholder="store@iesgroups.com" required autocomplete="email">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="login-password">Password</label>
+                    <input type="password" id="login-password" class="form-input" placeholder="Enter your password" required autocomplete="current-password">
+                </div>
+                <div class="form-group form-check">
+                    <input type="checkbox" id="login-remember">
+                    <label for="login-remember" style="font-size:.875rem;color:var(--slate-500)">Remember me</label>
+                </div>
+                <button type="submit" class="btn btn-primary btn-full" id="login-btn">
+                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
+                    Sign In
+                </button>
+                <div id="login-error" class="login-error hidden"></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MOBILE MENU BUTTON -->
+    <button class="mobile-menu-btn hidden" id="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+    </button>
+
+    <!-- DASHBOARD CONTAINER -->
+    <div id="dashboard-container" class="hidden">
+
+        <!-- Sidebar -->
+        <aside id="sidebar">
+            <div class="sidebar-header">
+                <div class="brand-text">IES Store<small>Store Admin</small></div>
+            </div>
+            <nav class="sidebar-nav">
+                <div class="nav-group-label">Overview</div>
+                <ul class="nav-list">
+                    <li class="nav-item"><a href="#" class="nav-link active" data-view="dashboard">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+                        Dashboard</a></li>
+                </ul>
+                <div class="nav-group-label">Catalog</div>
+                <ul class="nav-list">
+                    <li class="nav-item"><a href="#" class="nav-link" data-view="products">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                        Products</a></li>
+                    <li class="nav-item"><a href="#" class="nav-link" data-view="coupons">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/></svg>
+                        Coupons</a></li>
+                    <li class="nav-item"><a href="#" class="nav-link" data-view="reviews">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
+                        Reviews <span class="nav-badge hidden" id="nav-reviews-badge">0</span></a></li>
+                </ul>
+                <div class="nav-group-label">Sales</div>
+                <ul class="nav-list">
+                    <li class="nav-item"><a href="#" class="nav-link" data-view="orders">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
+                        Orders <span class="nav-badge hidden" id="nav-orders-badge">0</span></a></li>
+                    <li class="nav-item"><a href="#" class="nav-link" data-view="customers">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                        Customers</a></li>
+                </ul>
+                <div class="nav-group-label">Configuration</div>
+                <ul class="nav-list">
+                    <li class="nav-item"><a href="#" class="nav-link" data-view="shipping">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12l-4 9H8l-4-9h4m0 0V3m0 4l-2 9m6-9v13m4-13l2 9"/></svg>
+                        Shipping & UPI</a></li>
+                    <li class="nav-item"><a href="#" class="nav-link" data-view="settings">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
+                        Settings</a></li>
+                </ul>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <div class="user-avatar">S</div>
+                    <div><span class="user-email" id="user-email-display">store@iesgroups.com</span></div>
+                </div>
+                <button id="logout-btn">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                    Sign Out
+                </button>
+            </div>
+        </aside>
+
+        <div class="main-wrapper">
+            <main id="main-content">
+
+                <!-- ═══ DASHBOARD VIEW ═══ -->
+                <div id="view-dashboard" class="view-section">
+                    <div class="page-header">
+                        <div><h1 class="page-title">Dashboard</h1><p class="page-subtitle">Store overview and recent activity</p></div>
+                    </div>
+                    <div class="stats-grid">
+                        <div class="stat-card"><div class="stat-icon teal"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg></div><div class="stat-content"><h3>Total Products</h3><p id="stat-total-products">0</p></div></div>
+                        <div class="stat-card"><div class="stat-icon emerald"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg></div><div class="stat-content"><h3>Active Orders</h3><p id="stat-active-orders">0</p><div class="stat-trend" id="stat-pending-badge"></div></div></div>
+                        <div class="stat-card"><div class="stat-icon blue"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div><div class="stat-content"><h3>Revenue (This Month)</h3><p id="stat-revenue">₹0</p></div></div>
+                        <div class="stat-card"><div class="stat-icon amber"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg></div><div class="stat-content"><h3>Low Stock</h3><p id="stat-low-stock">0</p><div class="stat-trend">Items with ≤5 stock</div></div></div>
+                        <div class="stat-card" style="position:relative"><div class="stat-icon" style="background: rgba(168, 85, 247, 0.15); color: var(--primary-400);"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg></div><div class="stat-content"><h3>Views Today</h3><p id="stat-views-today">0</p><div class="stat-trend"><a href="#" onclick="window.storeAdmin.viewAnalytics(); return false;" style="color:var(--primary-400); text-decoration:none">View History &rarr;</a></div></div></div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header"><h3 class="card-title">Recent Orders</h3></div>
+                        <div class="card-body table-container">
+                            <table class="data-table">
+                                <thead><tr><th>Order</th><th>Customer</th><th>Items</th><th>Total</th><th>Payment</th><th>Status</th><th>Date</th></tr></thead>
+                                <tbody id="dashboard-recent-orders"><tr><td colspan="7" class="table-loading">No orders yet</td></tr></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══ PRODUCTS VIEW ═══ -->
+                <div id="view-products" class="view-section hidden">
+                    <div class="page-header">
+                        <div><h1 class="page-title">Products</h1><p class="page-subtitle">Manage your product catalog</p></div>
+                        <button class="btn btn-primary" id="btn-add-product">
+                            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                            Add Product
+                        </button>
+                    </div>
+                    <div class="toolbar">
+                        <div class="search-box">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                            <input type="text" id="product-search" placeholder="Search products...">
+                        </div>
+                        <select class="filter-select" id="product-category-filter"><option value="">All Categories</option></select>
+                        <select class="filter-select" id="product-status-filter"><option value="">All Status</option><option value="active">Active</option><option value="draft">Draft</option></select>
+                    </div>
+                    <div class="card">
+                        <div class="card-body table-container">
+                            <table class="data-table">
+                                <thead><tr><th style="width:60px"></th><th>Product</th><th>SKU</th><th>Category</th><th class="text-right">Price</th><th class="text-center">Stock</th><th>Status</th><th class="text-center">Actions</th></tr></thead>
+                                <tbody id="products-table-body"><tr><td colspan="8" class="table-loading">Loading products...</td></tr></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══ ORDERS VIEW ═══ -->
+                <div id="view-orders" class="view-section hidden">
+                    <div class="page-header">
+                        <div><h1 class="page-title">Orders</h1><p class="page-subtitle">Manage customer orders</p></div>
+                    </div>
+                    <div class="toolbar">
+                        <div class="search-box">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                            <input type="text" id="order-search" placeholder="Search orders...">
+                        </div>
+                        <select class="filter-select" id="order-status-filter">
+                            <option value="all">All Status</option>
+                            <option value="pending">Pending</option>
+                            <option value="pending_verification">Awaiting Verification</option>
+                            <option value="confirmed">Confirmed</option>
+                            <option value="processing">Processing</option>
+                            <option value="shipped">Shipped</option>
+                            <option value="out_for_delivery">Out for Delivery</option>
+                            <option value="delivered">Delivered</option>
+                            <option value="cancelled">Cancelled</option>
+                            <option value="deleted">Trash / Deleted</option>
+                        </select>
+                    </div>
+                    <div class="card">
+                        <div class="card-body table-container">
+                            <table class="data-table">
+                                <thead><tr><th>Order #</th><th>Customer</th><th>Items</th><th class="text-right">Total</th><th>Payment</th><th>Status</th><th>Date</th><th class="text-center">Actions</th></tr></thead>
+                                <tbody id="orders-list"><tr><td colspan="8" class="table-loading">Loading orders...</td></tr></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══ CUSTOMERS VIEW ═══ -->
+                <div id="view-customers" class="view-section hidden">
+                    <div class="page-header">
+                        <div><h1 class="page-title">Customers</h1><p class="page-subtitle">View and manage registered customers</p></div>
+                    </div>
+                    <div class="toolbar">
+                        <div class="search-box">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                            <input type="text" id="customer-search" placeholder="Search customers...">
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-body table-container">
+                            <table class="data-table">
+                                <thead><tr><th>Customer Name</th><th>Email</th><th>Phone</th><th>Total Orders</th><th>Joined Date</th><th class="text-center">Actions</th></tr></thead>
+                                <tbody id="customers-list"><tr><td colspan="6" class="table-loading">Loading customers...</td></tr></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══ COUPONS VIEW ═══ -->
+                <div id="view-coupons" class="view-section hidden">
+                    <div class="page-header">
+                        <div><h1 class="page-title">Coupons</h1><p class="page-subtitle">Manage discount codes and promotions</p></div>
+                        <button class="btn btn-primary" id="btn-add-coupon">
+                            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                            Add Coupon
+                        </button>
+                    </div>
+                    <div class="card">
+                        <div class="card-body table-container">
+                            <table class="data-table">
+                                <thead><tr><th>Code</th><th>Discount</th><th>Type</th><th>Min Order</th><th>Expiry</th><th>Uses</th><th>Status</th><th class="text-center">Actions</th></tr></thead>
+                                <tbody id="coupons-list"><tr><td colspan="7" class="table-loading">Loading coupons...</td></tr></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══ REVIEWS VIEW ═══ -->
+                <div id="view-reviews" class="view-section hidden">
+                    <div class="page-header">
+                        <div><h1 class="page-title">Reviews</h1><p class="page-subtitle">Moderate customer product reviews</p></div>
+                    </div>
+                    <div class="toolbar">
+                        <div class="search-box">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                            <input type="text" id="review-search" placeholder="Search reviews...">
+                        </div>
+                        <select class="filter-select" id="review-status-filter">
+                            <option value="all">All Status</option>
+                            <option value="pending">Pending</option>
+                            <option value="approved">Approved</option>
+                            <option value="rejected">Rejected</option>
+                        </select>
+                    </div>
+                    <div id="reviews-list-container" style="display: grid; gap: 1rem;">
+                        <div class="card"><div class="card-body table-loading">Loading reviews...</div></div>
+                    </div>
+                </div>
+
+                <!-- ═══ SHIPPING & UPI VIEW ═══ -->
+                <div id="view-shipping" class="view-section hidden">
+                    <div class="page-header">
+                        <div><h1 class="page-title">Shipping & UPI Settings</h1><p class="page-subtitle">Configure shipping rates and payment details</p></div>
+                    </div>
+                    <div class="settings-grid">
+                        <div class="card">
+                            <div class="card-header"><h3 class="card-title">Shipping Rates</h3></div>
+                            <div class="card-body" id="shipping-rates-container"></div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header"><h3 class="card-title">Free Shipping</h3></div>
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <label class="form-label">Free shipping for orders above (₹)</label>
+                                    <input type="number" id="free-shipping-threshold" class="form-input" placeholder="e.g. 999">
+                                </div>
+                                <p style="font-size:.8125rem;color:var(--slate-500)">Set to 0 to disable free shipping</p>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header"><h3 class="card-title">Razorpay Settings</h3></div>
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <label class="form-label">Razorpay Key ID</label>
+                                    <div style="display:flex;gap:.5rem">
+                                        <input type="password" id="razorpay-key-id" class="form-input" placeholder="••••••••••••••••" disabled>
+                                        <button type="button" class="btn btn-secondary btn-sm" id="btn-unlock-razorpay">Unlock</button>
+                                    </div>
+                                </div>
+                                <p style="font-size:.8125rem;color:var(--slate-500)">Password required to view or edit this key.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="margin-top:1.5rem;display:flex;justify-content:flex-end">
+                        <button class="btn btn-primary" id="btn-save-shipping">Save Changes</button>
+                    </div>
+                </div>
+
+                <!-- ═══ SETTINGS VIEW ═══ -->
+                <div id="view-settings" class="view-section hidden">
+                    <div class="page-header">
+                        <div><h1 class="page-title">Store Settings</h1><p class="page-subtitle">General store configuration</p></div>
+                    </div>
+                    <div class="settings-grid">
+                        <div class="card">
+                            <div class="card-header"><h3 class="card-title">General</h3></div>
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <label class="form-label">Store Name</label>
+                                    <input type="text" id="setting-store-name" class="form-input" value="IES Store">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Tax Rate (GST %)</label>
+                                    <input type="number" id="setting-tax-rate" class="form-input" placeholder="e.g. 18" value="0">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">GST Number</label>
+                                    <input type="text" id="setting-gst-number" class="form-input" placeholder="e.g. 29AAAAA0000A1Z5">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Company Address (for Invoice)</label>
+                                    <textarea id="setting-company-address" class="form-input" rows="3"></textarea>
+                                </div>
+                                <div class="form-group form-check">
+                                    <input type="checkbox" id="setting-store-active" checked>
+                                    <label for="setting-store-active">Store is active (visible to customers)</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header"><h3 class="card-title">Product Categories</h3></div>
+                            <div class="card-body">
+                                <div class="tag-list" id="categories-list"></div>
+                                <div style="display:flex;gap:.5rem;margin-top:1rem">
+                                    <input type="text" id="new-category-input" class="form-input" placeholder="New category name" style="flex:1">
+                                    <button class="btn btn-secondary" id="btn-add-category">Add</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="margin-top:1.5rem;display:flex;justify-content:flex-end">
+                        <button class="btn btn-primary" id="btn-save-settings">Save Settings</button>
+                    </div>
+                </div>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- ═══ PRODUCT MODAL ═══ -->
+    <div id="product-modal" class="modal-overlay hidden">
+        <div class="modal" style="max-width:800px">
+            <div class="modal-header">
+                <h2 class="modal-title" id="product-modal-title">Add Product</h2>
+                <button class="modal-close" onclick="window.storeAdmin.closeProductModal()"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+            </div>
+            <form id="product-form" style="display:flex;flex-direction:column;overflow:hidden;flex:1;min-height:0">
+                <div class="modal-body">
+                    <input type="hidden" id="product-id">
+                    <div class="form-row">
+                        <div class="form-group" style="flex: 2;"><label class="form-label">Title *</label><input type="text" id="product-title" class="form-input" required></div>
+                        <div class="form-group"><label class="form-label">SKU</label><input type="text" id="product-sku" class="form-input" placeholder="e.g. IES-GN-001"></div>
+                        <div class="form-group" style="flex: 0.5;"><label class="form-label" title="Lower numbers appear first">Order</label><input type="number" id="product-sort-order" class="form-input" value="0"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label class="form-label">Category</label><select id="product-category" class="form-select"></select></div>
+                        <div class="form-group"><label class="form-label">Status</label><select id="product-status" class="form-select"><option value="active">Active</option><option value="draft">Draft</option></select></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label class="form-label">Selling Price (₹) *</label><input type="number" id="product-price" class="form-input" step="0.01" required></div>
+                        <div class="form-group"><label class="form-label">MRP / Compare Price (₹)</label><input type="number" id="product-compare-price" class="form-input" step="0.01"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label class="form-label">Inventory / Stock</label><input type="number" id="product-stock" class="form-input" value="10"></div>
+                        <div class="form-group"><label class="form-label">GST %</label><input type="number" id="product-gst" class="form-input" value="18"></div>
+                    </div>
+                    <div class="form-group"><label class="form-label">Amazon Link (Optional)</label><input type="url" id="product-amazon-link" class="form-input" placeholder="https://www.amazon.in/dp/..."></div>
+                    <div class="form-group"><label class="form-label">Weight (grams)</label><input type="number" id="product-weight" class="form-input"></div>
+                    <div class="form-group"><label class="form-label">Description</label><textarea id="product-description" class="form-textarea" rows="4"></textarea></div>
+                    <div class="form-group"><label class="form-label">Tags (comma-separated)</label><input type="text" id="product-tags" class="form-input" placeholder="e.g. stainless-steel, bbq, grill"></div>
+                    <div class="form-group form-check"><input type="checkbox" id="product-featured"><label for="product-featured">Featured product (shown on homepage)</label></div>
+                    <div class="form-group">
+                        <label class="form-label">Product Images</label>
+                        <div class="image-drop-zone" id="product-image-drop">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                            <p>Drop images here or <span>browse</span></p>
+                        </div>
+                        <input type="file" id="product-images" multiple accept="image/*" style="display:none">
+                        <div class="image-preview-grid" id="product-image-preview"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="window.storeAdmin.closeProductModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="product-save-btn">Save Product</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ═══ ORDER DETAIL MODAL ═══ -->
+    <div id="order-modal" class="modal-overlay hidden">
+        <div class="modal" style="max-width:650px">
+            <div class="modal-header">
+                <h2 class="modal-title" id="order-modal-title">Order Details</h2>
+                <button class="modal-close" onclick="window.storeAdmin.closeOrderModal()"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+            </div>
+            <div class="modal-body" id="order-modal-body"></div>
+            <div class="modal-footer">
+                <button class="btn btn-danger" style="margin-right:auto" id="btn-delete-order">Delete Order</button>
+                <button class="btn btn-secondary" onclick="window.storeAdmin.printInvoice()">
+                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                    Print Invoice</button>
+                <button class="btn btn-secondary" onclick="window.storeAdmin.closeOrderModal()">Close</button>
+                <button class="btn btn-primary" id="btn-save-order">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ COUPON MODAL ═══ -->
+    <div id="coupon-modal" class="modal-overlay hidden">
+        <div class="modal" style="max-width:500px">
+            <div class="modal-header">
+                <h2 class="modal-title" id="coupon-modal-title">Add Coupon</h2>
+                <button class="modal-close" onclick="window.storeAdmin.closeCouponModal()"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+            </div>
+            <form id="coupon-form">
+                <div class="modal-body">
+                    <input type="hidden" id="coupon-id">
+                    <div class="form-group">
+                        <label class="form-label">Coupon Code *</label>
+                        <input type="text" id="coupon-code" class="form-input" required placeholder="e.g. WELCOME10" style="text-transform: uppercase">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Discount Type</label>
+                            <select id="coupon-type" class="form-select">
+                                <option value="percentage">Percentage (%)</option>
+                                <option value="fixed">Fixed Amount (₹)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Value *</label>
+                            <input type="number" id="coupon-value" class="form-input" required step="0.01">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Min Order (₹)</label>
+                            <input type="number" id="coupon-min-order" class="form-input" value="0">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Expiry Date</label>
+                            <input type="date" id="coupon-expiry" class="form-input">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Status</label>
+                        <select id="coupon-status" class="form-select">
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="window.storeAdmin.closeCouponModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="coupon-save-btn">Save Coupon</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ═══ CUSTOMER MODAL ═══ -->
+    <div id="customer-modal" class="modal-overlay hidden">
+        <div class="modal" style="max-width:700px">
+            <div class="modal-header">
+                <h2 class="modal-title" id="customer-modal-title">Customer Profile</h2>
+                <button class="modal-close" onclick="window.storeAdmin.closeCustomerModal()"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+            </div>
+            <div class="modal-body" id="customer-modal-body">
+                <!-- Profile details injected here -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="window.storeAdmin.closeCustomerModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ ANALYTICS MODAL ═══ -->
+    <div id="analytics-modal" class="modal-overlay hidden">
+        <div class="modal" style="max-width:500px">
+            <div class="modal-header">
+                <h2 class="modal-title">Store Views History</h2>
+                <button class="modal-close" onclick="window.storeAdmin.closeAnalyticsModal()"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+            </div>
+            <div class="modal-body">
+                <table class="data-table">
+                    <thead><tr><th>Date</th><th class="text-right">Unique Views</th></tr></thead>
+                    <tbody id="analytics-table-body">
+                        <tr><td colspan="2" class="table-loading">Loading data...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="window.storeAdmin.closeAnalyticsModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ PROFESSIONAL PRINTABLE INVOICE (Hidden) ═══ -->
+    <div id="printable-invoice" class="print-only">
+        <div class="invoice-container">
+            <header class="inv-header">
+                <div class="inv-header-left">
+                    <img src="assets/logo.png" alt="IES Logo" class="inv-logo">
+                    <div class="inv-company-name">Innovative Engineering Solutions</div>
+                    <div class="inv-company-details">
+                        <p id="inv-from-address"></p>
+                        <p><strong>GSTIN:</strong> <span id="inv-from-gst"></span></p>
+                        <p><strong>Email:</strong> info@iesgroups.com</p>
+                    </div>
+                </div>
+                <div class="inv-header-right">
+                    <h1 class="inv-type-label">TAX INVOICE</h1>
+                    <div class="inv-meta-grid">
+                        <div class="inv-meta-item"><span>Invoice No:</span> <strong id="inv-number"></strong></div>
+                        <div class="inv-meta-item"><span>Date:</span> <strong id="inv-date"></strong></div>
+                        <div class="inv-meta-item"><span>Place of Supply:</span> <strong id="inv-supply-place"></strong></div>
+                        <div class="inv-meta-item"><span>Payment Status:</span> <strong id="inv-payment" style="text-transform: uppercase;"></strong></div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="inv-address-section">
+                <div class="inv-address-col">
+                    <div class="inv-label">Bill To:</div>
+                    <div class="inv-address-card">
+                        <strong id="inv-to-name"></strong>
+                        <p id="inv-to-address"></p>
+                        <p id="inv-to-phone"></p>
+                    </div>
+                </div>
+                <div class="inv-address-col">
+                    <div class="inv-label">Ship To:</div>
+                    <div class="inv-address-card">
+                        <strong id="inv-ship-name"></strong>
+                        <p id="inv-ship-address"></p>
+                    </div>
+                </div>
+            </div>
+
+            <table class="inv-table">
+                <thead>
+                    <tr>
+                        <th style="width: 40px">#</th>
+                        <th>Item Description</th>
+                        <th class="text-center">Qty</th>
+                        <th class="text-right">Unit Price</th>
+                        <th class="text-right">Total</th>
+                    </tr>
+                </thead>
+                <tbody id="inv-items"></tbody>
+            </table>
+
+            <div class="inv-summary-section">
+                <div class="inv-notes">
+                    <div class="inv-label">Terms & Conditions:</div>
+                    <ul class="inv-notes-list">
+                        <li>Goods once sold will not be taken back or exchanged.</li>
+                        <li>This is a computer generated invoice and does not require a physical signature.</li>
+                    </ul>
+                </div>
+                <div class="inv-totals">
+                    <div class="inv-total-row"><span>Gross Total:</span><span id="inv-gross"></span></div>
+                    <div class="inv-total-row discount" id="inv-discount-row"><span>Discount (<span id="inv-coupon"></span>):</span><span id="inv-discount"></span></div>
+                    <div class="inv-total-row border-top"><span>Taxable Value:</span><span id="inv-taxable"></span></div>
+                    <div class="inv-total-row"><span>CGST (<span id="inv-cgst-rate"></span>%):</span><span id="inv-cgst-amount"></span></div>
+                    <div class="inv-total-row"><span>SGST (<span id="inv-sgst-rate"></span>%):</span><span id="inv-sgst-amount"></span></div>
+                    <div class="inv-total-row"><span>Shipping Charges:</span><span id="inv-shipping"></span></div>
+                    <div class="inv-grand-total">
+                        <span>Grand Total:</span>
+                        <span id="inv-total"></span>
+                    </div>
+                    <div class="inv-total-words" id="inv-total-words"></div>
+                </div>
+            </div>
+
+            <footer class="inv-footer">
+                <p>Thank you for choosing Innovative Engineering Solutions!</p>
+                <div class="inv-footer-bottom">
+                    <span>Visit us at: www.iesgroups.com</span>
+                    <span>IES Store — Quality & Precision</span>
+                </div>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Printable Shipping Label -->
+    <div id="printable-shipping-label" class="print-only">
+        <div class="shipping-label-wrapper">
+            <header class="label-header">
+                <div class="label-brand">IES STORE</div>
+                <div class="label-id" id="lbl-order-id"></div>
+            </header>
+            
+            <div class="label-section">
+                <div class="label-title">SHIP TO:</div>
+                <div class="label-address">
+                    <strong id="lbl-to-name" style="font-size: 1.25rem; display: block; margin-bottom: 5px;"></strong>
+                    <p id="lbl-to-address" style="margin-bottom: 8px; line-height: 1.4;"></p>
+                    <div class="label-phone">
+                        <strong>PHONE:</strong> <span id="lbl-to-phone"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="label-section">
+                <div class="label-title">PACKING LIST:</div>
+                <table class="label-items-table">
+                    <thead>
+                        <tr>
+                            <th>Item Name</th>
+                            <th class="text-center">Qty</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lbl-items"></tbody>
+                </table>
+            </div>
+
+            <footer class="label-footer">
+                <div>Printed on: <span id="lbl-print-date"></span></div>
+                <div style="font-weight: 700;">INNOVATIVE ENGINEERING SOLUTIONS</div>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
+    <script type="module" src="assets/store/js/store-admin-app.js"></script>
+</body>
+</html>
