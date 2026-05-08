@@ -166,10 +166,10 @@
                                 <div class="form-group"><label class="form-label">Street Address *</label><input type="text" id="checkout-line1" class="store-input" required></div>
                                 <div class="form-group"><label class="form-label">Landmark (Optional)</label><input type="text" id="checkout-landmark" class="store-input" placeholder="e.g. Near City Mall"></div>
                                 <div class="form-grid">
-                                    <div class="form-group"><label class="form-label">City *</label><input type="text" id="checkout-city" class="store-input" required></div>
+                                    <div class="form-group"><label class="form-label">City *</label><input type="text" id="checkout-city" class="store-input" autocomplete="address-level2" required></div>
                                     <div class="form-group">
                                         <label class="form-label">State *</label>
-                                        <input type="text" id="checkout-state" class="store-input" list="indian-states" placeholder="Type or select state" required>
+                                        <input type="text" id="checkout-state" class="store-input" autocomplete="address-level1" placeholder="State" required>
                                     </div>
                                     <div class="form-group"><label class="form-label">Pincode *</label><input type="text" id="checkout-pincode" class="store-input" required></div>
                                 </div>
@@ -186,10 +186,10 @@
                                     <div class="form-group"><label class="form-label">Billing Street Address *</label><input type="text" id="billing-line1" class="store-input"></div>
                                     <div class="form-group"><label class="form-label">Landmark (Optional)</label><input type="text" id="billing-landmark" class="store-input"></div>
                                     <div class="form-grid">
-                                        <div class="form-group"><label class="form-label">City *</label><input type="text" id="billing-city" class="store-input"></div>
+                                        <div class="form-group"><label class="form-label">City *</label><input type="text" id="billing-city" class="store-input" autocomplete="address-level2"></div>
                                         <div class="form-group">
                                             <label class="form-label">State *</label>
-                                            <input type="text" id="billing-state" class="store-input" list="indian-states" placeholder="Type or select state">
+                                            <input type="text" id="billing-state" class="store-input" autocomplete="address-level1" placeholder="State">
                                         </div>
                                         <div class="form-group"><label class="form-label">Pincode *</label><input type="text" id="billing-pincode" class="store-input"></div>
                                     </div>
@@ -407,45 +407,6 @@
             </footer>
         </div>
     </div>
-
-    <datalist id="indian-states">
-        <option value="Andaman and Nicobar Islands">
-        <option value="Andhra Pradesh">
-        <option value="Arunachal Pradesh">
-        <option value="Assam">
-        <option value="Bihar">
-        <option value="Chandigarh">
-        <option value="Chhattisgarh">
-        <option value="Dadra and Nagar Haveli and Daman and Diu">
-        <option value="Delhi">
-        <option value="Goa">
-        <option value="Gujarat">
-        <option value="Haryana">
-        <option value="Himachal Pradesh">
-        <option value="Jammu and Kashmir">
-        <option value="Jharkhand">
-        <option value="Karnataka">
-        <option value="Kerala">
-        <option value="Ladakh">
-        <option value="Lakshadweep">
-        <option value="Madhya Pradesh">
-        <option value="Maharashtra">
-        <option value="Manipur">
-        <option value="Meghalaya">
-        <option value="Mizoram">
-        <option value="Nagaland">
-        <option value="Odisha">
-        <option value="Puducherry">
-        <option value="Punjab">
-        <option value="Rajasthan">
-        <option value="Sikkim">
-        <option value="Tamil Nadu">
-        <option value="Telangana">
-        <option value="Tripura">
-        <option value="Uttar Pradesh">
-        <option value="Uttarakhand">
-        <option value="West Bengal">
-    </datalist>
 
     <script type="module" src="../assets/store/js/store-app.js?v=5"></script>
 </body>
