@@ -852,8 +852,11 @@ function prefillCheckout() {
     const emailBanner = $('checkout-current-email');
     if (emailBanner) emailBanner.textContent = currentUser.email;
 
-    if ($('checkout-name').value === '') $('checkout-name').value = currentProfile.name || '';
-    if ($('checkout-email').value === '') $('checkout-email').value = currentProfile.email || '';
+    if ($('checkout-name').value === '') $('checkout-name').value = currentProfile.name || currentUser.displayName || '';
+    // Always prioritize currentUser.email for the checkout field to avoid admin@ hardcoding issues
+    if ($('checkout-email').value === '' || $('checkout-email').value === 'admin@iesgroups.com') {
+        $('checkout-email').value = currentUser.email || currentProfile.email || '';
+    }
     if ($('checkout-phone').value === '') $('checkout-phone').value = currentProfile.phone || '';
     
     // Fill Shipping
@@ -994,7 +997,7 @@ $('checkout-form')?.addEventListener('submit', async e => {
         const fyCode = (year1 % 100).toString() + (year2 % 100).toString();
 
         const orderData = {
-            orderNumber: `IES-${fyCode}-${String(nextNum).padStart(4, '0')}`,
+            orderNumber: `IESSTORE-${fyCode}-${String(nextNum).padStart(4, '0')}`,
             customer: {
                 uid: currentUser.uid,
                 name: $('checkout-name').value,
@@ -1084,12 +1087,24 @@ async function completeOrder(orderData, btn) {
             }
         }
 
-        // Save address to profile if new
-        if (currentProfile && (!currentProfile.addresses || currentProfile.addresses.length === 0)) {
-            const address = orderData.customer.address;
-            await setDoc(doc(db, 'store_customers', currentUser.uid), {
-                addresses: [address], phone: orderData.customer.phone
-            }, { merge: true });
+        // Save address to profile
+        if (currentProfile) {
+            const customerData = {
+                name: orderData.customer.name,
+                email: orderData.customer.email,
+                phone: orderData.customer.phone,
+                shippingAddress: orderData.customer.shippingAddress,
+                billingAddress: orderData.customer.billingAddress,
+                updatedAt: serverTimestamp()
+            };
+            
+            // For legacy support, also update the 'addresses' array if empty
+            if (!currentProfile.addresses || currentProfile.addresses.length === 0) {
+                customerData.addresses = [orderData.customer.shippingAddress];
+            }
+
+            await setDoc(doc(db, 'store_customers', currentUser.uid), customerData, { merge: true });
+            currentProfile = { ...currentProfile, ...customerData };
         }
 
         // Increment coupon usage count
@@ -1429,10 +1444,15 @@ async function loadAccountOrders() {
                 <div style="margin-bottom:1rem">${itemsHtml}</div>
 
                 <div style="display:flex; gap:0.5rem; border-top:1px solid var(--store-border); padding-top:1rem">
+                    ${o.status === 'delivered' ? `
                     <button class="s-btn s-btn-secondary print-inv-btn" style="flex:1; padding:0.5rem; font-size:0.8125rem" data-id="${o.id}">
                         <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right:4px; vertical-align:middle"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
                         View Invoice
-                    </button>
+                    </button>` : `
+                    <div style="flex:1; padding:0.5rem; font-size:0.75rem; color:var(--store-text-muted); text-align:center; background:var(--store-bg); border-radius:6px">
+                        Invoice will be available after delivery
+                    </div>
+                    `}
                 </div>
             </div>`;
         }).join('');
