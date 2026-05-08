@@ -16,6 +16,12 @@
     <link rel="icon" href="../assets/logo%20ver.png" type="image/png">
     <link rel="stylesheet" href="../assets/store/css/store.css">
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <script>
+        window.onerror = function(msg, url, lineNo, columnNo, error) {
+            alert("Error: " + msg + "\nScript: " + url + "\nLine: " + lineNo);
+            return false;
+        };
+    </script>
 </head>
 
 <body class="store-body">
