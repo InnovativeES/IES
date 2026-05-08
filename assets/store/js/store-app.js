@@ -26,7 +26,6 @@ const maskName = (name) => {
 };
 
 // --- AUTH ---
-const googleProvider = new GoogleAuthProvider();
 
 onAuthStateChanged(auth, async user => {
     currentUser = user;
