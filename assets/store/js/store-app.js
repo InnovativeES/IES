@@ -1147,6 +1147,21 @@ function renderOrderSuccess(id) {
     // In a real app we would fetch the order to show the order number
 }
 
+// --- HELPERS ---
+const INDIAN_STATES = [
+    "Andaman and Nicobar Islands", "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", 
+    "Chandigarh", "Chhattisgarh", "Dadra and Nagar Haveli and Daman and Diu", "Delhi", "Goa", 
+    "Gujarat", "Haryana", "Himachal Pradesh", "Jammu and Kashmir", "Jharkhand", "Karnataka", 
+    "Kerala", "Ladakh", "Lakshadweep", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", 
+    "Mizoram", "Nagaland", "Odisha", "Puducherry", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", 
+    "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal"
+];
+
+function renderStateOptions(selected = "") {
+    return `<option value="">Select State</option>` + 
+        INDIAN_STATES.map(s => `<option value="${s}" ${s === selected ? 'selected' : ''}>${s}</option>`).join('');
+}
+
 // --- ACCOUNT VIEW ---
 function renderAccount() {
     if (!currentUser) { location.hash = '#home'; return; }
@@ -1187,7 +1202,10 @@ function renderAccount() {
                             <div class="form-group"><label class="form-label">Landmark</label><input type="text" id="prof-ship-landmark" class="store-input" value="${s.landmark||''}"></div>
                             <div class="form-grid">
                                 <div class="form-group"><label class="form-label">City</label><input type="text" id="prof-ship-city" class="store-input" value="${s.city||''}"></div>
-                                <div class="form-group"><label class="form-label">State</label><input type="text" id="prof-ship-state" class="store-input" value="${s.state||''}"></div>
+                                <div class="form-group">
+                                    <label class="form-label">State</label>
+                                    <select id="prof-ship-state" class="store-input">${renderStateOptions(s.state)}</select>
+                                </div>
                             </div>
                             <div class="form-group"><label class="form-label">Pincode</label><input type="text" id="prof-ship-pincode" class="store-input" value="${s.pincode||''}"></div>
                         </div>
@@ -1198,7 +1216,10 @@ function renderAccount() {
                             <div class="form-group"><label class="form-label">Landmark</label><input type="text" id="prof-bill-landmark" class="store-input" value="${b.landmark||''}"></div>
                             <div class="form-grid">
                                 <div class="form-group"><label class="form-label">City</label><input type="text" id="prof-bill-city" class="store-input" value="${b.city||''}"></div>
-                                <div class="form-group"><label class="form-label">State</label><input type="text" id="prof-bill-state" class="store-input" value="${b.state||''}"></div>
+                                <div class="form-group">
+                                    <label class="form-label">State</label>
+                                    <select id="prof-bill-state" class="store-input">${renderStateOptions(b.state)}</select>
+                                </div>
                             </div>
                             <div class="form-group"><label class="form-label">Pincode</label><input type="text" id="prof-bill-pincode" class="store-input" value="${b.pincode||''}"></div>
                         </div>
