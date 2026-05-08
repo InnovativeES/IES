@@ -122,7 +122,7 @@ function handleRoute() {
     views.forEach(v => v.classList.remove('active'));
     window.scrollTo(0, 0);
 
-    if (hash === '#home') {
+    if (hash === '#home' || hash === '') {
         $('view-home').classList.add('active');
         renderHome();
     } else if (hash.startsWith('#products')) {
@@ -135,7 +135,9 @@ function handleRoute() {
         renderProductDetail(id);
     } else if (hash === '#cart') {
         // Instead of a separate view, just open the drawer
-        location.hash = '#home'; // prevent staying on #cart
+        if (location.hash === '#cart') {
+            history.replaceState(null, null, ' '); // Clear the hash without reloading
+        }
         openCartDrawer();
     } else if (hash === '#checkout') {
         $('view-checkout').classList.add('active');
@@ -148,7 +150,8 @@ function handleRoute() {
         const id = hash.split('/')[1];
         renderOrderSuccess(id);
     } else {
-        location.hash = '#home';
+        // Only set home if it's an unrecognized hash
+        if (location.hash) location.hash = '#home';
     }
 }
 
