@@ -1195,6 +1195,7 @@ function renderAccount() {
                             <h4 style="margin-bottom: 1rem; font-size: 0.9rem; color: var(--store-text-muted); text-transform: uppercase; letter-spacing: 0.05em">Default Shipping Address</h4>
                             <div class="form-group"><label class="form-label">Street Address</label><input type="text" id="prof-ship-line1" class="store-input" value="${s.line1||''}"></div>
                             <div class="form-group"><label class="form-label">Landmark</label><input type="text" id="prof-ship-landmark" class="store-input" value="${s.landmark||''}"></div>
+                            <div class="form-group"><label class="form-label">Pincode</label><input type="text" id="prof-ship-pincode" class="store-input" value="${s.pincode||''}" placeholder="6-digit Pincode"></div>
                             <div class="form-grid">
                                 <div class="form-group"><label class="form-label">City</label><input type="text" id="prof-ship-city" class="store-input" value="${s.city||''}" autocomplete="address-level2"></div>
                                 <div class="form-group">
@@ -1202,13 +1203,13 @@ function renderAccount() {
                                     <input type="text" id="prof-ship-state" class="store-input" value="${s.state||''}" autocomplete="address-level1" placeholder="State">
                                 </div>
                             </div>
-                            <div class="form-group"><label class="form-label">Pincode</label><input type="text" id="prof-ship-pincode" class="store-input" value="${s.pincode||''}"></div>
                         </div>
 
                         <div style="margin-top: 1.5rem">
                             <h4 style="margin-bottom: 1rem; font-size: 0.9rem; color: var(--store-text-muted); text-transform: uppercase; letter-spacing: 0.05em">Default Billing Address</h4>
                             <div class="form-group"><label class="form-label">Street Address</label><input type="text" id="prof-bill-line1" class="store-input" value="${b.line1||''}"></div>
                             <div class="form-group"><label class="form-label">Landmark</label><input type="text" id="prof-bill-landmark" class="store-input" value="${b.landmark||''}"></div>
+                            <div class="form-group"><label class="form-label">Pincode</label><input type="text" id="prof-bill-pincode" class="store-input" value="${b.pincode||''}" placeholder="6-digit Pincode"></div>
                             <div class="form-grid">
                                 <div class="form-group"><label class="form-label">City</label><input type="text" id="prof-bill-city" class="store-input" value="${b.city||''}" autocomplete="address-level2"></div>
                                 <div class="form-group">
@@ -1216,7 +1217,6 @@ function renderAccount() {
                                     <input type="text" id="prof-bill-state" class="store-input" value="${b.state||''}" autocomplete="address-level1" placeholder="State">
                                 </div>
                             </div>
-                            <div class="form-group"><label class="form-label">Pincode</label><input type="text" id="prof-bill-pincode" class="store-input" value="${b.pincode||''}"></div>
                         </div>
 
                         <button type="submit" class="s-btn s-btn-primary s-btn-full" style="margin-top: 1.5rem">Save Profile Changes</button>
