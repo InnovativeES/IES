@@ -1564,6 +1564,41 @@ function toast(msg, type='info') {
         setTimeout(() => el.remove(), 300); 
     }, 3000);
 }
+// --- PINCODE AUTOFILL ---
+document.addEventListener('input', async (e) => {
+    if (e.target.id && e.target.id.endsWith('pincode')) {
+        const pincode = e.target.value.trim();
+        if (pincode.length === 6 && /^\d+$/.test(pincode)) {
+            const prefix = e.target.id.replace('-pincode', '');
+            const cityEl = document.getElementById(prefix + '-city');
+            const stateEl = document.getElementById(prefix + '-state');
+            
+            if (cityEl && stateEl) {
+                try {
+                    // Show a subtle loading state if possible
+                    const originalCity = cityEl.value;
+                    if (!originalCity) cityEl.placeholder = 'Loading...';
+                    
+                    const res = await fetch(`https://api.postalpincode.in/pincode/${pincode}`);
+                    const data = await res.json();
+                    
+                    if (data && data[0] && data[0].Status === 'Success') {
+                        const postOffice = data[0].PostOffice[0];
+                        cityEl.value = postOffice.District;
+                        stateEl.value = postOffice.State;
+                        // Trigger input events for potential validation/storage
+                        cityEl.dispatchEvent(new Event('input', { bubbles: true }));
+                        stateEl.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                } catch (err) {
+                    console.warn('Pincode lookup failed:', err);
+                } finally {
+                    cityEl.placeholder = '';
+                }
+            }
+        }
+    }
+});
 
 // Start
 initStore();
