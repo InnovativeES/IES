@@ -207,24 +207,31 @@ $('store-search-input')?.addEventListener('input', () => {
 });
 
 function createProductCard(p) {
-    const img = p.images?.[0] || 'assets/placeholder.png'; // Make sure placeholder exists or use empty string
+    const img = (p.images && p.images.length > 0) ? p.images[0] : 'assets/no-image.png';
     const formattedPrice = (p.price || 0).toLocaleString();
-    const formattedMRP = p.compareAtPrice ? p.compareAtPrice.toLocaleString() : '';
-    const mrp = p.compareAtPrice > p.price ? `<span class="mrp">₹${formattedMRP}</span>` : '';
-
-    let badge = '';
-    if (p.stock <= 0) badge = '<div class="product-badge" style="color: #dc2626">Out of Stock</div>';
-    else if (p.stock <= 5) badge = '<div class="product-badge" style="color: #d97706">Low Stock</div>';
-    else if (p.compareAtPrice > p.price) {
-        const percent = Math.round(((p.compareAtPrice - p.price) / p.compareAtPrice) * 100);
-        badge = `<div class="product-badge" style="color: #059669">${percent} % OFF</div>`;
-    }
-    
+    const mrp = (p.compareAtPrice && p.compareAtPrice > p.price) ? `<span class="mrp">₹${p.compareAtPrice.toLocaleString()}</span>` : '';
+    const badge = (p.compareAtPrice && p.compareAtPrice > p.price) ? `<div class="product-badge">-${Math.round((p.compareAtPrice - p.price) / p.compareAtPrice * 100)}%</div>` : '';
     const disabled = p.stock <= 0 ? 'disabled' : '';
+
+    const isCustom = p.isCustom || false;
+    const hasPriceRange = p.hasPriceRange || false;
+    const minPrice = p.minPrice || 0;
+    const maxPrice = p.maxPrice || 0;
+
+    let priceDisplay = `₹${formattedPrice}`;
+    if (hasPriceRange && minPrice > 0 && maxPrice > 0) {
+        priceDisplay = `₹${minPrice.toLocaleString()} - ₹${maxPrice.toLocaleString()}`;
+    }
 
     const cartItem = cart.find(i => i.productId === p.id);
     let actionElement;
-    if (cartItem && cartItem.quantity > 0) {
+    if (isCustom) {
+        actionElement = `
+            <button class="add-cart-icon-btn enquiry-btn" onclick="window.storeApp.openEnquiryModal('${p.id}', '${p.title.replace(/'/g, "\\'")}')" title="Enquire">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+            </button>
+        `;
+    } else if (cartItem && cartItem.quantity > 0) {
         actionElement = `
             <div class="qty-selector" style="margin:0; height: 40px; font-size: 0.875rem">
                 <button class="qty-btn" style="width: 32px" onclick="window.storeApp.updateCartItemQty('${p.id}', -1)">-</button>
@@ -247,18 +254,18 @@ function createProductCard(p) {
         </div>` : '';
 
     return `
-    <div class="product-card">
+    <div class="product-card ${isCustom ? 'is-custom' : ''}">
         ${badge}
         <a href="#product/${p.id}" class="product-image-wrap">
             <img src="${img}" alt="${p.title}" loading="lazy">
         </a>
         <div class="product-info">
-            <div class="product-cat">${p.category || 'General'}</div>
+            <div class="product-cat">${p.category || 'General'} ${isCustom ? '<span class="custom-badge">Custom</span>' : ''}</div>
             <a href="#product/${p.id}" class="product-title">${p.title}</a>
             ${cardRating}
             <div class="product-pricing-row">
                 <div class="product-pricing">
-                    <span class="price">₹${formattedPrice}</span>
+                    <span class="price">${priceDisplay}</span>
                     ${mrp}
                 </div>
                 ${actionElement}
@@ -268,30 +275,31 @@ function createProductCard(p) {
 }
 
 // --- PRODUCT DETAIL ---
-function renderProductDetail(id) {
+async function renderProductDetail(id) {
     const p = products.find(x => x.id === id);
     if (!p) { location.hash = '#products'; return; }
-
     const container = $('product-detail-container');
     if (!container) return;
 
-    const images = p.images?.length > 0 ? p.images : ['assets/placeholder.png'];
-    const mrp = p.compareAtPrice > p.price ? `<span class="mrp" style="font-size: 1.2rem">₹${p.compareAtPrice.toLocaleString()}</span>` : '';
+    const images = (p.images && p.images.length > 0) ? p.images : ['assets/no-image.png'];
+    const stockStatus = p.stock > 0 ? '<div class="stock-badge in-stock">In Stock</div>' : '<div class="stock-badge out-stock">Out of Stock</div>';
     
-    let stockStatus = '';
-    if (p.stock > 5) stockStatus = '<span class="stock-status in-stock"><svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> In Stock</span>';
-    else if (p.stock > 0) stockStatus = `<span class="stock-status low-stock"><svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Only ${p.stock} left in stock</span>`;
-    else stockStatus = '<span class="stock-status out-stock"><svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Out of Stock</span>';
-
-    // Rating display
     const avgRating = p.avgRating || 0;
-    const reviewCount = p.reviewCount || 0;
-    const safeRating = Math.max(0, Math.min(5, Math.round(avgRating)));
-    const ratingStars = avgRating > 0 ? `
-        <div style="display:flex; align-items:center; gap:0.5rem; margin-top:0.5rem;">
-            <div style="color:#f59e0b; font-size:1.1rem; letter-spacing:1px">${'★'.repeat(safeRating)}${'☆'.repeat(5 - safeRating)}</div>
-            <span style="font-size:0.875rem; color:var(--store-text-muted)">${avgRating} (${reviewCount} review${reviewCount !== 1 ? 's' : ''})</span>
-        </div>` : '';
+    const ratingStars = `
+        <div class="rating-stars" style="margin-bottom: 1rem">
+            <span style="color:#f59e0b; font-size:1rem; letter-spacing:1px">${'★'.repeat(Math.round(avgRating))}${'☆'.repeat(5 - Math.round(avgRating))}</span>
+            <span style="font-size:0.875rem; color:var(--store-text-muted); margin-left:0.5rem">(${p.reviewCount || 0} reviews)</span>
+        </div>`;
+
+    const isCustom = p.isCustom || false;
+    const hasPriceRange = p.hasPriceRange || false;
+    const minPrice = p.minPrice || 0;
+    const maxPrice = p.maxPrice || 0;
+
+    let priceDisplay = `₹${(p.price || 0).toLocaleString()}`;
+    if (hasPriceRange && minPrice > 0 && maxPrice > 0) {
+        priceDisplay = `₹${minPrice.toLocaleString()} - ₹${maxPrice.toLocaleString()}`;
+    }
 
     container.innerHTML = `
         <div class="detail-gallery">
@@ -302,25 +310,32 @@ function renderProductDetail(id) {
             </div>` : ''}
         </div>
         <div class="detail-info">
-            <div class="product-cat">${p.category || ''}</div>
+            <div class="product-cat">${p.category || ''} ${isCustom ? '<span class="custom-badge" style="display:inline-block; vertical-align:middle; margin-left:8px">Custom</span>' : ''}</div>
             <h1>${p.title}</h1>
             ${stockStatus}
             ${ratingStars}
             <div class="detail-price-wrap">
-                <span class="detail-price">₹${(p.price || 0).toLocaleString()}</span>
+                <span class="detail-price">${priceDisplay}</span>
                 ${p.compareAtPrice > p.price ? `<span class="mrp" style="font-size: 1.2rem">₹${p.compareAtPrice.toLocaleString()}</span>` : ''}
             </div>
             <div class="detail-desc">${p.description || 'No description available.'}</div>
             
-            <div class="qty-selector">
-                        <button class="qty-btn" onclick="window.storeApp.updateQtyInput(-1)">-</button>
-                        <span id="pd-qty" class="qty-input" style="display:inline-block; width: 40px; line-height: 48px; text-align: center; color: var(--store-primary); font-weight: 700" data-value="1">1</span>
-                        <button class="qty-btn" onclick="window.storeApp.updateQtyInput(1)">+</button>
-            </div>
-            
-            <button class="s-btn s-btn-primary s-btn-full" style="padding: 1rem; font-size: 1.1rem" onclick="window.storeApp.addToCartFromDetail('${p.id}')" ${p.stock <= 0 ? 'disabled' : ''}>
-                Add to Cart
-            </button>
+            ${isCustom ? `
+                <button class="s-btn s-btn-primary s-btn-full" style="padding: 1rem; font-size: 1.1rem; margin-top: 1rem" onclick="window.storeApp.openEnquiryModal('${p.id}', '${p.title.replace(/'/g, "\\'")}')">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right:8px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+                    Enquire Now
+                </button>
+            ` : `
+                <div class="qty-selector">
+                            <button class="qty-btn" onclick="window.storeApp.updateQtyInput(-1)">-</button>
+                            <span id="pd-qty" class="qty-input" style="display:inline-block; width: 40px; line-height: 48px; text-align: center; color: var(--store-primary); font-weight: 700" data-value="1">1</span>
+                            <button class="qty-btn" onclick="window.storeApp.updateQtyInput(1)">+</button>
+                </div>
+                
+                <button class="s-btn s-btn-primary s-btn-full" style="padding: 1rem; font-size: 1.1rem" onclick="window.storeApp.addToCartFromDetail('${p.id}')" ${p.stock <= 0 ? 'disabled' : ''}>
+                    Add to Cart
+                </button>
+            `}
             <div style="margin-top: 2rem; border-top: 1px solid var(--store-border); padding-top: 1rem;">
                 <p style="font-size: 0.875rem; color: var(--store-text-muted)"><svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="vertical-align: middle; margin-right: 4px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg> Secure checkout with UPI</p>
                 <p style="font-size: 0.875rem; color: var(--store-text-muted)"><svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="vertical-align: middle; margin-right: 4px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12l-4 9H8l-4-9h4m0 0V3m0 4l-2 9m6-9v13m4-13l2 9"/></svg> Fast delivery across India</p>
@@ -560,8 +575,58 @@ window.storeApp = {
         location.hash = '#home';
     },
     applyCoupon: () => applyCoupon(),
-    submitReview
+    submitReview,
+    openEnquiryModal: (id, title) => {
+        if (!currentUser) {
+            toast('Please sign in to submit an enquiry.', 'info');
+            location.hash = '#checkout';
+            return;
+        }
+        $('enquiry-product-id').value = id;
+        $('enquiry-product-name').textContent = title;
+        if (currentUser) {
+            $('enquiry-name').value = currentProfile?.name || currentUser.displayName || '';
+            $('enquiry-email').value = currentUser.email;
+        }
+        if (currentProfile?.phone) $('enquiry-whatsapp').value = currentProfile.phone;
+        $('enquiry-modal').style.display = 'flex';
+        setTimeout(() => $('enquiry-modal').classList.add('show'), 10);
+    },
+    closeEnquiryModal: () => {
+        $('enquiry-modal').classList.remove('show');
+        setTimeout(() => $('enquiry-modal').style.display = 'none', 200);
+    }
 };
+
+$('enquiry-form')?.addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = $('enquiry-submit-btn');
+    btn.disabled = true;
+    btn.textContent = 'Submitting...';
+
+    try {
+        const data = {
+            productId: $('enquiry-product-id').value,
+            productTitle: $('enquiry-product-name').textContent,
+            customerName: $('enquiry-name').value,
+            customerEmail: $('enquiry-email').value,
+            customerWhatsApp: $('enquiry-whatsapp').value,
+            requirements: $('enquiry-requirements').value,
+            status: 'new',
+            createdAt: serverTimestamp(),
+            customerId: currentUser ? currentUser.uid : null
+        };
+        await addDoc(collection(db, 'store_enquiries'), data);
+        toast('Enquiry submitted! We will contact you soon.', 'success');
+        window.storeApp.closeEnquiryModal();
+        $('enquiry-form').reset();
+    } catch (e) {
+        toast('Error: ' + e.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Submit Enquiry';
+    }
+});
 
 async function applyCoupon() {
     console.log('Applying coupon...');
@@ -1182,6 +1247,11 @@ function renderAccount() {
                     <h3 style="margin-top:0">Order History</h3>
                     <div id="account-orders-list">Loading orders...</div>
                 </div>
+                
+                <div class="checkout-section" style="margin-top:2rem">
+                    <h3 style="margin-top:0">My Enquiries</h3>
+                    <div id="account-enquiries-list">Loading enquiries...</div>
+                </div>
             </div>
             
             <div class="account-sidebar">
@@ -1404,82 +1474,116 @@ window.printOrderInvoice = function(orderId) {
 
 async function loadAccountOrders() {
     try {
-        // Fetch user reviews first to know what is already reviewed
+        // 1. Fetch user reviews to know what is already reviewed
         const reviewSnap = await getDocs(query(collection(db, 'store_reviews'), where('customerId', '==', currentUser.uid)));
         userReviews = reviewSnap.docs.map(d => d.data());
 
-        const q = query(collection(db, 'store_orders'), where('customer.uid', '==', currentUser.uid));
-        const snap = await getDocs(q);
-        const list = $('account-orders-list');
-        if (snap.empty) {
-            list.innerHTML = '<p style="color:var(--store-text-muted)">No orders found.</p>';
-            return;
-        }
+        // 2. Load Orders
+        const orderQ = query(collection(db, 'store_orders'), where('customer.uid', '==', currentUser.uid));
+        const orderSnap = await getDocs(orderQ);
+        const orderListContainer = $('account-orders-list');
         
-        customerOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-            .filter(o => o.status !== 'deleted');
-        customerOrders.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-        
-        list.innerHTML = customerOrders.map(o => {
-            const isEligible = ['shipped', 'out_for_delivery', 'delivered'].includes(o.status);
-            const itemsHtml = (o.items || []).map(it => {
-                const alreadyReviewed = userReviews.some(r => r.productId === it.productId);
+        if (orderSnap.empty) {
+            orderListContainer.innerHTML = '<p style="color:var(--store-text-muted)">No orders found.</p>';
+        } else {
+            customerOrders = orderSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+                .filter(o => o.status !== 'deleted');
+            customerOrders.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+            
+            orderListContainer.innerHTML = customerOrders.map(o => {
+                const isEligible = ['shipped', 'out_for_delivery', 'delivered'].includes(o.status);
+                const itemsHtml = (o.items || []).map(it => {
+                    const alreadyReviewed = userReviews.some(r => r.productId === it.productId);
+                    return `
+                    <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.75rem; padding-bottom:0.75rem; border-bottom:1px solid #f8fafc">
+                        <img src="${it.image || 'assets/store/img/placeholder.png'}" style="width:40px; height:40px; border-radius:4px; object-fit:cover">
+                        <div style="flex:1">
+                            <div style="font-size:0.875rem; font-weight:500">${it.title}</div>
+                            <div style="font-size:0.75rem; color:var(--store-text-muted)">Qty: ${it.quantity} • ₹${(it.price||0).toLocaleString('en-IN')}</div>
+                        </div>
+                        ${isEligible && !alreadyReviewed ? `
+                            <a href="#product/${it.productId}" class="s-btn" style="padding:0.375rem 0.75rem; font-size:0.75rem; background:#f0fdf4; color:#166534; border:1px solid #bbf7d0">Rate & Review</a>
+                        ` : alreadyReviewed ? `
+                            <span style="font-size:0.75rem; color:#16a34a; font-weight:600">✓ Reviewed</span>
+                        ` : ''}
+                    </div>`;
+                }).join('');
+
                 return `
-                <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.75rem; padding-bottom:0.75rem; border-bottom:1px solid #f8fafc">
-                    <img src="${it.image || 'assets/store/img/placeholder.png'}" style="width:40px; height:40px; border-radius:4px; object-fit:cover">
-                    <div style="flex:1">
-                        <div style="font-size:0.875rem; font-weight:500">${it.title}</div>
-                        <div style="font-size:0.75rem; color:var(--store-text-muted)">Qty: ${it.quantity} • ₹${(it.price||0).toLocaleString('en-IN')}</div>
+                <div style="border:1px solid var(--store-border); border-radius:12px; padding:1.25rem; margin-bottom:1rem; background:white; box-shadow: 0 1px 3px rgba(0,0,0,0.05)">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:0.75rem; align-items:center">
+                        <strong style="font-size:1.1rem">Order ${o.orderNumber || o.id.slice(0,8)}</strong>
+                        <span style="font-weight:700; color:var(--store-primary); font-size:1.1rem">₹${(o.total||0).toLocaleString('en-IN')}</span>
                     </div>
-                    ${isEligible && !alreadyReviewed ? `
-                        <a href="#product/${it.productId}" class="s-btn" style="padding:0.375rem 0.75rem; font-size:0.75rem; background:#f0fdf4; color:#166534; border:1px solid #bbf7d0">Rate & Review</a>
-                    ` : alreadyReviewed ? `
-                        <span style="font-size:0.75rem; color:#16a34a; font-weight:600">✓ Reviewed</span>
-                    ` : ''}
+                    <div style="display:flex; justify-content:space-between; font-size:0.875rem; color:var(--store-text-muted); margin-bottom:1rem">
+                        <span>${o.createdAt?.toDate?.().toLocaleDateString('en-IN') || ''} • ${o.items?.length||0} items</span>
+                        <span class="badge" style="background:var(--store-bg); color:var(--store-primary); padding:0.25rem 0.75rem; border-radius:20px; font-weight:600; text-transform:capitalize">
+                            ${(o.status||'pending').replace(/_/g,' ')}
+                        </span>
+                    </div>
+                    ${o.estimatedDelivery ? `
+                    <div style="margin-bottom:1rem; padding: 0.75rem; background: #f0f9ff; border-radius: 8px; border: 1px solid #e0f2fe; display: flex; align-items: center; gap: 0.5rem;">
+                        <svg width="16" height="16" fill="none" stroke="#0369a1" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2-2v12a2 2 0 002 2z"/></svg>
+                        <span style="font-size: 0.8125rem; color: #0369a1; font-weight: 600;">Est. Delivery: ${new Date(o.estimatedDelivery).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                    </div>` : ''}
+                    
+                    <div style="margin-bottom:1rem">${itemsHtml}</div>
+
+                    <div style="display:flex; gap:0.5rem; border-top:1px solid var(--store-border); padding-top:1rem">
+                        ${o.status === 'delivered' ? `
+                        <button class="s-btn s-btn-secondary print-inv-btn" style="flex:1; padding:0.5rem; font-size:0.8125rem" data-id="${o.id}">
+                            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right:4px; vertical-align:middle"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                            View Invoice
+                        </button>` : `
+                        <div style="flex:1; padding:0.5rem; font-size:0.75rem; color:var(--store-text-muted); text-align:center; background:var(--store-bg); border-radius:6px">
+                            Invoice will be available after delivery
+                        </div>
+                        `}
+                    </div>
                 </div>`;
             }).join('');
 
-            return `
-            <div style="border:1px solid var(--store-border); border-radius:12px; padding:1.25rem; margin-bottom:1rem; background:white; box-shadow: 0 1px 3px rgba(0,0,0,0.05)">
-                <div style="display:flex; justify-content:space-between; margin-bottom:0.75rem; align-items:center">
-                    <strong style="font-size:1.1rem">Order ${o.orderNumber || o.id.slice(0,8)}</strong>
-                    <span style="font-weight:700; color:var(--store-primary); font-size:1.1rem">₹${(o.total||0).toLocaleString('en-IN')}</span>
-                </div>
-                <div style="display:flex; justify-content:space-between; font-size:0.875rem; color:var(--store-text-muted); margin-bottom:1rem">
-                    <span>${o.createdAt?.toDate?.().toLocaleDateString('en-IN') || ''} • ${o.items?.length||0} items</span>
-                    <span class="badge" style="background:var(--store-bg); color:var(--store-primary); padding:0.25rem 0.75rem; border-radius:20px; font-weight:600; text-transform:capitalize">
-                        ${(o.status||'pending').replace(/_/g,' ')}
-                    </span>
-                </div>
-                ${o.estimatedDelivery ? `
-                <div style="margin-bottom:1rem; padding: 0.75rem; background: #f0f9ff; border-radius: 8px; border: 1px solid #e0f2fe; display: flex; align-items: center; gap: 0.5rem;">
-                    <svg width="16" height="16" fill="none" stroke="#0369a1" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2-2v12a2 2 0 002 2z"/></svg>
-                    <span style="font-size: 0.8125rem; color: #0369a1; font-weight: 600;">Est. Delivery: ${new Date(o.estimatedDelivery).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</span>
-                </div>` : ''}
-                
-                <div style="margin-bottom:1rem">${itemsHtml}</div>
-
-                <div style="display:flex; gap:0.5rem; border-top:1px solid var(--store-border); padding-top:1rem">
-                    ${o.status === 'delivered' ? `
-                    <button class="s-btn s-btn-secondary print-inv-btn" style="flex:1; padding:0.5rem; font-size:0.8125rem" data-id="${o.id}">
-                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right:4px; vertical-align:middle"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
-                        View Invoice
-                    </button>` : `
-                    <div style="flex:1; padding:0.5rem; font-size:0.75rem; color:var(--store-text-muted); text-align:center; background:var(--store-bg); border-radius:6px">
-                        Invoice will be available after delivery
-                    </div>
-                    `}
-                </div>
-            </div>`;
-        }).join('');
+            // Add event listeners to invoice buttons
+            orderListContainer.querySelectorAll('.print-inv-btn').forEach(btn => {
+                btn.addEventListener('click', () => window.printOrderInvoice(btn.dataset.id));
+            });
+        }
 
         renderPendingReviews();
 
-        // Add event listeners to buttons
-        list.querySelectorAll('.print-inv-btn').forEach(btn => {
-            btn.addEventListener('click', () => window.printOrderInvoice(btn.dataset.id));
-        });
-    } catch(e) { console.error(e); }
+        // 3. Load Enquiries
+        const enqListContainer = $('account-enquiries-list');
+        if (enqListContainer) {
+            const enquirySnap = await getDocs(query(collection(db, 'store_enquiries'), where('customerId', '==', currentUser.uid)));
+            const enquiries = enquirySnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            
+            if (enquiries.length === 0) {
+                enqListContainer.innerHTML = '<p style="color:var(--store-text-muted)">No enquiries found.</p>';
+            } else {
+                enqListContainer.innerHTML = enquiries.sort((a,b) => (b.createdAt?.seconds||0) - (a.createdAt?.seconds||0)).map(e => `
+                    <div class="card" style="margin-bottom:1rem; padding:1.25rem; background:var(--store-bg); border:1px solid var(--store-border)">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem">
+                            <strong style="color:var(--store-primary)">${e.productTitle}</strong>
+                            <span class="badge" style="background:#e0f2fe; color:#0369a1; padding:2px 8px; border-radius:10px; font-size:0.75rem; text-transform:capitalize">${e.status||'new'}</span>
+                        </div>
+                        <div style="font-size:0.875rem; color:var(--store-text-muted); margin-bottom:0.75rem">
+                            Enquired on: ${e.createdAt?.toDate?.().toLocaleDateString('en-IN') || ''}
+                        </div>
+                        <div style="font-size:0.875rem; background:white; padding:0.75rem; border-radius:6px; border:1px solid var(--store-border); white-space:pre-wrap">
+                            ${e.requirements}
+                        </div>
+                    </div>
+                `).join('');
+            }
+        }
+
+    } catch (e) {
+        console.error('Error loading account data:', e);
+        const orderList = $('account-orders-list');
+        if (orderList) orderList.innerHTML = '<p style="color:var(--error)">Error loading orders.</p>';
+        const enqList = $('account-enquiries-list');
+        if (enqList) enqList.innerHTML = '<p style="color:var(--error)">Error loading enquiries.</p>';
+    }
 }
 
 function numberToWords(number) {

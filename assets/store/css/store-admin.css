@@ -651,3 +651,11 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     body.printing-label #printable-invoice { display: none !important; }
     body.printing-invoice #printable-shipping-label { display: none !important; }
 }
+
+/* === ENQUIRY STYLES === */
+.badge-new { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+.badge-contacted { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+.badge-closed { background: var(--surface-hover); color: var(--text-muted); }
+
+#enquiries-list td { vertical-align: top; padding-top: 1.25rem; padding-bottom: 1.25rem; }
+

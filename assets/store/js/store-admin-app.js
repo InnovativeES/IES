@@ -4,7 +4,7 @@ import { collection, doc, getDocs, getDoc, addDoc, setDoc, updateDoc, deleteDoc,
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
 
 const $ = id => document.getElementById(id);
-let products = [], orders = [], coupons = [], reviews = [], config = {}, editingProductId = null, pendingImages = [], existingImages = [];
+let products = [], orders = [], coupons = [], reviews = [], enquiries = [], config = {}, editingProductId = null, pendingImages = [], existingImages = [];
 
 // ── AUTH ──
 onAuthStateChanged(auth, user => {
@@ -32,6 +32,7 @@ onAuthStateChanged(auth, user => {
             loadOrders(); 
             loadCustomers();
             loadCoupons();
+            loadEnquiries();
         });
     } else {
         $('auth-container').classList.remove('hidden');
@@ -171,33 +172,92 @@ $('product-status-filter')?.addEventListener('change', () => renderProducts());
 
 // Product Modal
 function openProductModal(product) {
-    editingProductId = product?.id || null;
-    $('product-modal-title').textContent = product ? 'Edit Product' : 'Add Product';
-    $('product-id').value = product?.id || '';
-    $('product-title').value = product?.title || '';
-    $('product-sku').value = product?.sku || '';
-    $('product-category').value = product?.category || '';
-    $('product-price').value = product?.price || '';
-    $('product-compare-price').value = product?.compareAtPrice || '';
-    $('product-stock').value = product?.stock ?? '';
-    $('product-gst').value = product?.gstRate ?? 18;
-    $('product-sort-order').value = product?.sortOrder ?? 0;
-    $('product-amazon-link').value = product?.amazonLink || '';
-    $('product-weight').value = product?.weight || '';
-    $('product-description').value = product?.description || '';
-    $('product-tags').value = (product?.tags || []).join(', ');
-    $('product-featured').checked = product?.featured || false;
-    $('product-status').value = product?.status || 'active';
-    existingImages = product?.images ? [...product.images] : [];
-    pendingImages = [];
-    renderImagePreviews();
-    $('product-modal').classList.remove('hidden');
-    setTimeout(() => $('product-modal').classList.add('show'), 10);
+    try {
+        editingProductId = product?.id || null;
+        
+        const titleEl = $('product-modal-title');
+        if (titleEl) titleEl.textContent = product ? 'Edit Product' : 'Add Product';
+        
+        const fields = {
+            'product-id': product?.id || '',
+            'product-title': product?.title || '',
+            'product-sku': product?.sku || '',
+            'product-category': product?.category || '',
+            'product-price': product?.price || '',
+            'product-compare-price': product?.compareAtPrice || '',
+            'product-stock': product?.stock ?? '',
+            'product-gst': product?.gstRate ?? 18,
+            'product-sort-order': product?.sortOrder ?? 0,
+            'product-min-price': product?.minPrice || '',
+            'product-max-price': product?.maxPrice || '',
+            'product-weight': product?.weight || '',
+            'product-description': product?.description || '',
+            'product-tags': (product?.tags || []).join(', '),
+            'product-status': product?.status || 'active'
+        };
+
+        Object.entries(fields).forEach(([id, val]) => {
+            const el = $(id);
+            if (el) el.value = val;
+        });
+
+        const checks = {
+            'product-is-custom': product?.isCustom || false,
+            'product-has-price-range': product?.hasPriceRange || false,
+            'product-featured': product?.featured || false
+        };
+
+        Object.entries(checks).forEach(([id, val]) => {
+            const el = $(id);
+            if (el) el.checked = val;
+        });
+
+        // Show/hide based on values
+        updatePriceRequirement();
+
+        existingImages = product?.images ? [...product.images] : [];
+        pendingImages = [];
+        renderImagePreviews();
+
+        const modal = $('product-modal');
+        if (modal) {
+            modal.classList.remove('hidden');
+            setTimeout(() => modal.classList.add('show'), 10);
+        }
+    } catch (err) {
+        console.error('Error opening product modal:', err);
+        toast('Error opening modal: ' + err.message, 'error');
+    }
+}
+
+function updatePriceRequirement() {
+    const isCustom = $('product-is-custom')?.checked || false;
+    const hasRange = $('product-has-price-range')?.checked || false;
+    const priceInput = $('product-price');
+    const priceLabel = $('label-product-price');
+    const rangeOptions = $('price-range-options');
+    const rangeInputs = $('price-range-inputs');
+
+    if (rangeOptions) rangeOptions.classList.toggle('hidden', !isCustom);
+    if (rangeInputs) rangeInputs.classList.toggle('hidden', !hasRange);
+
+    if (priceInput && priceLabel) {
+        if (isCustom && hasRange) {
+            priceInput.required = false;
+            priceLabel.textContent = 'Selling Price (₹) - Optional when range exists';
+        } else {
+            priceInput.required = true;
+            priceLabel.textContent = 'Selling Price (₹) *';
+        }
+    }
 }
 
 function closeProductModal() {
-    $('product-modal').classList.remove('show');
-    setTimeout(() => $('product-modal').classList.add('hidden'), 200);
+    const modal = $('product-modal');
+    if (modal) {
+        modal.classList.remove('show');
+        setTimeout(() => modal.classList.add('hidden'), 200);
+    }
     pendingImages = []; existingImages = [];
 }
 
@@ -242,7 +302,10 @@ $('product-form')?.addEventListener('submit', async e => {
             stock: parseInt($('product-stock').value) || 0,
             gstRate: parseFloat($('product-gst').value) || 18,
             sortOrder: parseInt($('product-sort-order').value) || 0,
-            amazonLink: $('product-amazon-link').value || '',
+            isCustom: $('product-is-custom').checked,
+            hasPriceRange: $('product-has-price-range').checked,
+            minPrice: parseFloat($('product-min-price').value) || 0,
+            maxPrice: parseFloat($('product-max-price').value) || 0,
             weight: parseFloat($('product-weight').value) || 0,
             description: $('product-description').value,
             tags: $('product-tags').value.split(',').map(t=>t.trim()).filter(Boolean),
@@ -1099,8 +1162,147 @@ document.querySelectorAll('.nav-link[data-view]').forEach(link => {
         if (v === 'customers') loadCustomers();
         if (v === 'coupons') loadCoupons();
         if (v === 'reviews') loadReviews();
+        if (v === 'enquiries') loadEnquiries();
     });
 });
+
+// ── ENQUIRIES ──
+async function loadEnquiries() {
+    try {
+        const snap = await getDocs(query(collection(db, 'store_enquiries'), orderBy('createdAt', 'desc')));
+        enquiries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderEnquiries();
+        
+        const newCount = enquiries.filter(e => e.status === 'new').length;
+        const badge = $('nav-enquiries-badge');
+        if (badge) {
+            badge.textContent = newCount;
+            badge.classList.toggle('hidden', newCount === 0);
+        }
+    } catch (e) { console.error('Error loading enquiries:', e); }
+}
+
+function renderEnquiries() {
+    let list = [...enquiries];
+    const search = $('enquiry-search')?.value?.toLowerCase() || '';
+    const status = $('enquiry-status-filter')?.value || 'all';
+
+    if (search) {
+        list = list.filter(e => e.productTitle?.toLowerCase().includes(search) || e.customerEmail?.toLowerCase().includes(search) || e.customerWhatsApp?.includes(search));
+    }
+    if (status !== 'all') {
+        list = list.filter(e => e.status === status);
+    }
+
+    const tbody = $('enquiries-list');
+    if (!tbody) return;
+
+    if (!list.length) {
+        tbody.innerHTML = `<tr><td colspan="6" class="table-loading">No enquiries found</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = list.map(e => `<tr>
+        <td>
+            <strong>${e.productTitle}</strong><br>
+            <small style="color:var(--slate-400)">ID: ${e.id}</small>
+        </td>
+        <td>
+            <div style="font-weight:600">${e.customerName || 'Anonymous'}</div>
+            <div style="font-size:0.875rem; color:var(--slate-400)">${e.customerEmail}</div>
+            <div style="display:flex; align-items:center; gap:0.5rem; margin-top:0.25rem">
+                <span style="font-size:0.8rem; color:var(--slate-400)">${e.customerWhatsApp || 'No number'}</span>
+                ${e.customerWhatsApp ? `<a href="https://wa.me/91${e.customerWhatsApp}" target="_blank" style="color:#25D366" title="Chat on WhatsApp"><svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg></a>` : ''}
+            </div>
+        </td>
+        <td style="max-width:200px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${e.requirements}</td>
+        <td><span class="badge badge-${e.status || 'new'}">${e.status || 'new'}</span></td>
+        <td>${e.createdAt?.toDate?.().toLocaleDateString() || '—'}</td>
+        <td class="text-center">
+            <div class="action-btns">
+                <button class="btn btn-ghost btn-sm" onclick="window.storeAdmin.viewEnquiry('${e.id}')" title="View Details">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                </button>
+                <button class="btn btn-ghost btn-sm" onclick="window.storeAdmin.updateEnquiryStatus('${e.id}', 'contacted')" title="Mark as Contacted">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                </button>
+                <button class="btn btn-ghost btn-sm" onclick="window.storeAdmin.deleteEnquiry('${e.id}')" title="Delete">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                </button>
+            </div>
+        </td>
+    </tr>`).join('');
+}
+
+function viewEnquiry(id) {
+    const e = enquiries.find(x => x.id === id);
+    if (!e) return;
+
+    $('enquiry-modal-title').textContent = 'Enquiry Details';
+    $('enquiry-modal-id').textContent = 'ID: ' + e.id;
+    
+    $('enquiry-modal-body').innerHTML = `
+        <div class="order-section">
+            <div class="order-section-title">Customer Information</div>
+            <div style="background:var(--slate-800); padding:1rem; border-radius:8px">
+                <p style="margin-bottom:0.5rem; font-size:1.1rem"><strong>${e.customerName || 'Anonymous'}</strong></p>
+                <p style="margin-bottom:0.5rem"><strong>Email:</strong> ${e.customerEmail}</p>
+                <p style="margin-bottom:0.5rem"><strong>WhatsApp:</strong> ${e.customerWhatsApp || 'N/A'}</p>
+                <p><strong>Date:</strong> ${e.createdAt?.toDate?.().toLocaleString() || '—'}</p>
+            </div>
+        </div>
+        
+        <div class="order-section">
+            <div class="order-section-title">Product & Requirements</div>
+            <div style="background:var(--slate-800); padding:1rem; border-radius:8px">
+                <p style="margin-bottom:1rem; font-size:1.1rem"><strong>${e.productTitle}</strong></p>
+                <div style="color:var(--slate-300); white-space:pre-wrap; line-height:1.6">${e.requirements}</div>
+            </div>
+        </div>
+        
+        <div class="order-section">
+            <div class="order-section-title">Status Actions</div>
+            <div style="display:flex; gap:1rem">
+                <button class="btn btn-primary" onclick="window.storeAdmin.updateEnquiryStatus('${e.id}', 'contacted'); window.storeAdmin.closeEnquiryModal()">Mark as Contacted</button>
+                <button class="btn btn-ghost" onclick="window.storeAdmin.updateEnquiryStatus('${e.id}', 'closed'); window.storeAdmin.closeEnquiryModal()">Close Enquiry</button>
+            </div>
+        </div>
+    `;
+    
+    const modal = $('enquiry-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        setTimeout(() => modal.classList.add('show'), 10);
+    }
+}
+
+function closeEnquiryModal() {
+    const modal = $('enquiry-modal');
+    if (modal) {
+        modal.classList.remove('show');
+        setTimeout(() => modal.classList.add('hidden'), 200);
+    }
+}
+
+$('enquiry-search')?.addEventListener('input', () => renderEnquiries());
+$('enquiry-status-filter')?.addEventListener('change', () => renderEnquiries());
+
+async function updateEnquiryStatus(id, status) {
+    try {
+        await updateDoc(doc(db, 'store_enquiries', id), { status, updatedAt: serverTimestamp() });
+        toast(`Enquiry marked as ${status}`, 'success');
+        await loadEnquiries();
+    } catch (e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function deleteEnquiry(id) {
+    if (!confirm('Delete this enquiry?')) return;
+    try {
+        await deleteDoc(doc(db, 'store_enquiries', id));
+        toast('Enquiry deleted', 'success');
+        await loadEnquiries();
+    } catch (e) { toast('Error: ' + e.message, 'error'); }
+}
 
 // ── TOAST ──
 function toast(msg, type='info') {
@@ -1150,9 +1352,12 @@ function closeAnalyticsModal() {
 
 // ── GLOBAL API ──
 window.storeAdmin = {
+    openProductModal: () => openProductModal(null),
+    closeProductModal,
+    toggleCustomProduct: (checked) => { updatePriceRequirement(); },
+    togglePriceRange: (checked) => { updatePriceRequirement(); },
     editProduct: id => openProductModal(products.find(p=>p.id===id)),
     deleteProduct,
-    closeProductModal,
     removeExistingImage: i => { existingImages.splice(i,1); renderImagePreviews(); },
     removePendingImage: i => { pendingImages.splice(i,1); renderImagePreviews(); },
     viewOrder,
@@ -1175,6 +1380,10 @@ window.storeAdmin = {
     deleteReview,
     viewAnalytics,
     closeAnalyticsModal,
+    updateEnquiryStatus,
+    deleteEnquiry,
+    viewEnquiry,
+    closeEnquiryModal,
     unlockRazorpay: () => {
         const pw = prompt('Enter Admin Password to Unlock:');
         if (pw === 'IES2013') {

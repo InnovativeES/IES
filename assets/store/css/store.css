@@ -592,7 +592,40 @@ img { max-width: 100%; height: auto; display: block; }
 .inv-footer { border-top: 2px solid #f1f5f9; padding-top: 1.5rem; text-align: center; }
 .inv-footer p { font-size: 0.875rem; font-weight: 600; color: #0f172a; margin-bottom: 0.5rem; }
 .inv-footer-bottom { display: flex; justify-content: space-between; font-size: 0.75rem; color: #94a3b8; }
-.text-right { text-align: right; }
 .text-center { text-align: center; }
 .print-only { display: none; }
+
+/* === CUSTOM PRODUCT & ENQUIRY STYLES === */
+.custom-badge {
+    background: #fef3c7; color: #92400e; font-size: 0.65rem; font-weight: 800;
+    padding: 2px 8px; border-radius: 100px; text-transform: uppercase;
+    border: 1px solid #fde68a;
+}
+
+.product-card.is-custom { border-style: dashed; border-color: var(--store-border-hover); }
+
+.enquiry-btn { background: #f1f5f9; border: 1px solid var(--store-border); color: var(--store-accent); }
+.enquiry-btn:hover { background: var(--store-accent) !important; color: white !important; }
+
+/* Modal Styles */
+.modal-overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(8px);
+    z-index: 2000; display: flex; align-items: center; justify-content: center;
+    padding: 1.5rem; opacity: 0; transition: opacity 0.3s ease;
+}
+.modal-overlay.show { opacity: 1; }
+.modal {
+    background: white; border-radius: var(--store-radius); width: 100%;
+    max-width: 600px; max-height: 90vh; overflow-y: auto;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    transform: scale(0.95); transition: transform 0.3s ease;
+}
+.modal-overlay.show .modal { transform: scale(1); }
+.modal-header { padding: 1.5rem; border-bottom: 1px solid var(--store-border); display: flex; justify-content: space-between; align-items: center; }
+.modal-header h2 { margin: 0; font-size: 1.25rem; }
+.modal-close { background: none; border: none; cursor: pointer; color: var(--store-text-muted); padding: 4px; border-radius: 50%; transition: all 0.2s; }
+.modal-close:hover { background: var(--store-bg); color: var(--store-primary); }
+.modal-body { padding: 1.5rem; }
+
 

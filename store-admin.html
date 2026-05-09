@@ -80,6 +80,9 @@
                     <li class="nav-item"><a href="#" class="nav-link" data-view="customers">
                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
                         Customers</a></li>
+                    <li class="nav-item"><a href="#" class="nav-link" data-view="enquiries">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+                        Enquiries <span class="nav-badge hidden" id="nav-enquiries-badge">0</span></a></li>
                 </ul>
                 <div class="nav-group-label">Configuration</div>
                 <ul class="nav-list">
@@ -133,7 +136,7 @@
                 <div id="view-products" class="view-section hidden">
                     <div class="page-header">
                         <div><h1 class="page-title">Products</h1><p class="page-subtitle">Manage your product catalog</p></div>
-                        <button class="btn btn-primary" id="btn-add-product">
+                        <button class="btn btn-primary" id="btn-add-product" onclick="window.storeAdmin.openProductModal()">
                             <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                             Add Product
                         </button>
@@ -251,6 +254,33 @@
                     </div>
                 </div>
 
+                <!-- ═══ ENQUIRIES VIEW ═══ -->
+                <div id="view-enquiries" class="view-section hidden">
+                    <div class="page-header">
+                        <div><h1 class="page-title">Enquiries</h1><p class="page-subtitle">Manage custom product requests and leads</p></div>
+                    </div>
+                    <div class="toolbar">
+                        <div class="search-box">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                            <input type="text" id="enquiry-search" placeholder="Search enquiries...">
+                        </div>
+                        <select class="filter-select" id="enquiry-status-filter">
+                            <option value="all">All Status</option>
+                            <option value="new">New</option>
+                            <option value="contacted">Contacted</option>
+                            <option value="closed">Closed</option>
+                        </select>
+                    </div>
+                    <div class="card">
+                        <div class="card-body table-container">
+                            <table class="data-table">
+                                <thead><tr><th>Product</th><th>Customer</th><th>Requirements</th><th>Status</th><th>Date</th><th class="text-center">Actions</th></tr></thead>
+                                <tbody id="enquiries-list"><tr><td colspan="6" class="table-loading">Loading enquiries...</td></tr></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- ═══ SHIPPING & UPI VIEW ═══ -->
                 <div id="view-shipping" class="view-section hidden">
                     <div class="page-header">
@@ -361,14 +391,25 @@
                         <div class="form-group"><label class="form-label">Status</label><select id="product-status" class="form-select"><option value="active">Active</option><option value="draft">Draft</option></select></div>
                     </div>
                     <div class="form-row">
-                        <div class="form-group"><label class="form-label">Selling Price (₹) *</label><input type="number" id="product-price" class="form-input" step="0.01" required></div>
+                        <div class="form-group"><label class="form-label" id="label-product-price">Selling Price (₹) *</label><input type="number" id="product-price" class="form-input" step="0.01" required></div>
                         <div class="form-group"><label class="form-label">MRP / Compare Price (₹)</label><input type="number" id="product-compare-price" class="form-input" step="0.01"></div>
                     </div>
                     <div class="form-row">
                         <div class="form-group"><label class="form-label">Inventory / Stock</label><input type="number" id="product-stock" class="form-input" value="10"></div>
                         <div class="form-group"><label class="form-label">GST %</label><input type="number" id="product-gst" class="form-input" value="18"></div>
                     </div>
-                    <div class="form-group"><label class="form-label">Amazon Link (Optional)</label><input type="url" id="product-amazon-link" class="form-input" placeholder="https://www.amazon.in/dp/..."></div>
+                    <div class="form-row">
+                        <div class="form-group form-check" style="margin-bottom: 1rem;"><input type="checkbox" id="product-is-custom" onchange="window.storeAdmin.toggleCustomProduct(this.checked)"><label for="product-is-custom"><strong>Custom Made Product</strong> (Replaces "Add to Cart" with "Enquire")</label></div>
+                    </div>
+                    <div id="price-range-options" class="hidden">
+                        <div class="form-row">
+                            <div class="form-group form-check"><input type="checkbox" id="product-has-price-range" onchange="window.storeAdmin.togglePriceRange(this.checked)"><label for="product-has-price-range">Show Price Range (₹Min - ₹Max)</label></div>
+                        </div>
+                        <div id="price-range-inputs" class="form-row hidden">
+                            <div class="form-group"><label class="form-label">Min Price (₹)</label><input type="number" id="product-min-price" class="form-input" step="0.01"></div>
+                            <div class="form-group"><label class="form-label">Max Price (₹)</label><input type="number" id="product-max-price" class="form-input" step="0.01"></div>
+                        </div>
+                    </div>
                     <div class="form-group"><label class="form-label">Weight (grams)</label><input type="number" id="product-weight" class="form-input"></div>
                     <div class="form-group"><label class="form-label">Description</label><textarea id="product-description" class="form-textarea" rows="4"></textarea></div>
                     <div class="form-group"><label class="form-label">Tags (comma-separated)</label><input type="text" id="product-tags" class="form-input" placeholder="e.g. stainless-steel, bbq, grill"></div>
@@ -482,6 +523,25 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" onclick="window.storeAdmin.closeCustomerModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Enquiry Details Modal -->
+    <div id="enquiry-modal" class="modal-overlay hidden">
+        <div class="modal" style="max-width: 600px;">
+            <div class="modal-header">
+                <div>
+                    <h2 class="modal-title" id="enquiry-modal-title">Enquiry Details</h2>
+                    <p class="modal-subtitle" id="enquiry-modal-id"></p>
+                </div>
+                <button class="modal-close" onclick="window.storeAdmin.closeEnquiryModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="enquiry-modal-body" style="padding: 1.5rem;">
+                <!-- Content injected by JS -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" onclick="window.storeAdmin.closeEnquiryModal()">Close</button>
             </div>
         </div>
     </div>
