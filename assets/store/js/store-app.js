@@ -829,8 +829,15 @@ function renderCartDrawer() {
 
 // --- CHECKOUT ---
 function renderCheckout() {
+    // If not logged in, show auth prompt (regardless of cart)
+    if (!currentUser) {
+        $('checkout-auth-prompt').style.display = 'block';
+        $('checkout-form-container').style.display = 'none';
+        return;
+    }
+
+    // If logged in but cart is empty, go to cart (unless we want to allow profile view here, but usually cart is better)
     if (cart.length === 0) { location.hash = '#cart'; return; }
-    updateAuthUI();
     
     // Render order summary
     const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
