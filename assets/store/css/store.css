@@ -628,4 +628,81 @@ img { max-width: 100%; height: auto; display: block; }
 .modal-close:hover { background: var(--store-bg); color: var(--store-primary); }
 .modal-body { padding: 1.5rem; }
 
+/* Custom Enquiry Banner */
+.custom-enquiry-banner {
+    background: white;
+    border: 2px dashed var(--store-border);
+    border-radius: var(--store-radius);
+    padding: 2.5rem;
+    margin: 3rem 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2rem;
+    transition: var(--store-transition);
+}
+.custom-enquiry-banner:hover {
+    border-color: var(--store-accent);
+    background: rgba(14, 165, 233, 0.02);
+}
+.ce-content {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    flex: 1;
+}
+.ce-icon {
+    width: 64px;
+    height: 64px;
+    background: #f0f9ff;
+    color: var(--store-accent);
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.ce-text h2 {
+    font-size: 1.75rem;
+    margin-bottom: 0.5rem;
+}
+.ce-text p {
+    color: var(--store-text-muted);
+    margin: 0;
+    font-size: 1rem;
+    max-width: 500px;
+}
+.ce-btn {
+    background: var(--store-primary);
+    color: white;
+    white-space: nowrap;
+    padding: 1rem 2rem;
+}
+.ce-btn:hover {
+    background: var(--store-primary-light);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(15, 23, 42, 0.1);
+}
+
+@media (max-width: 768px) {
+    .custom-enquiry-banner {
+        flex-direction: column;
+        text-align: center;
+        padding: 2rem 1.5rem;
+    }
+    .ce-content {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    .ce-btn {
+        width: 100%;
+    }
+}
+
+.price-unit {
+    font-size: 0.9rem;
+    color: var(--store-text-muted);
+    font-weight: 500;
+}
+
 

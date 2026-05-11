@@ -16,6 +16,8 @@ let currentProfile = null;
 let appliedCoupon = null;
 let customerOrders = [];
 let userReviews = [];
+let rotationInterval = null;
+let rotationState = {}; // productId -> currentIndex
 
 const maskName = (name) => {
     if (!name) return 'Anonymous';
@@ -168,6 +170,7 @@ function renderHome() {
         return;
     }
     grid.innerHTML = featured.map(createProductCard).join('');
+    startImageRotation();
 }
 
 // --- PRODUCTS VIEW ---
@@ -195,6 +198,7 @@ function renderProducts(category) {
         return;
     }
     grid.innerHTML = list.map(createProductCard).join('');
+    startImageRotation();
 }
 
 $('store-search-input')?.addEventListener('input', () => {
@@ -221,6 +225,10 @@ function createProductCard(p) {
     let priceDisplay = `₹${formattedPrice}`;
     if (hasPriceRange && minPrice > 0 && maxPrice > 0) {
         priceDisplay = `₹${minPrice.toLocaleString()} - ₹${maxPrice.toLocaleString()}`;
+    }
+    
+    if (p.priceUnit) {
+        priceDisplay += ` <span class="price-unit">/ ${p.priceUnit}</span>`;
     }
 
     const cartItem = cart.find(i => i.productId === p.id);
@@ -257,7 +265,7 @@ function createProductCard(p) {
     <div class="product-card ${isCustom ? 'is-custom' : ''}">
         ${badge}
         <a href="#product/${p.id}" class="product-image-wrap">
-            <img src="${img}" alt="${p.title}" loading="lazy">
+            <img src="${img}" alt="${p.title}" loading="lazy" class="card-auto-img" data-product-id="${p.id}">
         </a>
         <div class="product-info">
             <div class="product-cat">${p.category || 'General'} ${isCustom ? '<span class="custom-badge">Custom</span>' : ''}</div>
@@ -299,6 +307,10 @@ async function renderProductDetail(id) {
     let priceDisplay = `₹${(p.price || 0).toLocaleString()}`;
     if (hasPriceRange && minPrice > 0 && maxPrice > 0) {
         priceDisplay = `₹${minPrice.toLocaleString()} - ₹${maxPrice.toLocaleString()}`;
+    }
+    
+    if (p.priceUnit) {
+        priceDisplay += ` <span class="price-unit" style="font-size: 1.1rem; color: var(--store-text-muted); font-weight: 400;">/ ${p.priceUnit}</span>`;
     }
 
     container.innerHTML = `
@@ -535,7 +547,18 @@ async function submitReview(productId, productTitle) {
 
 window.storeApp = {
     setMainImage: (el, src) => {
-        $('pd-main-img').src = src;
+        const img = $('pd-main-img');
+        if (img) {
+            img.src = src;
+            // Also update rotationState if on detail page
+            const pid = img.dataset.productId;
+            if (pid) {
+                const p = products.find(x => x.id === pid);
+                if (p && p.images) {
+                    rotationState[pid] = p.images.indexOf(src);
+                }
+            }
+        }
         document.querySelectorAll('.thumb-item').forEach(t => t.classList.remove('active'));
         el.classList.add('active');
     },
@@ -582,8 +605,8 @@ window.storeApp = {
             location.hash = '#checkout';
             return;
         }
-        $('enquiry-product-id').value = id;
-        $('enquiry-product-name').textContent = title;
+        $('enquiry-product-id').value = id || 'CUSTOM';
+        $('enquiry-product-name').textContent = title || 'Custom Requirement';
         if (currentUser) {
             $('enquiry-name').value = currentProfile?.name || currentUser.displayName || '';
             $('enquiry-email').value = currentUser.email;
@@ -1750,4 +1773,43 @@ function updateFreeShippingTip(subtotal, containerId) {
         el.style.border = '1px solid #fde68a';
         el.innerHTML = `🚚 Add <strong>₹${remaining.toLocaleString()}</strong> more for <strong>Free Shipping!</strong>`;
     }
+}
+
+function startImageRotation() {
+    if (rotationInterval) clearInterval(rotationInterval);
+    
+    rotationInterval = setInterval(() => {
+        // 1. Rotate main image on detail page
+        const detailImg = $('pd-main-img');
+        if (detailImg) {
+            const pid = detailImg.dataset.productId;
+            const p = products.find(x => x.id === pid);
+            if (p && p.images && p.images.length > 1) {
+                let idx = (rotationState[pid] || 0) + 1;
+                if (idx >= p.images.length) idx = 0;
+                rotationState[pid] = idx;
+                detailImg.src = p.images[idx];
+                
+                // Update active thumb
+                const thumbs = document.querySelectorAll('.thumb-item');
+                thumbs.forEach((t, i) => {
+                    if (i === idx) t.classList.add('active');
+                    else t.classList.remove('active');
+                });
+            }
+        }
+
+        // 2. Rotate images in product cards
+        const cardImgs = document.querySelectorAll('.card-auto-img');
+        cardImgs.forEach(img => {
+            const pid = img.dataset.productId;
+            const p = products.find(x => x.id === pid);
+            if (p && p.images && p.images.length > 1) {
+                let idx = (rotationState[pid] || 0) + 1;
+                if (idx >= p.images.length) idx = 0;
+                rotationState[pid] = idx;
+                img.src = p.images[idx];
+            }
+        });
+    }, 4000); // Cycle every 4 seconds
 }

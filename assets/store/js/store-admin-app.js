@@ -190,6 +190,7 @@ function openProductModal(product) {
             'product-sort-order': product?.sortOrder ?? 0,
             'product-min-price': product?.minPrice || '',
             'product-max-price': product?.maxPrice || '',
+            'product-unit': product?.priceUnit || '',
             'product-weight': product?.weight || '',
             'product-description': product?.description || '',
             'product-tags': (product?.tags || []).join(', '),
@@ -306,6 +307,7 @@ $('product-form')?.addEventListener('submit', async e => {
             hasPriceRange: $('product-has-price-range').checked,
             minPrice: parseFloat($('product-min-price').value) || 0,
             maxPrice: parseFloat($('product-max-price').value) || 0,
+            priceUnit: $('product-unit').value.trim(),
             weight: parseFloat($('product-weight').value) || 0,
             description: $('product-description').value,
             tags: $('product-tags').value.split(',').map(t=>t.trim()).filter(Boolean),
@@ -1350,6 +1352,19 @@ function closeAnalyticsModal() {
     setTimeout(() => $('analytics-modal').classList.add('hidden'), 200);
 }
 
+function downloadCSV(filename, headers, rows) {
+    const content = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `${filename}_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
 // ── GLOBAL API ──
 window.storeAdmin = {
     openProductModal: () => openProductModal(null),
@@ -1384,6 +1399,44 @@ window.storeAdmin = {
     deleteEnquiry,
     viewEnquiry,
     closeEnquiryModal,
+    exportProductsToCSV: () => {
+        if (!products.length) return toast('No products to export', 'warning');
+        const headers = ['ID', 'Title', 'SKU', 'Category', 'Price', 'Price Unit', 'MRP', 'Stock', 'Status', 'Is Custom', 'Min Price', 'Max Price'];
+        const rows = products.map(p => [
+            p.id,
+            `"${(p.title || '').replace(/"/g, '""')}"`,
+            p.sku || '',
+            p.category || '',
+            p.price || 0,
+            p.priceUnit || '',
+            p.compareAtPrice || 0,
+            p.stock || 0,
+            p.status || '',
+            p.isCustom || false,
+            p.minPrice || 0,
+            p.maxPrice || 0
+        ]);
+        downloadCSV('IES_Products_Export', headers, rows);
+    },
+    exportOrdersToCSV: () => {
+        if (!orders.length) return toast('No orders to export', 'warning');
+        const headers = ['Order #', 'Date', 'Customer', 'Email', 'Phone', 'Items Count', 'Subtotal', 'Discount', 'Shipping', 'Total', 'Payment Status', 'Order Status'];
+        const rows = orders.filter(o => o.status !== 'deleted').map(o => [
+            o.orderNumber || o.id,
+            o.createdAt?.toDate ? o.createdAt.toDate().toLocaleString() : '',
+            `"${(o.customer?.name || '').replace(/"/g, '""')}"`,
+            o.customer?.email || '',
+            o.customer?.phone || '',
+            o.items?.length || 0,
+            o.subtotal || 0,
+            o.discountAmount || 0,
+            o.shippingCost || 0,
+            o.total || 0,
+            o.paymentStatus || '',
+            o.status || ''
+        ]);
+        downloadCSV('IES_Orders_Export', headers, rows);
+    },
     unlockRazorpay: () => {
         const pw = prompt('Enter Admin Password to Unlock:');
         if (pw === 'IES2013') {
