@@ -18,6 +18,7 @@ let customerOrders = [];
 let userReviews = [];
 let rotationInterval = null;
 let rotationState = {}; // productId -> currentIndex
+let featuredLimit = 8;
 
 const maskName = (name) => {
     if (!name) return 'Anonymous';
@@ -162,14 +163,26 @@ function handleRoute() {
 function renderHome() {
     const grid = $('home-featured-grid');
     if (!grid) return;
+    
     // Sort products by sortOrder (ascending)
     products.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
-    const featured = products.filter(p => p.featured).slice(0, 8);
-    if (featured.length === 0) {
+    
+    const allFeatured = products.filter(p => p.featured);
+    const displayed = allFeatured.slice(0, featuredLimit);
+    
+    if (displayed.length === 0) {
         grid.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: var(--store-text-muted)">No featured products currently.</p>';
         return;
     }
-    grid.innerHTML = featured.map(createProductCard).join('');
+    
+    grid.innerHTML = displayed.map(createProductCard).join('');
+    
+    // Handle View More button visibility
+    const viewMoreContainer = $('home-view-more-container');
+    if (viewMoreContainer) {
+        viewMoreContainer.style.display = allFeatured.length > featuredLimit ? 'flex' : 'none';
+    }
+    
     startImageRotation();
 }
 
@@ -598,6 +611,10 @@ window.storeApp = {
         location.hash = '#home';
     },
     applyCoupon: () => applyCoupon(),
+    loadMoreFeatured: () => {
+        featuredLimit += 8;
+        renderHome();
+    },
     submitReview,
     openEnquiryModal: (id, title) => {
         if (!currentUser) {
