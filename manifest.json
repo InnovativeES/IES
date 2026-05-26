@@ -1,0 +1,16 @@
+{
+  "name": "Admin Portal",
+  "short_name": "Admin",
+  "start_url": "./admin.html",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#0f172a",
+  "description": "Innovative Engineering Solutions Admin Portal",
+  "icons": [
+    {
+      "src": "assets/logo.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png"
+    }
+  ]
+}
