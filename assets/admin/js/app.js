@@ -3466,7 +3466,7 @@ window.adminApp = {
 
         // Build table rows
         if (pendingOrders.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-slate-400">No pending orders found</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="18" class="text-center py-8 text-slate-400">No pending orders found</td></tr>';
             return;
         }
 
@@ -3566,6 +3566,20 @@ window.adminApp = {
                                 style="width: 100%; font-size: 11px;">
                             ${deptOptions}
                         </select>
+                    </td>
+                    <td style="vertical-align: top; padding: 0.5rem;">
+                        <input type="date" class="table-form-input p-2" 
+                               value="${formatDateForInput(order.plannedDeliveryDate)}"
+                               onchange="window.adminApp.pendingInlineUpdate('${order.id}', 'plannedDeliveryDate', this.value)"
+                               title="Set planned delivery date"
+                               style="font-size: 11px; width: 100%;">
+                    </td>
+                    <td style="vertical-align: top; padding: 0.5rem;">
+                        <input type="date" class="table-form-input p-2" 
+                               value="${formatDateForInput(order.expectedDeliveryDate)}"
+                               onchange="window.adminApp.pendingInlineUpdate('${order.id}', 'expectedDeliveryDate', this.value)"
+                               title="Set delivery date"
+                               style="font-size: 11px; width: 100%;">
                     </td>
                     <td style="vertical-align: top; padding: 0.5rem;">
                         <textarea class="table-form-input p-2"
@@ -3732,8 +3746,8 @@ window.adminApp = {
 
         const headers = [
             'S.No', 'In. Order No', 'IO Date', 'Drg No', 'Description', 'Qty', 'Unit', 'Value', 
-            'Customer', 'Status', 'Update', 'Priority', 'Department', 'Comments', 
-            'Assigned Date', 'Assigned To'
+            'Customer', 'Status', 'Update', 'Priority', 'Department', 'Planned Del. Date', 
+            'Delivery Date', 'Comments', 'Assigned Date', 'Assigned To'
         ];
 
         const rows = exportOrders.map((o, index) => {
@@ -3770,6 +3784,8 @@ window.adminApp = {
                 escapeCSV(o.updateRemarks),
                 escapeCSV(o.priorityNumber),
                 escapeCSV(o.department),
+                formatDate(o.plannedDeliveryDate),
+                formatDate(o.expectedDeliveryDate),
                 escapeCSV(o.remarks),
                 formatDate(o.assignedDate),
                 escapeCSV(assignedUserNames)
