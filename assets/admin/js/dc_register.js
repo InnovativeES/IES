@@ -73,6 +73,7 @@ export const buildDCDataset = (orders = []) => {
         const customer = d.customer || (matchedBase ? matchedBase.customer : '-') || '-';
         const drgNo = d.drawingNo || d.itemCode || (matchedBase ? (matchedBase.drawingNo || matchedBase.itemCode) : '') || '-';
         const description = d.description || (matchedBase ? matchedBase.description : '') || '-';
+        const billNo = d.billNo || (matchedBase ? matchedBase.billNo : '') || '-';
 
         let status = 'Delivered';
         if (orderedQty > 0 && deliveredQty < orderedQty) {
@@ -86,6 +87,7 @@ export const buildDCDataset = (orders = []) => {
             rawDcNo: dc,
             deliveryDate: delDate,
             internalOrderNo: ioNo || '-',
+            billNo: billNo,
             customer: customer,
             drawingNo: drgNo,
             description: description,
@@ -123,6 +125,7 @@ export const buildDCDataset = (orders = []) => {
         const orderedQty = parseFloat(bo.qty) || 0;
         const deliveredQty = parseFloat(bo.deliveryQty) || orderedQty;
         const qtyUnit = bo.qtyUnit || 'Nos';
+        const billNo = bo.billNo || '-';
 
         let status = bo.status || 'Delivered';
         if (status !== 'Delivered' && deliveredQty >= orderedQty && orderedQty > 0) {
@@ -138,6 +141,7 @@ export const buildDCDataset = (orders = []) => {
             rawDcNo: dc,
             deliveryDate: delDate,
             internalOrderNo: bo.internalOrderNo || '-',
+            billNo: billNo,
             customer: bo.customer || '-',
             drawingNo: bo.drawingNo || bo.itemCode || '-',
             description: bo.description || '-',
@@ -225,7 +229,7 @@ export const renderDCTable = (orders = null) => {
 
         let matchesSearch = true;
         if (searchTerm) {
-            const searchStr = `${entry.dcNo} ${entry.internalOrderNo} ${entry.customer} ${entry.drawingNo} ${entry.description}`.toLowerCase();
+            const searchStr = `${entry.dcNo} ${entry.internalOrderNo} ${entry.billNo || ''} ${entry.customer} ${entry.drawingNo} ${entry.description}`.toLowerCase();
             matchesSearch = searchStr.includes(searchTerm);
         }
 
@@ -348,7 +352,7 @@ export const renderDCTable = (orders = null) => {
     if (processed.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="12" style="padding: 4rem 1rem; text-align: center; color: #64748b;">
+                <td colspan="13" style="padding: 4rem 1rem; text-align: center; color: #64748b;">
                     <div class="flex flex-col items-center justify-center">
                         <div class="w-16 h-16 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mb-3">
                             <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -393,7 +397,7 @@ export const renderDCTable = (orders = null) => {
                     gapTr.className = 'dc-gap-row';
                     gapTr.innerHTML = `
                         <td class="text-center font-bold text-amber-600">⚠️</td>
-                        <td colspan="5">
+                        <td colspan="6">
                             <span class="text-xs font-bold text-amber-900">MISSING DC${missingList.length > 1 ? 'S' : ''}: ${missingList.map(n => `#${n}`).join(', ')}</span>
                             <span class="text-xs text-amber-700 ml-1">(${missingList.length} skipped between #${prevNum} & #${currNum})</span>
                         </td>
@@ -433,6 +437,7 @@ export const renderDCTable = (orders = null) => {
                     `<a href="#" onclick="event.preventDefault(); window.adminApp.wfOpenProject('${entry.internalOrderNo}')" style="color:#0f766e; font-weight:600;" title="Open Project">${entry.internalOrderNo}</a>` : 
                     '<span class="text-slate-400">-</span>'}
             </td>
+            <td class="text-center text-slate-700 font-mono text-xs whitespace-nowrap">${t(entry.billNo)}</td>
             <td class="text-center text-slate-800 font-medium truncate" title="${t(entry.customer)}">${t(entry.customer)}</td>
             <td class="text-slate-600 text-center truncate" title="${t(entry.drawingNo)}">${t(entry.drawingNo)}</td>
             <td class="text-center text-slate-600 truncate" title="${t(entry.description)}">${t(entry.description)}</td>
@@ -470,6 +475,7 @@ export const exportDCCSV = () => {
         "DC No",
         "Delivery Date",
         "Internal Order No",
+        "Bill No",
         "Customer",
         "Drawing No",
         "Description",
@@ -485,6 +491,7 @@ export const exportDCCSV = () => {
         `"${e.dcNo || '-'}"`,
         `"${formatDate(e.deliveryDate)}"`,
         `"${e.internalOrderNo || '-'}"`,
+        `"${e.billNo || '-'}"`,
         `"${(e.customer || '-').replace(/"/g, '""')}"`,
         `"${(e.drawingNo || '-').replace(/"/g, '""')}"`,
         `"${(e.description || '-').replace(/"/g, '""')}"`,

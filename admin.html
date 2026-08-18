@@ -1012,6 +1012,7 @@
                                     <col style="width: 80px;">   <!-- DC No -->
                                     <col style="width: 95px;">   <!-- Del. Date -->
                                     <col style="width: 130px;">  <!-- IO No -->
+                                    <col style="width: 90px;">   <!-- Bill No -->
                                     <col style="width: 140px;">  <!-- Customer -->
                                     <col style="width: 110px;">  <!-- Drg No -->
                                     <col style="width: 200px;">  <!-- Description -->
@@ -1026,7 +1027,7 @@
                                     <tr class="header-group-row">
                                         <th rowspan="2">S.No</th>
                                         <th colspan="2" class="text-center group-order">Delivery Challan</th>
-                                        <th colspan="2" class="text-center group-customer">Order & Customer</th>
+                                        <th colspan="3" class="text-center group-customer">Order & Customer</th>
                                         <th colspan="2" class="text-center group-item">Item Specifications</th>
                                         <th colspan="3" class="text-center group-delivery">Quantities</th>
                                         <th rowspan="2" class="text-center">Status</th>
@@ -1037,6 +1038,7 @@
                                         <th class="sortable font-bold" onclick="window.adminApp.sortDC('dcNo')">DC No ↕</th>
                                         <th class="sortable text-center" onclick="window.adminApp.sortDC('deliveryDate')">Date</th>
                                         <th class="sortable text-center" onclick="window.adminApp.sortDC('internalOrderNo')">IO No</th>
+                                        <th class="sortable text-center" onclick="window.adminApp.sortDC('billNo')">Bill No</th>
                                         <th class="sortable text-center" onclick="window.adminApp.sortDC('customer')">Customer</th>
                                         <th class="text-center">Drg No</th>
                                         <th class="text-center">Description</th>
@@ -3910,7 +3912,7 @@
 
     <!-- Application Script -->
 
-    <script type="module" src="assets/admin/js/app.js?v=16"></script>
+    <script type="module" src="assets/admin/js/app.js?v=17"></script>
 
     <!-- Mobile Sidebar Toggle Script -->
     <script>
