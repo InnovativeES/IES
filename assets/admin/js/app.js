@@ -3,6 +3,7 @@ import * as UI from './ui.js';
 import * as DB from './db.js';
 import * as Charts from './charts.js';
 import * as Monitoring from './monitoring.js';
+import * as DCRegister from './dc_register.js';
 import * as Inventory from './inventory.js';
 import * as Workflow from './workflow.js';
 import * as Reporting from './reporting.js';
@@ -3266,6 +3267,27 @@ window.adminApp = {
         Monitoring.exportToCSV();
     },
 
+    // DC Register Methods
+    renderDCRegister: () => {
+        DCRegister.renderDCTable(currentOrders);
+    },
+    sortDC: (key) => {
+        DCRegister.sortDC(key);
+    },
+    toggleShowDCGaps: () => {
+        const isGapsOn = DCRegister.toggleShowMissingGaps();
+        const textEl = document.getElementById('dc-toggle-gaps-text');
+        if (textEl) textEl.textContent = isGapsOn ? 'Gap Highlights: ON' : 'Gap Highlights: OFF';
+    },
+    exportDCCSV: () => {
+        DCRegister.exportDCCSV();
+    },
+    openAddDeliveryWithDC: (dcNo) => {
+        window.adminApp.openAddDeliveryModal();
+        const firstDcInput = document.querySelector('#dc-rows-container [name="dcNo_row"]');
+        if (firstDcInput) firstDcInput.value = dcNo;
+    },
+
     // New: Delivery Report Helpers
     getCurrentOrders: () => {
         return currentOrders;
@@ -4367,6 +4389,11 @@ document.addEventListener('DOMContentLoaded', () => {
             Monitoring.renderTable(currentOrders);
         }
 
+        const dcRegisterView = document.getElementById('view-dc_register');
+        if (dcRegisterView && !dcRegisterView.classList.contains('hidden')) {
+            DCRegister.renderDCTable(currentOrders);
+        }
+
         const trackerView = document.getElementById('view-progress_tracker');
         if (trackerView && !trackerView.classList.contains('hidden')) {
             Tracker.renderTracker();
@@ -4387,8 +4414,7 @@ document.addEventListener('DOMContentLoaded', () => {
         refreshDashboard();
     }, false);
 
-    // Filter Listeners
-    // Filter Listeners
+    // Filter Listeners: Internal Orders
     const monthFromInput = document.getElementById('order-month-from');
     const monthToInput = document.getElementById('order-month-to');
     const searchInput = document.getElementById('order-search-filter');
@@ -4413,6 +4439,27 @@ document.addEventListener('DOMContentLoaded', () => {
         searchInput.addEventListener('input', (e) => {
             Monitoring.setFilters(undefined, undefined, e.target.value);
             Monitoring.renderTable(currentOrders);
+        });
+    }
+
+    // Filter Listeners: DC Register
+    const dcMonthFromInput = document.getElementById('dc-month-from');
+    const dcMonthToInput = document.getElementById('dc-month-to');
+    const dcSearchInput = document.getElementById('dc-search-filter');
+
+    if (dcMonthFromInput && dcMonthToInput) {
+        const updateDCFilters = () => {
+            DCRegister.setFilters(dcMonthFromInput.value, dcMonthToInput.value, undefined);
+            DCRegister.renderDCTable(currentOrders);
+        };
+        dcMonthFromInput.addEventListener('change', updateDCFilters);
+        dcMonthToInput.addEventListener('change', updateDCFilters);
+    }
+
+    if (dcSearchInput) {
+        dcSearchInput.addEventListener('input', (e) => {
+            DCRegister.setFilters(undefined, undefined, e.target.value);
+            DCRegister.renderDCTable(currentOrders);
         });
     }
 

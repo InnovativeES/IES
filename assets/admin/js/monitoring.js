@@ -162,10 +162,34 @@ export const renderTable = (orders) => {
         return;
     }
 
+    // Map delivery reports by IO No and by DC No for resolving delivery date & DC
+    const deliveryReportsByIo = new Map();
+    const deliveryReportsByDc = new Map();
+    orders.filter(o => o.entryType === 'delivery_report' && !o.isDeleted).forEach(d => {
+        const date = d.deliveryDateActual || d.date || '';
+        const io = (d.internalOrderNo || '').trim().toUpperCase();
+        const dc = (d.dcNo || '').trim();
+        if (io && date && !deliveryReportsByIo.has(io)) deliveryReportsByIo.set(io, { date, dc: d.dcNo });
+        if (dc && date && !deliveryReportsByDc.has(dc)) deliveryReportsByDc.set(dc, date);
+    });
+
     // Render Rows
     paginatedOrders.forEach((order, index) => {
         const tr = document.createElement('tr');
         let status = order.status ? order.status.toUpperCase() : '';
+
+        // Resolve delivery date and DC from delivery report if missing
+        let effectiveDelDate = order.deliveryDateActual;
+        let effectiveDcNo = order.dcNo;
+
+        if (!effectiveDelDate && effectiveDcNo && deliveryReportsByDc.has(effectiveDcNo.trim())) {
+            effectiveDelDate = deliveryReportsByDc.get(effectiveDcNo.trim());
+        }
+        if (!effectiveDelDate && order.internalOrderNo && deliveryReportsByIo.has(order.internalOrderNo.trim().toUpperCase())) {
+            const match = deliveryReportsByIo.get(order.internalOrderNo.trim().toUpperCase());
+            effectiveDelDate = match.date;
+            if (!effectiveDcNo && match.dc) effectiveDcNo = match.dc;
+        }
 
         if (!isTrashMode) {
             if (status === 'DELIVERED') tr.className = 'row-delivered';
@@ -249,8 +273,8 @@ export const renderTable = (orders) => {
             <td class="text-center">${avail(order.rawAvail)}</td>
             <td class="text-center">${avail(order.finishAvail)}</td>
 
-            <td>${formatDate(order.deliveryDateActual)}</td>
-            <td>${t(order.dcNo)}</td>
+            <td>${formatDate(effectiveDelDate)}</td>
+            <td>${t(effectiveDcNo)}</td>
             <td class="text-right">${t(order.deliveryQty)}</td>
             <td>${t(order.billNo)}</td>
             <td class="text-center">${statusHtml}</td>
@@ -586,31 +610,55 @@ export const exportToCSV = () => {
             'Del Date Actual', 'DC No', 'Del Qty', 'Bill No', 'Status'
         ];
 
+        // Map delivery reports for resolving delivery date & DC in export
+        const deliveryReportsByIo = new Map();
+        const deliveryReportsByDc = new Map();
+        orders.filter(o => o.entryType === 'delivery_report' && !o.isDeleted).forEach(d => {
+            const date = d.deliveryDateActual || d.date || '';
+            const io = (d.internalOrderNo || '').trim().toUpperCase();
+            const dc = (d.dcNo || '').trim();
+            if (io && date && !deliveryReportsByIo.has(io)) deliveryReportsByIo.set(io, { date, dc: d.dcNo });
+            if (dc && date && !deliveryReportsByDc.has(dc)) deliveryReportsByDc.set(dc, date);
+        });
+
         // Map Rows
-        const rows = exportOrders.map((o, index) => [
-            index + 1,
-            `"${o.internalOrderNo || '-'}"`, // Quote to prevent CSV issues with leading zeros
-            formatDate(o.date),
-            `"${o.drawingNo || '-'}"`,
-            `"${(o.description || '-').replace(/"/g, '""')}"`, // Escape quotes
-            o.qty || 0,
-            o.qtyUnit || '-',
-            o.saleValueEa || o.value || 0,
-            o.prodValueEa || 0,
-            o.outsourceValue || 0,
-            o.total || 0,
-            `"${(o.customer || '-').replace(/"/g, '""')}"`,
-            `"${o.poNo || '-'}"`,
-            formatDate(o.poDate),
-            o.drgAvail === 'y' ? 'Y' : '-',
-            o.rawAvail === 'y' ? 'Y' : '-',
-            o.finishAvail === 'y' ? 'Y' : '-',
-            formatDate(o.deliveryDateActual),
-            `"${o.dcNo || '-'}"`,
-            o.deliveryQty || 0,
-            `"${o.billNo || '-'}"`,
-            o.status || 'Pending'
-        ]);
+        const rows = exportOrders.map((o, index) => {
+            let effectiveDelDate = o.deliveryDateActual;
+            let effectiveDcNo = o.dcNo;
+            if (!effectiveDelDate && effectiveDcNo && deliveryReportsByDc.has(effectiveDcNo.trim())) {
+                effectiveDelDate = deliveryReportsByDc.get(effectiveDcNo.trim());
+            }
+            if (!effectiveDelDate && o.internalOrderNo && deliveryReportsByIo.has(o.internalOrderNo.trim().toUpperCase())) {
+                const match = deliveryReportsByIo.get(o.internalOrderNo.trim().toUpperCase());
+                effectiveDelDate = match.date;
+                if (!effectiveDcNo && match.dc) effectiveDcNo = match.dc;
+            }
+
+            return [
+                index + 1,
+                `"${o.internalOrderNo || '-'}"`, // Quote to prevent CSV issues with leading zeros
+                formatDate(o.date),
+                `"${o.drawingNo || '-'}"`,
+                `"${(o.description || '-').replace(/"/g, '""')}"`, // Escape quotes
+                o.qty || 0,
+                o.qtyUnit || '-',
+                o.saleValueEa || o.value || 0,
+                o.prodValueEa || 0,
+                o.outsourceValue || 0,
+                o.total || 0,
+                `"${(o.customer || '-').replace(/"/g, '""')}"`,
+                `"${o.poNo || '-'}"`,
+                formatDate(o.poDate),
+                o.drgAvail === 'y' ? 'Y' : '-',
+                o.rawAvail === 'y' ? 'Y' : '-',
+                o.finishAvail === 'y' ? 'Y' : '-',
+                formatDate(effectiveDelDate),
+                `"${effectiveDcNo || '-'}"`,
+                o.deliveryQty || 0,
+                `"${o.billNo || '-'}"`,
+                o.status || 'Pending'
+            ];
+        });
 
         // Combine into CSV string
         const csvContent = [

@@ -43,6 +43,7 @@ export const switchView = (viewName) => {
         const titles = {
             'overview': 'Dashboard Overview',
             'monitoring': 'Internal Orders',
+            'dc_register': 'DC Register & Tracking',
             'team_org': 'Team & Organization',
             'project_management': 'Project Management',
             'progress_tracker': 'Project Progress Tracker',
@@ -69,6 +70,11 @@ export const switchView = (viewName) => {
         if (viewName === 'monitoring') {
             if (window.adminApp?.renderMonitoring) {
                 window.adminApp.renderMonitoring();
+            }
+        }
+        if (viewName === 'dc_register') {
+            if (window.adminApp?.renderDCRegister) {
+                window.adminApp.renderDCRegister();
             }
         }
         if (viewName === 'daily_roster') {
