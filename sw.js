@@ -1,5 +1,5 @@
 // Service Worker - Network first for HTML/JS to ensure fresh admin updates
-const CACHE_NAME = 'ies-admin-cache-v5';
+const CACHE_NAME = 'ies-admin-cache-v6';
 
 self.addEventListener('install', event => {
   self.skipWaiting();

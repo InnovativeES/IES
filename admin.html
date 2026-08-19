@@ -2897,9 +2897,15 @@
                                 <span>Customer Details</span>
                             </div>
                             <div class="modal-list-view">
-                                <div class="form-group">
-                                    <label class="form-label">Customer</label>
-                                    <input type="text" name="customer" class="form-input" placeholder="Customer Name">
+                                <div class="list-row list-row-2col">
+                                    <div class="form-group">
+                                        <label class="form-label">Customer</label>
+                                        <input type="text" name="customer" class="form-input" placeholder="Customer Name">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Bill No</label>
+                                        <input type="text" name="billNo" class="form-input" placeholder="Bill / Invoice #">
+                                    </div>
                                 </div>
                                 <div class="list-row list-row-2col">
                                     <div class="form-group">
@@ -2976,7 +2982,6 @@
                         <input type="hidden" name="deliveryDateActual">
                         <input type="hidden" name="deliveryQty">
                         <input type="hidden" name="dcNo">
-                        <input type="hidden" name="billNo">
                         <input type="hidden" name="status" value="Pending">
 
                         <!-- Availability Checks -->
@@ -3081,10 +3086,14 @@
                                             placeholder="Customer Name">
                                     </div>
                                 </div>
-                                <div class="list-row">
+                                <div class="list-row list-row-2col">
                                     <div class="form-group">
                                         <label class="form-label">Drawing No</label>
                                         <input type="text" name="drawingNo" class="form-input" placeholder="Drg No">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Bill No</label>
+                                        <input type="text" name="billNo" class="form-input" placeholder="Bill / Invoice #">
                                     </div>
                                 </div>
                                 <div class="list-row">

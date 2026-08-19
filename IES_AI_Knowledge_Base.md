@@ -125,6 +125,17 @@ export const updateMember = async (memberId, memberData) => {
     }
 };
 
+// Get all members (synchronous fetch)
+export const getMembers = async () => {
+    try {
+        const snapshot = await getDocs(collection(db, MEMBERS_COLLECTION));
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+        console.error("Error fetching members:", error);
+        return [];
+    }
+};
+
 // Subscribe to member list updates (Real-time)
 export const subscribeToMembers = (callback) => {
     const q = query(collection(db, MEMBERS_COLLECTION), orderBy("createdAt", "desc"));
@@ -148,6 +159,7 @@ export const deleteMember = async (memberId) => {
         return { success: false, error: error.message };
     }
 };
+
 
 // Backward compatibility aliases
 export const addEmployee = addMember;
@@ -681,20 +693,48 @@ export const subscribeToProjectAuditLogs = (projectId, callback) => {
 const DAILY_ROSTER_COLLECTION = "daily_workflows";
 
 /**
+ * Normalizes department names to prevent duplicate Firestore documents 
+ * (e.g., "Fab" vs "Fabrication").
+ */
+const normalizeDeptName = (dept) => {
+    if (!dept) return 'Unassigned';
+    const d = dept.trim();
+    if (d.toLowerCase() === 'fabrication' || d.toLowerCase() === 'fab') return 'Fab';
+    return d;
+};
+
+/**
  * Save or update a daily workflow for a specific date + department.
  * Uses composite ID "YYYY-MM-DD_Department" for fast lookups.
  */
-export const saveWorkflow = async (date, department, assignments, supervisorNotes = '') => {
+export const saveWorkflow = async (date, department, assignments, supervisorNotes = '', attendance = {}) => {
     try {
-        const docId = `${date}_${department}`;
+        const normDept = normalizeDeptName(department);
+        const docId = `${date}_${normDept}`;
         const docRef = doc(db, DAILY_ROSTER_COLLECTION, docId);
         const existing = await getDoc(docRef);
+
+        // EXTRA CLEANUP: If we are saving "Fab", make sure to delete legacy "Fabrication" doc to avoid duplicates
+        if (normDept === 'Fab' && department !== 'Fabrication') {
+            const legacyId = `${date}_Fabrication`;
+            const legacyRef = doc(db, DAILY_ROSTER_COLLECTION, legacyId);
+            const legacySnap = await getDoc(legacyRef);
+            if (legacySnap.exists()) {
+                console.log("Cleaning up legacy Fabrication document...");
+                await deleteDoc(legacyRef);
+            }
+        }
+
+        // Extract unique project IDs from nested tasks
+        const projectIds = [...new Set((assignments || []).flatMap(a => (a.tasks || []).map(t => t.orderNo)).filter(id => id && id !== 'Ad-hoc'))];
 
         const payload = {
             date,
             department,
             assignments,
+            projectIds,
             supervisorNotes,
+            attendance,
             updatedAt: serverTimestamp()
         };
 
@@ -712,16 +752,51 @@ export const saveWorkflow = async (date, department, assignments, supervisorNote
 };
 
 /**
+ * Delete a roster document for a specific date + department.
+ */
+export const deleteDailyRoster = async (date, department) => {
+    try {
+        const normDept = normalizeDeptName(department);
+        const docId = `${date}_${normDept}`;
+        const docRef = doc(db, DAILY_ROSTER_COLLECTION, docId);
+        await deleteDoc(docRef);
+
+        // Also check and delete legacy if applicable
+        if (normDept === 'Fab') {
+            const legacyId = `${date}_Fabrication`;
+            const legacyRef = doc(db, DAILY_ROSTER_COLLECTION, legacyId);
+            await deleteDoc(legacyRef).catch(() => { });
+        }
+
+        return { success: true };
+    } catch (error) {
+        console.error("Error deleting roster:", error);
+        return { error: error.message };
+    }
+};
+
+/**
  * Get a single workflow document for a date + department.
  */
 export const getWorkflow = async (date, department) => {
     try {
-        const docId = `${date}_${department}`;
+        const normDept = normalizeDeptName(department);
+        const docId = `${date}_${normDept}`;
         const docRef = doc(db, DAILY_ROSTER_COLLECTION, docId);
         const snap = await getDoc(docRef);
         if (snap.exists()) {
             return { data: { id: snap.id, ...snap.data() }, error: null };
         }
+
+        // Final fallback for legacy data if not yet migrated
+        if (normDept === 'Fab') {
+            const legacyId = `${date}_Fabrication`;
+            const legacySnap = await getDoc(doc(db, DAILY_ROSTER_COLLECTION, legacyId));
+            if (legacySnap.exists()) {
+                return { data: { id: legacySnap.id, ...legacySnap.data() }, error: null };
+            }
+        }
+
         return { data: null, error: null };
     } catch (error) {
         console.error("Error getting workflow:", error);
@@ -739,7 +814,7 @@ export const subscribeToWorkflows = (date, callback) => {
     );
     return onSnapshot(q, (snapshot) => {
         const workflows = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        callback(workflows);
+        callback(workflows, snapshot.metadata);
     });
 };
 
@@ -777,6 +852,71 @@ export const deleteWorkflowAssignment = async (workflowId, employeeId) => {
     } catch (error) {
         console.error("Error deleting assignment:", error);
         return { error: error.message };
+    }
+};
+
+/**
+ * Get all roster assignments for a specific project.
+ */
+export const getProjectAssignments = async (projectId) => {
+    try {
+        const q = query(
+            collection(db, DAILY_ROSTER_COLLECTION),
+            where("projectIds", "array-contains", projectId)
+        );
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (error) {
+        console.error("Error fetching project assignments:", error);
+        return [];
+    }
+};
+
+/**
+ * Get all workflow documents (for migration).
+ */
+export const getAllWorkflows = async () => {
+    try {
+        const snap = await getDocs(collection(db, DAILY_ROSTER_COLLECTION));
+        return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (error) {
+        console.error("Error fetching all workflows:", error);
+        return [];
+    }
+};
+/**
+ * Get all workflow documents for a date range.
+ */
+export const getWorkflowsForDateRange = async (startDate, endDate) => {
+    try {
+        const q = query(
+            collection(db, DAILY_ROSTER_COLLECTION),
+            where("date", ">=", startDate),
+            where("date", "<=", endDate)
+        );
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (error) {
+        console.error("Error fetching workflows for range:", error);
+        return [];
+    }
+};
+
+/**
+ * Get all order documents for a date range.
+ */
+export const getOrdersForDateRange = async (startDate, endDate) => {
+    try {
+        const q = query(
+            collection(db, ORDERS_COLLECTION),
+            where("date", ">=", startDate),
+            where("date", "<=", endDate)
+        );
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (error) {
+        console.error("Error fetching orders for range:", error);
+        return [];
     }
 };
 \n```\n\n\n### File: e:\re\Innovative Engineering Solutions\assets\admin\js\auth.js\n*Description: Auth Operations Layer*\n\n```javascript\nimport { auth } from "../../../firebase-config.js";
@@ -975,15 +1115,40 @@ export const renderTable = (orders) => {
         return;
     }
 
+    // Map delivery reports by IO No and by DC No for resolving delivery date & DC
+    const deliveryReportsByIo = new Map();
+    const deliveryReportsByDc = new Map();
+    orders.filter(o => o.entryType === 'delivery_report' && !o.isDeleted).forEach(d => {
+        const date = d.deliveryDateActual || d.date || '';
+        const io = (d.internalOrderNo || '').trim().toUpperCase();
+        const dc = (d.dcNo || '').trim();
+        if (io && date && !deliveryReportsByIo.has(io)) deliveryReportsByIo.set(io, { date, dc: d.dcNo });
+        if (dc && date && !deliveryReportsByDc.has(dc)) deliveryReportsByDc.set(dc, date);
+    });
+
     // Render Rows
     paginatedOrders.forEach((order, index) => {
         const tr = document.createElement('tr');
         let status = order.status ? order.status.toUpperCase() : '';
 
+        // Resolve delivery date and DC from delivery report if missing
+        let effectiveDelDate = order.deliveryDateActual;
+        let effectiveDcNo = order.dcNo;
+
+        if (!effectiveDelDate && effectiveDcNo && deliveryReportsByDc.has(effectiveDcNo.trim())) {
+            effectiveDelDate = deliveryReportsByDc.get(effectiveDcNo.trim());
+        }
+        if (!effectiveDelDate && order.internalOrderNo && deliveryReportsByIo.has(order.internalOrderNo.trim().toUpperCase())) {
+            const match = deliveryReportsByIo.get(order.internalOrderNo.trim().toUpperCase());
+            effectiveDelDate = match.date;
+            if (!effectiveDcNo && match.dc) effectiveDcNo = match.dc;
+        }
+
         if (!isTrashMode) {
             if (status === 'DELIVERED') tr.className = 'row-delivered';
-            else if (status === 'PARTIALLY DELIVERED' || status === 'PORTION DELIVERED') tr.className = 'row-partially-delivered';
+            else if (status === 'PARTIALLY DELIVERED' || status === 'PORTION DELIVERED') tr.className = 'row-portion';
             else if (status === 'PENDING') tr.className = 'row-pending';
+            else if (status === 'CLOSED BY ADMIN') tr.className = 'row-closed';
         } else {
             tr.className = 'row-deleted';
         }
@@ -991,17 +1156,23 @@ export const renderTable = (orders) => {
         const t = (val) => val || '-';
 
         let statusHtml = '';
+        const isFC = order.forceClosed === true;
+        const fcText = isFC ? ' (FC)' : '';
+        const forceCloseNote = order.forceCloseComment ? `\nComment: ${order.forceCloseComment.replace(/"/g, '&quot;')}` : (isFC ? '\nClick to add FC comment' : '');
+        const onClickHtml = isFC ? `onclick="window.adminApp.editFCComment('${order.id}')" style="cursor: pointer;"` : '';
+
         if (isTrashMode) {
             let badgeClass = 'badge-default';
             if (status === 'DELIVERED') badgeClass = 'badge-success';
             else if (status === 'PENDING') badgeClass = 'badge-warning';
-            statusHtml = `<span class="badge ${badgeClass}">${status || '-'}</span>`;
+            statusHtml = `<span class="badge ${badgeClass}" ${onClickHtml} title="Status: ${status || '-'}${forceCloseNote}">${status || '-'}${fcText}</span>`;
         } else {
             const statusVal = order.status || 'Pending';
             let badgeClass = 'status-pending';
             if (statusVal === 'Delivered') badgeClass = 'status-delivered';
-            else if (statusVal === 'Partially Delivered' || statusVal === 'Portion Delivered') badgeClass = 'status-partial text-blue-600 bg-blue-50 border border-blue-200'; // Define a distinctive style
-            statusHtml = `<span class="status-badge ${badgeClass}">${statusVal}</span>`;
+            else if (statusVal === 'Partially Delivered' || statusVal === 'Portion Delivered') badgeClass = 'status-portion';
+            else if (statusVal === 'Closed by Admin') badgeClass = 'status-closed';
+            statusHtml = `<span class="status-badge ${badgeClass}" ${onClickHtml} title="Status: ${statusVal}${forceCloseNote}">${statusVal}${fcText}</span>`;
         }
 
         let actionsHtml = '';
@@ -1021,6 +1192,9 @@ export const renderTable = (orders) => {
                     <button class="action-btn edit" onclick="window.adminApp.editOrder('${order.id}')" title="Edit">
                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                     </button>
+                    <button class="action-btn force-close" onclick="window.adminApp.forceCloseOrder('${order.id}')" title="Force Close">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                    </button>
                     <button class="action-btn delete" onclick="window.adminApp.softDeleteOrder('${order.id}')" title="Move to Trash">
                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                     </button>
@@ -1031,7 +1205,9 @@ export const renderTable = (orders) => {
 
         tr.innerHTML = `
             <td>${startIdx + index + 1}</td>
-            <td class="font-medium" style="white-space: nowrap;">${t(order.internalOrderNo)}</td>
+            <td class="font-medium" style="white-space: nowrap;">
+                ${order.internalOrderNo ? `<a href="#" onclick="event.preventDefault(); window.adminApp.wfOpenProject('${order.internalOrderNo}')" style="color: #0d9488; text-decoration: underline;" title="Open Project">${order.internalOrderNo}</a>` : '-'}
+            </td>
             <td>${formatDate(order.date)}</td>
             <td>${t(order.drawingNo)}</td>
             <td class="truncate" style="max-width: 150px;" title="${t(order.description)}">${t(order.description)}</td>
@@ -1050,8 +1226,8 @@ export const renderTable = (orders) => {
             <td class="text-center">${avail(order.rawAvail)}</td>
             <td class="text-center">${avail(order.finishAvail)}</td>
 
-            <td>${formatDate(order.deliveryDateActual)}</td>
-            <td>${t(order.dcNo)}</td>
+            <td>${formatDate(effectiveDelDate)}</td>
+            <td>${t(effectiveDcNo)}</td>
             <td class="text-right">${t(order.deliveryQty)}</td>
             <td>${t(order.billNo)}</td>
             <td class="text-center">${statusHtml}</td>
@@ -1096,24 +1272,60 @@ export const handleAddOrder = async () => {
     }
 
     // Auto-determine status from DC No and Qty
-    const dcNo = data.dcNo ? data.dcNo.trim() : '';
-    if (dcNo) {
-        const orderedQty = parseFloat(data.qty) || 0;
-        const deliveredQty = parseFloat(data.deliveryQty) || 0;
-        if (deliveredQty >= orderedQty && orderedQty > 0) {
-            data.status = 'Delivered';
-        } else if (deliveredQty > 0) {
-            data.status = 'Partially Delivered';
-        } else {
-            // If they entered a DC No but didn't enter a delivery qty, default to Delivered for legacy compatibility
-            data.status = 'Delivered';
-        }
-    } else {
-        data.status = 'Pending';
-    }
+    // If updating an existing order, we must calculate the TOTAL delivered across all DCs.
+    const orderedQty = parseFloat(data.qty) || 0;
 
     const orderId = data.orderId;
     delete data.orderId;
+
+    if (orderId) {
+        // Find existing delivery records for this IO
+        const allOrders = window.adminApp.getCurrentOrders ? window.adminApp.getCurrentOrders() : [];
+        const existingDeliveries = allOrders.filter(o =>
+            o.entryType === 'delivery_report' &&
+            o.internalOrderNo === data.internalOrderNo &&
+            !o.deleted
+        );
+
+        const totalDelivered = existingDeliveries.reduce((sum, d) => sum + (parseFloat(d.deliveryQty) || 0), 0);
+
+        if (totalDelivered >= orderedQty && orderedQty > 0) {
+            data.status = 'Delivered';
+        } else if (totalDelivered > 0) {
+            data.status = 'Partially Delivered';
+        } else {
+            data.status = 'Pending';
+        }
+        
+        // Ensure delivery quantity is ALWAYS recalculated from DC reports
+        data.deliveryQty = totalDelivered;
+
+        // Sync billNo across any existing linked delivery reports
+        if (existingDeliveries.length > 0 && data.billNo !== undefined) {
+            existingDeliveries.forEach(async (d) => {
+                if (d.id && d.billNo !== data.billNo) {
+                    await DB.updateOrder(d.id, { billNo: data.billNo });
+                }
+            });
+        }
+    } else {
+        // For entirely new orders created here, they won't have deliveries yet.
+        const dcNo = data.dcNo ? data.dcNo.trim() : '';
+        if (dcNo) {
+            const deliveredQty = parseFloat(data.deliveryQty) || 0;
+            if (deliveredQty >= orderedQty && orderedQty > 0) {
+                data.status = 'Delivered';
+            } else if (deliveredQty > 0) {
+                data.status = 'Partially Delivered';
+            } else {
+                data.status = 'Delivered';
+            }
+        } else {
+            data.status = 'Pending';
+        }
+    }
+
+
 
     const isNewOrder = !orderId;
     const createProject = isNewOrder && document.getElementById('io-create-project')?.checked;
@@ -1203,6 +1415,69 @@ export const populateForm = (order) => {
     if (statusDisplay) statusDisplay.value = displayHtml;
     if (statusHidden) statusHidden.value = autoStatus;
 
+    // NEW: Handle DC Breakdown for Internal Order Modal
+    const breakdownBody = document.getElementById('io-delivery-breakdown-body');
+    if (breakdownBody) {
+        const ioNo = order.internalOrderNo;
+        const allOrders = window.adminApp.getCurrentOrders ? window.adminApp.getCurrentOrders() : [];
+        const deliveries = allOrders.filter(o =>
+            o.entryType === 'delivery_report' &&
+            o.internalOrderNo === ioNo &&
+            !o.deleted
+        );
+
+        if (deliveries.length > 0) {
+            // Sort by date descending
+            deliveries.sort((a, b) => new Date(b.deliveryDateActual || b.date) - new Date(a.deliveryDateActual || a.date));
+
+            breakdownBody.innerHTML = deliveries.map(d => `
+                <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.2s;" onmouseover="this.style.background='#fbfcfd'" onmouseout="this.style.background='transparent'">
+                    <td style="padding: 10px 8px; color: #313d4f; font-weight: 500;">${d.dcNo || '-'}</td>
+                    <td style="padding: 10px 8px; color: #64748b;">${formatDate(d.deliveryDateActual || d.date)}</td>
+                    <td style="padding: 10px 8px; text-align: right; color: #0f172a; font-weight: 700;">${d.deliveryQty || 0}</td>
+                    <td style="padding: 10px 8px; text-align: right; color: #0d9488; font-weight: 700;">₹${(parseFloat(d.total) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                </tr>
+            `).join('');
+        } else {
+            breakdownBody.innerHTML = '<tr><td colspan="4" style="padding: 1.5rem 1rem; text-align: center; color: #94a3b8; font-style: italic; font-size: 0.75rem; background: #f8fafc;">No deliveries recorded.</td></tr>';
+        }
+
+        // --- NEW: Populate Summary Stats ---
+        const totalDelivered = deliveries.reduce((sum, d) => sum + (parseFloat(d.deliveryQty) || 0), 0);
+        const orderedQty = parseFloat(order.qty) || 0;
+        const pendingQty = Math.max(0, orderedQty - totalDelivered);
+
+        const totalDelEl = document.getElementById('io-total-delivered');
+        const pendingQtyEl = document.getElementById('io-pending-qty');
+        const derivedStatusEl = document.getElementById('io-derived-status');
+
+        if (totalDelEl) totalDelEl.textContent = totalDelivered;
+        if (pendingQtyEl) pendingQtyEl.textContent = pendingQty;
+        
+        // Ensure hidden fields match the DC calculation
+        const deliveryQtyInput = form.querySelector('[name="deliveryQty"]');
+        if (deliveryQtyInput) deliveryQtyInput.value = totalDelivered;
+
+        if (derivedStatusEl) {
+            let sText = 'Pending';
+            let sClass = 'status-pending';
+
+            if (pendingQty <= 0 && orderedQty > 0) {
+                sText = 'Delivered';
+                sClass = 'status-delivered';
+            } else if (totalDelivered > 0) {
+                sText = 'Partially Delivered';
+                sClass = 'status-portion';
+            }
+
+            derivedStatusEl.textContent = sText;
+            derivedStatusEl.className = `status-badge ${sClass}`;
+            
+            const statusHiddenInput = form.querySelector('[name="status"]');
+            if (statusHiddenInput) statusHiddenInput.value = sText;
+        }
+    }
+
     // Trigger calculation for all cost fields
     calculateOrderCosts();
 
@@ -1255,9 +1530,8 @@ const calculateOrderCosts = () => {
  * Export orders for the current VIEW to PDF
  * Uses jsPDF and jspdf-autotable
  */
-export const exportToPDF = () => {
+export const exportToCSV = () => {
     // 1. Get currently filtered orders (State Awareness)
-    // We need to re-apply the current filters to get the exact list user is seeing
     const allOrders = window.adminApp.getCurrentOrders ? window.adminApp.getCurrentOrders() : [];
 
     // Re-run filter logic to match UI
@@ -1287,115 +1561,89 @@ export const exportToPDF = () => {
     }
 
     try {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF('l', 'mm', 'a4'); // Landscape
-
         // Sort by Date (Descending default)
         exportOrders.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-        // Header
-        doc.setFontSize(18);
-        doc.setTextColor(20, 184, 166); // Teal
-        doc.text('INTERNAL ORDERS REPORT', 14, 15);
-
-        doc.setFontSize(10);
-        doc.setTextColor(100);
-        let periodStr = filterMonthFrom;
-        if (filterMonthFrom !== filterMonthTo) periodStr += ` to ${filterMonthTo}`;
-        doc.text(`Period: ${periodStr}`, 14, 22);
-        doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 27);
-
-        // 21-Column Mapping (Matching UI)
+        // Define Headers
         const headers = [
-            [
-                { content: '#', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
-                { content: 'Internal Order', colSpan: 2, styles: { halign: 'center' } },
-                { content: 'Item Details', colSpan: 3, styles: { halign: 'center' } },
-                { content: 'Pricing & Production', colSpan: 5, styles: { halign: 'center' } },
-                { content: 'Customer Data', colSpan: 6, styles: { halign: 'center' } },
-                { content: 'Delivery Actual', colSpan: 5, styles: { halign: 'center' } },
-                { content: 'Status', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } }
-            ],
-            [
-                'IO No', 'Date', 'Drg No', 'Description',
-                'Qty', 'Unit', 'Sale', 'InH', 'Out', 'Total',
-                'Customer', 'PO No', 'PO Date', 'Drg', 'Raw', 'Fin',
-                'Del Date', 'DC No', 'Del Qty', 'Bill No', 'Stat'
-            ]
+            'S.No', 'Internal Order No', 'Date', 'Drg No', 'Description', 'Qty', 'Unit',
+            'Sale Value Ea', 'In-House Value', 'Outsource Value', 'Total Value',
+            'Customer', 'PO No', 'PO Date', 'Drg Available', 'Raw Available', 'Finish Available',
+            'Del Date Actual', 'DC No', 'Del Qty', 'Bill No', 'Status'
         ];
 
-        const rows = exportOrders.map((o, index) => [
-            index + 1,
-            o.internalOrderNo || '-',
-            formatDate(o.date),
-            o.drawingNo || '-',
-            o.description || '-',
-            o.qty || 0,
-            o.qtyUnit || '-',
-            o.saleValueEa || o.value || 0,
-            o.prodValueEa || 0,
-            o.outsourceValue || 0,
-            o.total || 0,
-            o.customer || '-',
-            o.poNo || '-',
-            formatDate(o.poDate),
-            o.drgAvail === 'y' ? 'Y' : '-',
-            o.rawAvail === 'y' ? 'Y' : '-',
-            o.finishAvail === 'y' ? 'Y' : '-',
-            formatDate(o.deliveryDateActual),
-            o.dcNo || '-',
-            o.deliveryQty || 0,
-            o.billNo || '-',
-            o.status || 'Pending'
-        ]);
-
-        doc.autoTable({
-            head: headers,
-            body: rows,
-            startY: 32,
-            theme: 'grid',
-            headStyles: { fillColor: [20, 184, 166], textColor: 255, fontSize: 7, valign: 'middle', halign: 'center' },
-            bodyStyles: { fontSize: 6, cellPadding: 1, valign: 'middle' },
-            columnStyles: {
-                0: { cellWidth: 7 },  // #
-                1: { cellWidth: 16 }, // IO No
-                2: { cellWidth: 13 }, // Date
-                3: { cellWidth: 12 }, // Code
-                4: { cellWidth: 12 }, // Drg No
-                5: { cellWidth: 22 }, // Desc
-                6: { cellWidth: 7 },  // Qty
-                7: { cellWidth: 8 },  // Unit
-                8: { cellWidth: 10 }, // Sale
-                9: { cellWidth: 9 },  // InH
-                10: { cellWidth: 9 }, // Out
-                11: { cellWidth: 12 }, // Total
-                12: { cellWidth: 16 }, // Cust
-                13: { cellWidth: 12 }, // PO
-                14: { cellWidth: 13 }, // PO Date
-                15: { cellWidth: 6 },  // Drg
-                16: { cellWidth: 6 },  // Raw
-                17: { cellWidth: 6 },  // Fin
-                18: { cellWidth: 13 }, // Del Date
-                19: { cellWidth: 9 },  // DC
-                20: { cellWidth: 7 },  // Del Qty
-                21: { cellWidth: 9 },  // Bill
-                22: { cellWidth: 14 }  // Status
-            },
-            didParseCell: (data) => {
-                // Color coding for status
-                if (data.section === 'body' && data.column.index === 22) {
-                    const status = data.cell.raw;
-                    if (status === 'Delivered') data.cell.styles.textColor = [22, 163, 74];
-                    else if (status === 'Pending') data.cell.styles.textColor = [202, 138, 4];
-                }
-            }
+        // Map delivery reports for resolving delivery date & DC in export
+        const deliveryReportsByIo = new Map();
+        const deliveryReportsByDc = new Map();
+        orders.filter(o => o.entryType === 'delivery_report' && !o.isDeleted).forEach(d => {
+            const date = d.deliveryDateActual || d.date || '';
+            const io = (d.internalOrderNo || '').trim().toUpperCase();
+            const dc = (d.dcNo || '').trim();
+            if (io && date && !deliveryReportsByIo.has(io)) deliveryReportsByIo.set(io, { date, dc: d.dcNo });
+            if (dc && date && !deliveryReportsByDc.has(dc)) deliveryReportsByDc.set(dc, date);
         });
 
-        window.open(doc.output('bloburl'), '_blank');
+        // Map Rows
+        const rows = exportOrders.map((o, index) => {
+            let effectiveDelDate = o.deliveryDateActual;
+            let effectiveDcNo = o.dcNo;
+            if (!effectiveDelDate && effectiveDcNo && deliveryReportsByDc.has(effectiveDcNo.trim())) {
+                effectiveDelDate = deliveryReportsByDc.get(effectiveDcNo.trim());
+            }
+            if (!effectiveDelDate && o.internalOrderNo && deliveryReportsByIo.has(o.internalOrderNo.trim().toUpperCase())) {
+                const match = deliveryReportsByIo.get(o.internalOrderNo.trim().toUpperCase());
+                effectiveDelDate = match.date;
+                if (!effectiveDcNo && match.dc) effectiveDcNo = match.dc;
+            }
+
+            return [
+                index + 1,
+                `"${o.internalOrderNo || '-'}"`, // Quote to prevent CSV issues with leading zeros
+                formatDate(o.date),
+                `"${o.drawingNo || '-'}"`,
+                `"${(o.description || '-').replace(/"/g, '""')}"`, // Escape quotes
+                o.qty || 0,
+                o.qtyUnit || '-',
+                o.saleValueEa || o.value || 0,
+                o.prodValueEa || 0,
+                o.outsourceValue || 0,
+                o.total || 0,
+                `"${(o.customer || '-').replace(/"/g, '""')}"`,
+                `"${o.poNo || '-'}"`,
+                formatDate(o.poDate),
+                o.drgAvail === 'y' ? 'Y' : '-',
+                o.rawAvail === 'y' ? 'Y' : '-',
+                o.finishAvail === 'y' ? 'Y' : '-',
+                formatDate(effectiveDelDate),
+                `"${effectiveDcNo || '-'}"`,
+                o.deliveryQty || 0,
+                `"${o.billNo || '-'}"`,
+                o.status || 'Pending'
+            ];
+        });
+
+        // Combine into CSV string
+        const csvContent = [
+            headers.join(','),
+            ...rows.map(row => row.join(','))
+        ].join('\n');
+
+        // Create download link
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        const filename = `Internal_Orders_${new Date().toISOString().slice(0, 10)}.csv`;
+        
+        link.setAttribute('href', url);
+        link.setAttribute('download', filename);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
 
     } catch (error) {
-        console.error('PDF Export failed:', error);
-        alert('Failed to generate PDF. See console.');
+        console.error('CSV Export failed:', error);
+        alert('Failed to generate CSV. See console.');
     }
 };
 
@@ -1476,7 +1724,7 @@ export const renderDeliveryReport = async (weekValue, monthValue) => {
     console.log("Render Delivery Report:", { weekValue, monthValue, mode: isDeliveryTrashMode ? 'Trash' : 'Active', totalOrders: orders.length });
     console.log("Range:", { start: startDate.toString(), end: endDate.toString() });
 
-    const reportOrders = orders.filter(o => {
+    let dateFilteredOrders = orders.filter(o => {
         // Strict separation: ONLY show explicitly tagged delivery reports
         if (o.entryType !== 'delivery_report') return false;
 
@@ -1504,6 +1752,30 @@ export const renderDeliveryReport = async (weekValue, monthValue) => {
         }
 
         return inRange;
+    });
+
+    // Populate Company Filter Dropdown
+    const companyFilterEl = document.getElementById('delivery-company-filter');
+    if (companyFilterEl) {
+        const currentTargetCompany = companyFilterEl.value;
+        const uniqueCustomers = [...new Set(dateFilteredOrders.map(o => o.customer).filter(Boolean))].sort();
+        
+        companyFilterEl.innerHTML = '<option value="all">All Customers</option>' + 
+            uniqueCustomers.map(c => `<option value="${c}">${c}</option>`).join('');
+            
+        // Restore value if it still exists in the options, otherwise reset to 'all'
+        if (currentTargetCompany && currentTargetCompany !== 'all' && uniqueCustomers.includes(currentTargetCompany)) {
+            companyFilterEl.value = currentTargetCompany;
+        } else {
+            companyFilterEl.value = 'all';
+        }
+    }
+
+    const selectedCompany = companyFilterEl ? companyFilterEl.value : 'all';
+
+    const reportOrders = dateFilteredOrders.filter(o => {
+        if (selectedCompany !== 'all' && o.customer !== selectedCompany) return false;
+        return true;
     });
 
     // Sort by Date
@@ -1612,11 +1884,76 @@ import * as DB from './db.js';
 
 // Each row in the roster is a flat object: { employeeId, employeeName, employeeNo, department, role, orderNo, drawingNo, description, customer, qty, unit, manpower, assignedWith, inTime, outTime, workStart, workEnd, priority, notes, status, taskId }
 let rosterRows = [];
+let attendanceData = {}; // { empId: { present: bool, overhead: num } }
 let currentWorkflowDate = '';
 let currentWorkflowDept = 'All';
 let workflowUnsubscribe = null;
 let currentEditIdx = -1;
 let loadedDepartments = new Set(); // Track departments that have data for the current date
+let saveTimeout = null; // For debouncing
+let pendingAttendanceEdits = new Map(); // empId -> { status, shift }
+
+// ===== LOCK LOGIC =====
+const isRosterLocked = () => {
+    if (!currentWorkflowDate) return false;
+    const today = new Date().toISOString().split('T')[0];
+    return currentWorkflowDate < today;
+};
+
+const renderLockStatus = () => {
+    const banner = document.getElementById('wf-lock-banner');
+    if (!banner) return;
+    
+    if (isRosterLocked()) {
+        banner.innerHTML = `
+            <div class="flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-700 text-sm font-medium animate-in fade-in slide-in-from-top-2 duration-300">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                <span>Read-Only Mode: Historical data is locked and cannot be modified.</span>
+            </div>
+        `;
+        banner.classList.remove('hidden');
+    } else {
+        banner.classList.add('hidden');
+        banner.innerHTML = '';
+    }
+};
+
+// Update Global Button States
+const updateManagementButtons = () => {
+    const locked = isRosterLocked();
+    const saveBtn = document.getElementById('save-all-btn');
+    const addBtn = document.getElementById('add-assignment-btn');
+    const copyBtn = document.getElementById('copy-prev-btn');
+    const deleteBtn = document.getElementById('delete-all-btn');
+    
+    if (saveBtn) saveBtn.classList.toggle('hidden', locked);
+    if (addBtn) addBtn.classList.toggle('hidden', locked);
+    if (copyBtn) copyBtn.classList.toggle('hidden', locked);
+    if (deleteBtn) deleteBtn.classList.toggle('hidden', locked);
+};
+
+/**
+ * Generates a stable ID for tasks that don't have one.
+ * Uses properties that shouldn't change for a specific assignment instance.
+ */
+const generateStableTaskId = (item) => {
+    if (item.taskId) return item.taskId;
+    // Fallback for legacy data: deterministic hash based on core properties
+    const s = `${item.employeeId}-${item.orderNo || ''}-${item.drawingNo || ''}-${item.description || ''}`.replace(/\s+/g, '');
+    let hash = 0;
+    for (let i = 0; i < s.length; i++) {
+        hash = ((hash << 5) - hash) + s.charCodeAt(i);
+        hash |= 0;
+    }
+    return `task-${Math.abs(hash)}`;
+};
+
+const getNormalizedDept = (item) => {
+    let dept = (item.department || item.section || 'Unassigned').trim();
+    if (!dept) dept = 'Unassigned';
+    if (dept.toLowerCase() === 'fabrication') return 'Fab';
+    return dept;
+};
 
 // ===== INITIALIZATION =====
 
@@ -1649,7 +1986,28 @@ export const initWorkflowView = () => {
         };
     }
 
+    window.adminApp = window.adminApp || {};
+    window.adminApp.wfOpenAssignModal = (idx) => openAssignModal(idx);
+    window.adminApp.wfSaveAll = () => saveAll();
+    window.adminApp.wfPrint = () => printWorksheet();
+    window.adminApp.wfCopyPreviousDay = () => copyPreviousDay();
+    window.adminApp.wfDeleteRoster = () => wfDeleteRoster();
+    window.adminApp.wfFilterTeam = (v) => filterTeam(v);
+    window.adminApp.wfUpdateRow = (tid, eid, f, v) => updateRow(tid, eid, f, v);
+    window.adminApp.wfRemoveRow = (tid, eid) => removeRow(tid, eid);
+    window.adminApp.wfEditRow = (tid, eid) => editRow(tid, eid);
+    
+    // Attendance & Reports
+    window.adminApp.wfToggleAttendance = (eid, status) => toggleAttendance(eid, status);
+    window.adminApp.wfToggleShiftType = (eid, type) => toggleShiftType(eid, type);
+    window.adminApp.wfSwitchTab = (tabName) => switchTab(tabName);
+    window.adminApp.wfOpenReportModal = () => openReportModal();
+    window.adminApp.wfGenerateReport = () => generateReport();
+    window.adminApp.wfExportCSV = () => exportCSV();
+
     loadWorkflows();
+    renderLockStatus();
+    updateManagementButtons();
 };
 
 // ===== DATA LOADING =====
@@ -1660,16 +2018,61 @@ const loadWorkflows = async () => {
     if (workflowUnsubscribe) workflowUnsubscribe();
 
     rosterRows = [];
+    attendanceData = {}; // CRITICAL: Reset attendance data when context changes
+    loadedDepartments = new Set();
 
     if (currentWorkflowDept === 'All') {
-        workflowUnsubscribe = DB.subscribeToWorkflows(currentWorkflowDate, (workflows) => {
+        workflowUnsubscribe = DB.subscribeToWorkflows(currentWorkflowDate, (workflows, metadata) => {
+            // CRITICAL: Ignore local pending writes to prevent UI flickers
+            if (metadata?.hasPendingWrites) {
+                console.log("Ignoring local pending write update...");
+                return;
+            }
+
+            // CAPTURE local unsaved changes
+            const savedLocalEdits = new Map(pendingAttendanceEdits); // Create a copy
+            
             rosterRows = [];
-            loadedDepartments = new Set(workflows.map(wf => wf.department));
+            attendanceData = {}; // Reset attendanceData before merging
+            loadedDepartments = new Set();
             const notesArr = [];
             const members = window.adminApp?.getCurrentMembers ? window.adminApp.getCurrentMembers() : [];
 
+            // Group workflows and MERGE colliding departments (e.g. Fab + Fabrication)
+            const mergedWfs = new Map();
             workflows.forEach(wf => {
-                (wf.assignments || []).forEach(a => {
+                const norm = getNormalizedDept(wf);
+                loadedDepartments.add(wf.department || wf.id); // Track original ID for cleanup/sync
+
+                if (!mergedWfs.has(norm)) {
+                    mergedWfs.set(norm, {
+                        department: norm,
+                        assignments: [],
+                        attendance: {},
+                        supervisorNotes: []
+                    });
+                }
+
+                const entry = mergedWfs.get(norm);
+                // Merge assignments
+                if (wf.assignments) entry.assignments.push(...wf.assignments);
+                // Merge attendance
+                if (wf.attendance) Object.assign(entry.attendance, wf.attendance);
+                // Merge notes
+                if (wf.supervisorNotes) entry.supervisorNotes.push(wf.supervisorNotes);
+            });
+
+            mergedWfs.forEach(entry => {
+                const wfDept = entry.department;
+
+                // Selective Merge for Attendance: Only update if no local pending changes exist
+                Object.keys(entry.attendance).forEach(empId => {
+                    if (!savedLocalEdits.has(empId)) { // Check against savedLocalEdits (which is pendingAttendanceEdits)
+                        attendanceData[empId] = entry.attendance[empId];
+                    }
+                });
+
+                (entry.assignments || []).forEach(a => {
                     let effectiveRole = (a.role || a.designation || '').trim();
                     if (!effectiveRole && members.length > 0) {
                         const m = members.find(m => m.id === a.employeeId);
@@ -1679,71 +2082,115 @@ const loadWorkflows = async () => {
                     }
 
                     (a.tasks || []).forEach(t => {
-                        rosterRows.push({
+                        let aDept = getNormalizedDept(a) || wfDept;
+
+                        const rowData = {
                             employeeId: a.employeeId,
                             employeeName: a.employeeName,
                             employeeNo: a.employeeNo,
-                            department: a.department || wf.department,
+                            department: aDept,
                             role: effectiveRole,
-                            taskId: t.taskId || crypto.randomUUID(),
                             ...t,
                             qty: parseFloat(t.qty) || 0,
+                            allocationPct: parseFloat(t.allocationPct) || 100,
                             overheads: parseFloat(t.overheads) || 0,
                             totalOverheads: parseFloat(t.totalOverheads) || 0,
-                            prodValueEa: parseFloat(t.prodValueEa) || 0
-                        });
+                            prodValueEa: parseFloat(t.prodValueEa) || 0,
+                            costFood: parseFloat(t.costFood) || 0,
+                            costConsumables: parseFloat(t.costConsumables) || 0,
+                            costTransport: parseFloat(t.costTransport) || 0,
+                            costMisc: parseFloat(t.costMisc) || 0
+                        };
+                        rowData.taskId = generateStableTaskId(rowData);
+                        rosterRows.push(rowData);
                     });
                 });
-                if (wf.supervisorNotes) notesArr.push(`[${wf.department}] ${wf.supervisorNotes}`);
+                if (entry.supervisorNotes.length > 0) {
+                    notesArr.push(`[${wfDept}] ${entry.supervisorNotes.join('; ')}`);
+                }
+            });
+
+            // Apply saved local attendance edits on top of fetched data
+            savedLocalEdits.forEach((att, empId) => {
+                attendanceData[empId] = att;
             });
 
             const notesEl = document.getElementById('wf-supervisor-notes');
             if (notesEl) notesEl.value = notesArr.join('\n');
 
             renderTable();
+            renderAttendanceTable();
             updateUnassignedAlert();
+            renderLockStatus();
+            updateManagementButtons();
         });
     } else {
-        const result = await DB.getWorkflow(currentWorkflowDate, currentWorkflowDept);
-        if (result.data) {
-            rosterRows = [];
-            loadedDepartments = new Set([currentWorkflowDept]);
-            const members = window.adminApp?.getCurrentMembers ? window.adminApp.getCurrentMembers() : [];
+        let result = await DB.getWorkflow(currentWorkflowDate, currentWorkflowDept);
+        let assignments = [];
+        let notes = [];
 
-            (result.data.assignments || []).forEach(a => {
-                let effectiveRole = (a.role || a.designation || '').trim();
-                if (!effectiveRole && members.length > 0) {
-                    const m = members.find(m => m.id === a.employeeId);
-                    if (m) {
-                        effectiveRole = (m.role || m.designation || (m.orgRoles && m.orgRoles[0]) || '').trim();
-                    }
-                }
-
-                (a.tasks || []).forEach(t => {
-                    rosterRows.push({
-                        employeeId: a.employeeId,
-                        employeeName: a.employeeName,
-                        employeeNo: a.employeeNo,
-                        department: a.department || currentWorkflowDept,
-                        role: effectiveRole,
-                        taskId: t.taskId || crypto.randomUUID(),
-                        ...t,
-                        qty: parseFloat(t.qty) || 0,
-                        overheads: parseFloat(t.overheads) || 0,
-                        totalOverheads: parseFloat(t.totalOverheads) || 0,
-                        prodValueEa: parseFloat(t.prodValueEa) || 0
-                    });
-                });
-            });
-            const notesEl = document.getElementById('wf-supervisor-notes');
-            if (notesEl) notesEl.value = result.data.supervisorNotes || '';
-        } else {
-            rosterRows = [];
-            const notesEl = document.getElementById('wf-supervisor-notes');
-            if (notesEl) notesEl.value = '';
+        if (result && result.data && result.data.assignments) {
+            assignments = [...result.data.assignments];
+            if (result.data.supervisorNotes) notes.push(result.data.supervisorNotes);
+            if (result.data.attendance) attendanceData = result.data.attendance;
         }
+
+        // Catch legacy "Fabrication" entries if "Fab" is selected
+        if (currentWorkflowDept === 'Fab') {
+            const legacyResult = await DB.getWorkflow(currentWorkflowDate, 'Fabrication');
+            if (legacyResult && legacyResult.data && legacyResult.data.assignments) {
+                assignments = [...assignments, ...legacyResult.data.assignments];
+                if (legacyResult.data.supervisorNotes) notes.push(legacyResult.data.supervisorNotes);
+                if (legacyResult.data.attendance) Object.assign(attendanceData, legacyResult.data.attendance);
+            }
+        }
+
+        rosterRows = [];
+        loadedDepartments = new Set([currentWorkflowDept]);
+        const members = window.adminApp?.getCurrentMembers ? window.adminApp.getCurrentMembers() : [];
+
+        assignments.forEach(a => {
+            let effectiveRole = (a.role || a.designation || '').trim();
+            if (!effectiveRole && members.length > 0) {
+                const m = members.find(m => m.id === a.employeeId);
+                if (m) {
+                    effectiveRole = (m.role || m.designation || (m.orgRoles && m.orgRoles[0]) || '').trim();
+                }
+            }
+
+            (a.tasks || []).forEach(t => {
+                let aDept = getNormalizedDept(a) || currentWorkflowDept;
+
+                const rowData = {
+                    employeeId: a.employeeId,
+                    employeeName: a.employeeName,
+                    employeeNo: a.employeeNo,
+                    department: aDept,
+                    role: effectiveRole,
+                    ...t,
+                    qty: parseFloat(t.qty) || 0,
+                    allocationPct: parseFloat(t.allocationPct) || 100,
+                    overheads: parseFloat(t.overheads) || 0,
+                    totalOverheads: parseFloat(t.totalOverheads) || 0,
+                    prodValueEa: parseFloat(t.prodValueEa) || 0,
+                    costFood: parseFloat(t.costFood) || 0,
+                    costConsumables: parseFloat(t.costConsumables) || 0,
+                    costTransport: parseFloat(t.costTransport) || 0,
+                    costMisc: parseFloat(t.costMisc) || 0
+                };
+                rowData.taskId = generateStableTaskId(rowData);
+                rosterRows.push(rowData);
+            });
+        });
+
+        const notesEl = document.getElementById('wf-supervisor-notes');
+        if (notesEl) notesEl.value = notes.join('\n');
+
         renderTable();
+        renderAttendanceTable();
         updateUnassignedAlert();
+        renderLockStatus();
+        updateManagementButtons();
     }
 };
 
@@ -1754,13 +2201,15 @@ const renderTable = () => {
     if (!tbody) return;
 
     if (rosterRows.length === 0) {
-        tbody.innerHTML = `<tr class="wf-empty-row"><td colspan="14" style="text-align:center; padding:2.5rem; color:#94a3b8;">No assignments for this date. Click <strong>"Add Assignment"</strong> to get started.</td></tr>`;
+        tbody.innerHTML = `<tr class="wf-empty-row"><td colspan="13" style="text-align:center; padding:2.5rem; color:#94a3b8;">No assignments for this date. Click <strong>"Add Assignment"</strong> to get started.</td></tr>`;
         return;
     }
 
     // Group by employee for visual separation
     let lastEmpId = '';
     let rowNum = 0;
+
+    const locked = isRosterLocked();
 
     tbody.innerHTML = rosterRows.map((row, idx) => {
         const isNewEmployee = row.employeeId !== lastEmpId;
@@ -1770,43 +2219,59 @@ const renderTable = () => {
         const pClass = row.priority === 'High' ? 'priority-high' : row.priority === 'Medium' ? 'priority-medium' : 'priority-low';
         const sClass = row.status === 'Completed' ? 'status-done' : row.status === 'Ongoing' ? 'status-ongoing' : 'status-pending';
 
+        let displayDept = row.department || '-';
+        if (displayDept.toLowerCase() === 'fabrication') displayDept = 'Fab';
+
+        const rowStyle = isNewEmployee ? 'border-top: 2px solid #e2e8f0;' : '';
+        const paddingStyle = 'padding: 0.4rem 0.5rem;';
+
+        const actionBtns = locked ? '' : `
+            <div class="wf-row-actions" style="display: flex; gap: 4px; justify-content: center;">
+                <button class="wf-row-edit" onclick="window.adminApp.wfEditRow('${row.taskId}', '${row.employeeId}')" style="padding: 4px; color: #0d9488; background: #f0fdfa; border-radius: 4px;">
+                    <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                </button>
+                <button class="wf-row-remove" onclick="window.adminApp.wfRemoveRow('${row.taskId}', '${row.employeeId}')" style="padding: 4px; color: #ef4444; background: #fef2f2; border-radius: 4px;">
+                    <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                </button>
+            </div>
+        `;
+
         return `
-        <tr class="${isNewEmployee ? 'emp-row' : ''}">
-            <td class="text-center">${isNewEmployee ? rowNum : ''}</td>
-            <td class="wf-col-emp">
-                ${isNewEmployee ? `<strong>${row.employeeName}</strong><br><small>${row.employeeNo || ''} · ${row.department || ''} · ${row.role || ''}</small><br>
-                <div class="wf-timing-pills">
-                    <input type="time" value="${row.inTime || ''}" onchange="window.adminApp.wfUpdateRow(${idx}, 'inTime', this.value)" class="wf-time-input" title="In Time">
-                    <span>-</span>
-                    <input type="time" value="${row.outTime || ''}" onchange="window.adminApp.wfUpdateRow(${idx}, 'outTime', this.value)" class="wf-time-input" title="Out Time">
+        <tr class="${isNewEmployee ? 'emp-row' : ''}" data-task-id="${row.taskId}" data-emp-id="${row.employeeId}" style="${rowStyle}">
+            <td class="text-center" style="${paddingStyle} font-size: 0.75rem;">${isNewEmployee ? rowNum : ''}</td>
+            <td class="wf-col-emp" style="${paddingStyle}">
+                ${isNewEmployee ? `<div class="flex flex-col">
+                    <strong style="font-size: 0.8rem;">${row.employeeName}</strong>
+                    <span style="font-size: 0.65rem; color: #64748b;">${row.employeeNo || ''} · ${row.role || ''}</span>
+                    <div class="wf-timing-pills" style="margin-top: 4px; border: 1px solid #e2e8f0; border-radius: 4px; padding: 2px; width: fit-content; background: #f8fafc;">
+                        <input type="time" value="${row.inTime || ''}" onchange="window.adminApp.wfUpdateRow('${row.taskId}', '${row.employeeId}', 'inTime', this.value)" style="border:none; background:transparent; font-size: 0.65rem; padding: 0;" title="In Time" ${locked ? 'disabled' : ''}>
+                        <span style="font-size: 0.65rem; color: #94a3b8;">-</span>
+                        <input type="time" value="${row.outTime || ''}" onchange="window.adminApp.wfUpdateRow('${row.taskId}', '${row.employeeId}', 'outTime', this.value)" style="border:none; background:transparent; font-size: 0.65rem; padding: 0;" title="Out Time" ${locked ? 'disabled' : ''}>
+                    </div>
                 </div>` : ''}
             </td>
-            <td class="text-center" style="font-weight:600">${row.orderNo || 'Ad-hoc'}</td>
-            <td class="text-center">${row.drawingNo || '-'}</td>
-            <td class="wf-col-desc ${pClass}">${row.description || '-'}</td>
-            <td>${row.customer || '-'}</td>
-            <td class="text-center">${row.qty || '-'} ${row.unit || ''}</td>
-            <td class="text-right" style="font-weight:600; color:#0f172a;">
-                ${(row.prodValueEa > 0 && row.qty > 0) ? (row.prodValueEa * row.qty).toFixed(2) : '-'}
+            <td class="text-center" style="${paddingStyle} font-weight:700; font-size: 0.75rem;">
+                ${row.orderNo && row.orderNo !== 'Ad-hoc' ? `<a href="#" onclick="event.preventDefault(); window.adminApp.wfOpenProject('${row.orderNo}')" style="color: #0d9488; text-decoration: underline;">${row.orderNo}</a>` : '<span style="color:#94a3b8; font-weight:400;">Ad-hoc</span>'}
             </td>
-            <td class="text-right" style="font-weight:600; color:#334155;">
-                ${row.totalOverheads > 0 ? `₹${row.totalOverheads.toFixed(2)}` : '-'}
+            <td class="text-center" style="${paddingStyle} font-size: 0.75rem;">${row.drawingNo || '-'}</td>
+            <td class="wf-col-desc ${pClass}" style="${paddingStyle} font-size: 0.75rem;">${row.description || '-'}</td>
+            <td style="${paddingStyle} font-size: 0.75rem; white-space: nowrap; overflow: hidden; max-width: 100px; text-overflow: ellipsis;">${row.customer || '-'}</td>
+            <td class="text-center" style="${paddingStyle} font-size: 0.75rem;">${row.qty || '-'} ${row.unit || ''}</td>
+            <td class="text-right" style="${paddingStyle} color:#0f172a;">
+                <div style="font-weight: 800; font-size: 0.8rem;">₹${(row.prodValueEa > 0 && row.qty > 0) ? ((row.prodValueEa * row.qty).toFixed(0)) : '0'}</div>
             </td>
-            <td class="text-center">${row.manpower || '-'}</td>
-            <td class="wf-col-assigned" title="${row.assignedWith || ''}">${row.assignedWith || '-'}</td>
-            <td class="text-center">${row.workStart || '-'} to ${row.workEnd || '-'}</td>
-            <td class="text-center"><span class="wf-status-badge ${sClass}">${row.status || 'Pending'}</span></td>
-            <td class="text-center">
-                <div class="wf-row-actions">
-                    <button class="wf-row-edit" onclick="window.adminApp.wfEditRow(${idx})" title="Edit">
-                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                    </button>
-                    <button class="wf-row-delete" onclick="window.adminApp.wfRemoveRow(${idx})" title="Remove">
-                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                    </button>
-                </div>
+            <td class="text-right" style="${paddingStyle} color:#334155;">
+                <div style="font-weight: 800; font-size: 0.8rem;">₹${(row.totalOverheads || 0).toFixed(0)}</div>
             </td>
-        </tr>`;
+            <td class="text-center" style="${paddingStyle}"><span style="font-size: 0.6rem; font-weight: 700; padding: 2px 6px; background: #f1f5f9; color: #64748b; border-radius: 4px; text-transform: uppercase;">${displayDept}</span></td>
+            <td class="wf-col-assigned" style="${paddingStyle} font-size: 0.7rem;" title="${row.assignedWith || ''}">${row.assignedWith || '-'}</td>
+            <td class="text-center" style="${paddingStyle} font-size: 0.7rem; font-weight: 600;">${row.workStart || '-'} <br> ${row.workEnd || '-'}</td>
+            <td class="text-center" style="${paddingStyle}"><span class="wf-status-badge ${sClass}" style="font-size: 0.65rem; padding: 2px 6px;">${row.status || 'Pending'}</span></td>
+            <td class="text-center" style="${paddingStyle}">
+                ${actionBtns}
+            </td>
+        </tr>
+        `;
     }).join('');
 
     // Add totals row (sum unique taskIds to avoid double counting)
@@ -1834,41 +2299,223 @@ const renderTable = () => {
     }
 };
 
+// ===== ATTENDANCE RENDERING =====
+
+const renderAttendanceTable = () => {
+    const tbody = document.getElementById('wf-attendance-body');
+    const totalEl = document.getElementById('wf-attendance-total');
+    if (!tbody || !totalEl) return;
+
+    const members = window.adminApp?.getCurrentMembers ? window.adminApp.getCurrentMembers() : [];
+    const dept = currentWorkflowDept;
+
+    const filteredMembers = (dept !== 'All'
+        ? members.filter(m => {
+            const memberDept = (m.section || m.department || '').toLowerCase();
+            return memberDept.includes(dept.toLowerCase());
+        })
+        : members).sort((a, b) => (a.employeeId || '').localeCompare(b.employeeId || ''));
+
+    if (filteredMembers.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center p-8 text-slate-400">No employees found for this department.</td></tr>`;
+        totalEl.textContent = '₹0';
+        return;
+    }
+
+    const locked = isRosterLocked();
+
+    let totalOh = 0;
+    tbody.innerHTML = filteredMembers.map((m, idx) => {
+        const att = attendanceData[m.id] || { present: false, shiftType: 'Full' };
+        const baseOh = parseFloat(m.overheads) || 0;
+        
+        const rosterRow = rosterRows.find(r => r.employeeId === m.id);
+        const timing = rosterRow ? `${rosterRow.inTime || '-'} to ${rosterRow.outTime || '-'}` : 'No work assigned';
+
+        const effectiveOh = att.present ? (baseOh * (att.shiftType === 'Half' ? 0.5 : 1)) : 0;
+        totalOh += effectiveOh;
+
+        return `
+            <tr class="${att.present ? 'bg-emerald-50' : 'bg-rose-50'}" style="transition: all 0.2s; border-bottom: 2px solid #fff;">
+                <td class="text-center text-slate-400 font-medium py-2" style="font-size: 0.75rem;">${idx + 1}</td>
+                <td class="py-2">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg ${att.present ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'} flex items-center justify-center text-[10px] font-bold border border-current opacity-50">
+                             ${m.employeeId ? m.employeeId.slice(-3) : '??'}
+                        </div>
+                        <div class="flex flex-col">
+                            <span class="font-bold text-slate-800" style="font-size: 0.85rem; line-height: 1.2;">${m.name}</span>
+                            <div class="flex gap-1.5 items-center">
+                                <span class="text-[9px] text-slate-500 font-mono font-bold">${m.employeeId || 'N/A'}</span>
+                                <span class="text-[9px] text-slate-300">•</span>
+                                <span class="text-[9px] text-slate-500 font-bold uppercase tracking-tighter">${m.role || m.designation || ''}</span>
+                            </div>
+                        </div>
+                    </div>
+                </td>
+                <td class="text-center py-2">
+                    <div class="flex flex-col items-center gap-1.5">
+                        <div class="flex items-center p-0.5 bg-slate-200 rounded-lg w-fit shadow-inner border border-slate-300">
+                            <button type="button" onclick="window.adminApp.wfToggleAttendance('${m.id}', true)" 
+                                    style="padding: 6px 24px; border-radius: 6px; font-size: 10px; font-weight: 900; transition: all 0.2s; ${att.present ? 'background-color: #10b981 !important; color: white !important; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);' : 'background-color: transparent !important; color: #64748b !important;'}" class="px-6 py-1.5 rounded-md" ${locked ? 'disabled' : ''}>PRESENT</button>
+                            <button type="button" onclick="window.adminApp.wfToggleAttendance('${m.id}', false)" 
+                                    style="padding: 6px 24px; border-radius: 6px; font-size: 10px; font-weight: 900; transition: all 0.2s; ${!att.present ? 'background-color: #f43f5e !important; color: white !important; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);' : 'background-color: transparent !important; color: #64748b !important;'}" class="px-6 py-1.5 rounded-md" ${locked ? 'disabled' : ''}>ABSENT</button>
+                        </div>
+                        
+                        ${att.present ? `
+                        <div class="flex items-center gap-1 p-0.5 bg-white rounded-lg w-fit border-2 border-emerald-500 shadow-sm">
+                             <button type="button" onclick="window.adminApp.wfToggleShiftType('${m.id}', 'Full')" 
+                                    style="padding: 4px 12px; border-radius: 4px; font-size: 9px; font-weight: 900; transition: all 0.2s; ${att.shiftType !== 'Half' ? 'background-color: #0891b2 !important; color: white !important;' : 'background-color: transparent !important; color: #0891b2 !important;'}" class="px-3 py-1 rounded" ${locked ? 'disabled' : ''}>FULL DAY</button>
+                             <button type="button" onclick="window.adminApp.wfToggleShiftType('${m.id}', 'Half')" 
+                                    style="padding: 4px 12px; border-radius: 4px; font-size: 9px; font-weight: 900; transition: all 0.2s; ${att.shiftType === 'Half' ? 'background-color: #f59e0b !important; color: white !important;' : 'background-color: transparent !important; color: #f59e0b !important;'}" class="px-3 py-1 rounded" ${locked ? 'disabled' : ''}>HALF DAY</button>
+                        </div>
+                        ` : '<div style="height: 22px;"></div>'}
+                    </div>
+                </td>
+                <td class="text-center py-2">
+                    <div class="flex flex-col items-center">
+                        <span class="text-[10px] font-black ${rosterRows.some(r => r.employeeId === m.id) ? 'text-emerald-700' : 'text-slate-400'}">${timing}</span>
+                        ${rosterRows.some(r => r.employeeId === m.id) ? '<span class="text-[8px] bg-emerald-100 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded font-black uppercase tracking-widest mt-1">ASSIGNED</span>' : ''}
+                    </div>
+                </td>
+                <td class="text-right py-2 pr-6">
+                    <div class="flex flex-col items-end">
+                        <span class="font-mono font-black ${att.present ? 'text-slate-900' : 'text-slate-400'}" style="font-size: 1rem;">₹${effectiveOh.toFixed(2)}</span>
+                        <span class="text-[9px] ${att.present ? 'text-slate-500' : 'text-slate-300'} font-bold">Base: ₹${baseOh.toFixed(0)}</span>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+
+    totalEl.textContent = `₹${totalOh.toFixed(2)}`;
+};
+
+const toggleAttendance = async (empId, isPresent) => {
+    if (isRosterLocked()) return;
+    const members = window.adminApp?.getCurrentMembers ? window.adminApp.getCurrentMembers() : [];
+    const m = members.find(m => m.id === empId);
+    if (!m) return;
+
+    if (!attendanceData[empId]) {
+        attendanceData[empId] = { present: false, shiftType: 'Full', overhead: parseFloat(m.overheads) || 0 };
+    }
+    
+    attendanceData[empId].present = isPresent;
+    attendanceData[empId].overhead = parseFloat(m.overheads) || 0;
+    pendingAttendanceEdits.set(empId, attendanceData[empId]); // Mark as locally edited
+
+    const statusEl = document.getElementById('wf-attendance-save-status');
+    if (statusEl) {
+        statusEl.textContent = 'Unsaved Changes';
+        statusEl.style.opacity = '1';
+        statusEl.style.color = '#f59e0b';
+    }
+
+    renderAttendanceTable();
+};
+
+const toggleShiftType = async (empId, type) => {
+    if (isRosterLocked()) return;
+    if (!attendanceData[empId]) return;
+    
+    attendanceData[empId].shiftType = type;
+    pendingAttendanceEdits.set(empId, attendanceData[empId]); // Mark as locally edited
+
+    const statusEl = document.getElementById('wf-attendance-save-status');
+    if (statusEl) {
+        statusEl.textContent = 'Unsaved Changes';
+        statusEl.style.opacity = '1';
+        statusEl.style.color = '#f59e0b';
+    }
+
+    renderAttendanceTable();
+};
+
+const debouncedSaveAll = (immediate = false) => {
+    // Deprecated: No longer used as we switched to manual save per user request
+    if (immediate) saveAll();
+};
+
+const switchTab = (tabName) => {
+    const btnAssignments = document.getElementById('wf-tab-btn-assignments');
+    const btnAttendance = document.getElementById('wf-tab-btn-attendance');
+    const paneAssignments = document.getElementById('wf-tab-content-assignments');
+    const paneAttendance = document.getElementById('wf-tab-content-attendance');
+
+    if (!btnAssignments || !btnAttendance || !paneAssignments || !paneAttendance) return;
+
+    if (tabName === 'assignments') {
+        btnAssignments.classList.add('active');
+        btnAssignments.style.borderBottomColor = '#0d9488';
+        btnAssignments.style.color = '#0d9488';
+        
+        btnAttendance.classList.remove('active');
+        btnAttendance.style.borderBottomColor = 'transparent';
+        btnAttendance.style.color = '#64748b';
+        
+        paneAssignments.classList.remove('hidden');
+        paneAttendance.classList.add('hidden');
+    } else {
+        btnAttendance.classList.add('active');
+        btnAttendance.style.borderBottomColor = '#0d9488';
+        btnAttendance.style.color = '#0d9488';
+        
+        btnAssignments.classList.remove('active');
+        btnAssignments.style.borderBottomColor = 'transparent';
+        btnAssignments.style.color = '#64748b';
+        
+        paneAttendance.classList.remove('hidden');
+        paneAssignments.classList.add('hidden');
+        
+        renderAttendanceTable();
+    }
+};
+
 // ===== ROW UPDATE =====
 
-export const updateRow = (idx, field, value) => {
-    if (rosterRows[idx]) {
-        const empId = rosterRows[idx].employeeId;
-        rosterRows[idx][field] = value;
+export const updateRow = async (taskId, empId, field, value) => {
+    if (isRosterLocked()) return;
+    const row = rosterRows.find(r => r.taskId === taskId && r.employeeId === empId);
+    if (row) {
+        row[field] = value;
 
         // Sync inTime/outTime for all rows of the same employee
         if (field === 'inTime' || field === 'outTime') {
             rosterRows.forEach(r => {
                 if (r.employeeId === empId) r[field] = value;
             });
-            renderTable(); // Re-render to show sync'd times in all rows
+            renderTable();
         }
 
-        saveAll(); // Auto-save on inline changes
+        await saveAll();
     }
 };
 
-export const removeRow = (idx) => {
+export const removeRow = async (taskId, empId) => {
+    if (isRosterLocked()) return;
     if (confirm('Remove this assignment?')) {
-        rosterRows.splice(idx, 1);
-        renderTable();
-        saveAll(); // Auto-save on removal
+        const idx = rosterRows.findIndex(r => r.taskId === taskId && r.employeeId === empId);
+        if (idx >= 0) {
+            rosterRows.splice(idx, 1);
+            renderTable();
+            await saveAll();
+        }
     }
 };
 
-export const editRow = (idx) => {
-    currentEditIdx = idx;
-    openAssignModal(idx);
+export const editRow = (taskId, empId) => {
+    if (isRosterLocked()) return;
+    const idx = rosterRows.findIndex(r => r.taskId === taskId && r.employeeId === empId);
+    if (idx >= 0) {
+        openAssignModal(idx);
+    }
 };
 
 // ===== ASSIGNMENT MODAL =====
 
 export const openAssignModal = (editIdx = -1) => {
+    if (isRosterLocked()) return;
     const members = window.adminApp?.getCurrentMembers ? window.adminApp.getCurrentMembers() : [];
     const dept = currentWorkflowDept;
 
@@ -1910,12 +2557,18 @@ export const openAssignModal = (editIdx = -1) => {
                                 <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
                                 Who is Assigned?
                             </div>
-                            <div class="form-group" style="margin-bottom: 0.75rem;">
-                                <label class="wf-form-label">Primary Employee</label>
-                                <select id="wf-assign-employee" class="form-input" style="padding: 0.4rem 0.6rem; font-size: 0.8rem;">
-                                    <option value="">-- Select Employee --</option>
-                                    ${filteredMembers.map(m => `<option value="${m.id}" data-name="${m.name}" data-empno="${m.employeeId || ''}" data-dept="${m.section || m.department || ''}" data-role="${m.role || m.designation || ''}" data-overheads="${m.overheads || 0}" ${editData && editData.employeeId === m.id ? 'selected' : ''}>${m.name} (${m.employeeId || 'N/A'})</option>`).join('')}
-                                </select>
+                            <div class="form-group" style="margin-bottom: 0.75rem; display: flex; gap: 0.5rem; align-items: flex-end;">
+                                <div style="flex: 1;">
+                                    <label class="wf-form-label">Primary Employee</label>
+                                    <select id="wf-assign-employee" class="form-input" style="padding: 0.4rem 0.6rem; font-size: 0.8rem;">
+                                        <option value="">-- Select Employee --</option>
+                                        ${filteredMembers.map(m => `<option value="${m.id}" data-name="${m.name}" data-empno="${m.employeeId || ''}" data-dept="${m.section || m.department || ''}" data-role="${m.role || m.designation || ''}" data-overheads="${m.overheads || 0}" ${editData && editData.employeeId === m.id ? 'selected' : ''}>${m.name} (${m.employeeId || 'N/A'})</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div style="width: 70px;">
+                                    <label class="wf-form-label" title="Percentage of daily cost allocated to this task">Alloc %</label>
+                                    <input type="number" id="wf-assign-employee-pct" class="form-input" style="padding: 0.4rem; font-size: 0.8rem; text-align: center;" min="1" max="100" value="${editData && editData.allocationPct ? editData.allocationPct : 100}">
+                                </div>
                             </div>
                             
                             <div class="inline-section-label" style="margin: 0.5rem 0 0.4rem; font-size: 0.6rem;">Assigned With (Team)</div>
@@ -1923,13 +2576,30 @@ export const openAssignModal = (editIdx = -1) => {
                                 <div class="form-group" style="margin-bottom: 0.4rem;">
                                     <input type="text" id="wf-assign-with-filter" class="form-input" placeholder="Search team members..." style="font-size: 0.7rem; padding: 3px 6px;" oninput="window.adminApp.wfFilterTeam(this.value)">
                                 </div>
-                                <div id="wf-assign-with-list" class="wf-team-list" style="grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 0.4rem;">
-                                    ${filteredMembers.map(m => `
-                                        <label class="wf-team-item" style="padding: 4px 8px; font-size: 0.7rem; gap: 6px;">
-                                            <input type="checkbox" name="wf-team-member" value="${m.id}" data-name="${m.name}" ${editData?.assignedWith?.includes(m.name) ? 'checked' : ''}>
-                                            <span>${m.name}</span>
-                                        </label>
-                                    `).join('')}
+                                <div id="wf-assign-with-list" class="wf-team-list" style="display: flex; flex-direction: column; gap: 0.4rem;">
+                                    ${filteredMembers.map(m => {
+        let isChecked = false;
+        let existingPct = 100;
+        if (editData && editData.taskId) {
+            const existingTeamRow = rosterRows.find(r => r.taskId === editData.taskId && r.employeeId === m.id);
+            if (existingTeamRow && existingTeamRow.employeeId !== editData.employeeId) {
+                isChecked = true;
+                existingPct = existingTeamRow.allocationPct || 100;
+            }
+        }
+
+        return `
+                                        <div class="wf-team-item" style="display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: white; border-radius: 4px; border: 1px solid #f1f5f9;">
+                                            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.75rem; cursor: pointer; flex: 1;">
+                                                <input type="checkbox" name="wf-team-member" value="${m.id}" data-name="${m.name}" ${isChecked ? 'checked' : ''} onchange="window.adminApp.wfToggleTeamMemberPct(this)">
+                                                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px;" title="${m.name}">${m.name}</span>
+                                            </label>
+                                            <div style="display: flex; align-items: center; gap: 4px;">
+                                                <input type="number" id="wf-team-pct-${m.id}" class="form-input" style="padding: 2px 4px; font-size: 0.7rem; text-align: center; width: 45px; height: 1.5rem; ${!isChecked ? 'opacity: 0.5; pointer-events: none;' : ''}" min="1" max="100" value="${existingPct}" oninput="window.adminApp.wfUpdateOverheadsDisplay()">
+                                                <span style="font-size: 0.65rem; color: #94a3b8; font-weight: 600;">%</span>
+                                            </div>
+                                        </div>
+                                    `}).join('')}
                                 </div>
                             </div>
                         </div>
@@ -1943,11 +2613,11 @@ export const openAssignModal = (editIdx = -1) => {
                             <div class="wf-grid-2">
                                 <div class="form-group">
                                     <label class="wf-form-label">Shift In</label>
-                                    <input type="time" id="wf-assign-intime" class="form-input" style="padding: 0.4rem; font-size: 0.8rem;" value="${editData?.inTime || ''}">
+                                    <input type="time" id="wf-assign-intime" class="form-input" style="padding: 0.4rem; font-size: 0.8rem;" value="${editData?.inTime || '09:00'}">
                                 </div>
                                 <div class="form-group">
                                     <label class="wf-form-label">Shift Out</label>
-                                    <input type="time" id="wf-assign-outtime" class="form-input" style="padding: 0.4rem; font-size: 0.8rem;" value="${editData?.outTime || ''}">
+                                    <input type="time" id="wf-assign-outtime" class="form-input" style="padding: 0.4rem; font-size: 0.8rem;" value="${editData?.outTime || '18:00'}">
                                 </div>
                             </div>
                         </div>
@@ -2008,18 +2678,18 @@ export const openAssignModal = (editIdx = -1) => {
                             <div class="wf-grid-3" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-bottom: 0.5rem;">
                                 <div class="form-group">
                                     <label class="wf-form-label">Start</label>
-                                    <input type="time" id="wf-assign-workstart" class="form-input" style="padding: 0.35rem; font-size: 0.75rem;" value="${editData?.workStart || ''}">
+                                    <input type="time" id="wf-assign-workstart" class="form-input" style="padding: 0.35rem; font-size: 0.75rem;" value="${editData?.workStart || '09:00'}">
                                 </div>
                                 <div class="form-group">
                                     <label class="wf-form-label">End</label>
-                                    <input type="time" id="wf-assign-workend" class="form-input" style="padding: 0.35rem; font-size: 0.75rem;" value="${editData?.workEnd || ''}">
+                                    <input type="time" id="wf-assign-workend" class="form-input" style="padding: 0.35rem; font-size: 0.75rem;" value="${editData?.workEnd || '18:00'}">
                                 </div>
                                 <div class="form-group">
-                                    <label class="wf-form-label">MP</label>
-                                    <input type="number" id="wf-assign-manpower" class="form-input" style="padding: 0.35rem; font-size: 0.75rem;" min="1" value="${editData?.manpower || '1'}">
+                                    <label class="wf-form-label">Department</label>
+                                    <input type="text" id="wf-assign-department" class="form-input" style="padding: 0.35rem; font-size: 0.75rem;" value="${editData?.department || currentWorkflowDept || ''}">
                                 </div>
                             </div>
-                            <div class="wf-grid-3" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;">
+                            <div class="wf-grid-3" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-bottom: 0.5rem;">
                                 <div class="form-group">
                                     <label class="wf-form-label">Total Qty</label>
                                     <input type="number" id="wf-assign-qty" class="form-input" style="padding: 0.35rem; font-size: 0.75rem;" min="0" value="${editData?.qty || ''}" oninput="window.adminApp.wfCalculateProdValue()">
@@ -2030,7 +2700,25 @@ export const openAssignModal = (editIdx = -1) => {
                                 </div>
                                 <div class="form-group">
                                     <label class="wf-form-label">Total Prod. Val</label>
-                                    <input type="text" id="wf-assign-prod-total" class="form-input computed" style="padding: 0.35rem; font-size: 0.75rem; background: #f1f5f9;" readonly value="">
+                                    <input type="text" id="wf-assign-prod-total" class="form-input computed" style="padding: 0.35rem; font-size: 0.75rem; background: #f1f5f9; font-weight: 600; color: #0f172a;" readonly title="Base + Extra Costs">
+                                </div>
+                            </div>
+                            <div class="wf-grid-4" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem;">
+                                <div class="form-group">
+                                    <label class="wf-form-label">Food</label>
+                                    <input type="number" id="wf-assign-cost-food" class="form-input" style="padding: 0.35rem; font-size: 0.75rem;" min="0" value="${editData?.costFood || ''}" oninput="window.adminApp.wfCalculateProdValue()">
+                                </div>
+                                <div class="form-group">
+                                    <label class="wf-form-label">Consmls.</label>
+                                    <input type="number" id="wf-assign-cost-consumables" class="form-input" style="padding: 0.35rem; font-size: 0.75rem;" min="0" value="${editData?.costConsumables || ''}" oninput="window.adminApp.wfCalculateProdValue()">
+                                </div>
+                                <div class="form-group">
+                                    <label class="wf-form-label">Transport</label>
+                                    <input type="number" id="wf-assign-cost-transport" class="form-input" style="padding: 0.35rem; font-size: 0.75rem;" min="0" value="${editData?.costTransport || ''}" oninput="window.adminApp.wfCalculateProdValue()">
+                                </div>
+                                <div class="form-group">
+                                    <label class="wf-form-label">Misc.</label>
+                                    <input type="number" id="wf-assign-cost-misc" class="form-input" style="padding: 0.35rem; font-size: 0.75rem;" min="0" value="${editData?.costMisc || ''}" oninput="window.adminApp.wfCalculateProdValue()">
                                 </div>
                             </div>
                         </div>
@@ -2092,24 +2780,69 @@ export const openAssignModal = (editIdx = -1) => {
 export const calculateProdValue = () => {
     const qty = parseFloat(document.getElementById('wf-assign-qty')?.value) || 0;
     const cost = parseFloat(document.getElementById('wf-assign-prod-cost')?.value) || 0;
+
+    const total = qty * cost;
+
     const totalEl = document.getElementById('wf-assign-prod-total');
-    if (totalEl) totalEl.value = (qty * cost).toFixed(2);
+    if (totalEl) totalEl.value = total > 0 ? total.toFixed(2) : '';
+
+    // Changing Prod Value might affect total overheads if extras are part of it
+    updateOverheadsDisplay();
 };
 
 const setupOverheadListeners = () => {
     const empSelect = document.getElementById('wf-assign-employee');
+    const empPct = document.getElementById('wf-assign-employee-pct');
     if (empSelect) {
         empSelect.addEventListener('change', updateOverheadsDisplay);
+    }
+    if (empPct) {
+        empPct.addEventListener('input', updateOverheadsDisplay);
     }
 
     const teamList = document.getElementById('wf-assign-with-list');
     if (teamList) {
         teamList.addEventListener('change', (e) => {
             if (e.target.name === 'wf-team-member') {
+                const cb = e.target;
+                const pctInput = document.getElementById(`wf-team-pct-${cb.value}`);
+                if (pctInput) {
+                    if (cb.checked) {
+                        pctInput.style.opacity = '1';
+                        pctInput.style.pointerEvents = 'auto';
+                    } else {
+                        pctInput.style.opacity = '0.5';
+                        pctInput.style.pointerEvents = 'none';
+                    }
+                }
                 updateOverheadsDisplay();
             }
         });
     }
+};
+
+window.adminApp = window.adminApp || {};
+
+window.adminApp.wfCalculateProdValue = () => {
+    calculateProdValue();
+};
+
+window.adminApp.wfToggleTeamMemberPct = (cb) => {
+    const pctInput = document.getElementById(`wf-team-pct-${cb.value}`);
+    if (pctInput) {
+        if (cb.checked) {
+            pctInput.style.opacity = '1';
+            pctInput.style.pointerEvents = 'auto';
+        } else {
+            pctInput.style.opacity = '0.5';
+            pctInput.style.pointerEvents = 'none';
+        }
+    }
+    updateOverheadsDisplay();
+};
+
+window.adminApp.wfUpdateOverheadsDisplay = () => {
+    updateOverheadsDisplay();
 };
 
 export const updateOverheadsDisplay = () => {
@@ -2124,7 +2857,7 @@ export const updateOverheadsDisplay = () => {
     const totalEl = document.getElementById('wf-overhead-total');
     if (!listEl || !totalEl) return;
 
-    let total = 0;
+    let manpowerTotal = 0;
     let html = '';
 
     const allIds = [primaryId, ...teamIds].filter(Boolean);
@@ -2133,22 +2866,48 @@ export const updateOverheadsDisplay = () => {
     uniqueIds.forEach(id => {
         const m = members.find(m => m.id === id);
         if (m) {
-            const oh = parseFloat(m.overheads) || 0;
-            total += oh;
+            const baseOh = parseFloat(m.overheads) || 0;
+            let oh = baseOh;
+            let pct = 100;
+
+            if (id === primaryId) {
+                pct = parseFloat(document.getElementById('wf-assign-employee-pct')?.value) || 100;
+            } else {
+                pct = parseFloat(document.getElementById(`wf-team-pct-${id}`)?.value) || 100;
+            }
+
+            oh = baseOh * (pct / 100);
+            manpowerTotal += oh;
             html += `
                 <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: #64748b;">
-                    <span>${m.name}</span>
-                    <span>₹${oh.toFixed(2)}</span>
+                    <span>${m.name} <span style="font-size:0.6rem; color:#94a3b8; margin-left:4px;">(${pct}%)</span></span>
+                    <span title="Base daily overhead: ₹${baseOh.toFixed(2)}">₹${oh.toFixed(2)}</span>
                 </div>`;
         }
     });
+
+    const food = parseFloat(document.getElementById('wf-assign-cost-food')?.value) || 0;
+    const consumables = parseFloat(document.getElementById('wf-assign-cost-consumables')?.value) || 0;
+    const transport = parseFloat(document.getElementById('wf-assign-cost-transport')?.value) || 0;
+    const misc = parseFloat(document.getElementById('wf-assign-cost-misc')?.value) || 0;
+    const totalExtra = food + consumables + transport + misc;
+
+    if (totalExtra > 0) {
+        html += `
+            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: #0d9488; font-weight: 600; margin-top: 4px; border-top: 1px dotted #e2e8f0; padding-top: 4px;">
+                <span>Task Extras (Food/Transp/etc)</span>
+                <span>₹${totalExtra.toFixed(2)}</span>
+            </div>`;
+    }
+
+    const grandTotal = manpowerTotal + totalExtra;
 
     if (!html) {
         html = '<div style="font-size: 0.75rem; color: #94a3b8; text-align: center;">No employees selected</div>';
     }
 
     listEl.innerHTML = html;
-    totalEl.textContent = `₹${total.toFixed(2)}`;
+    totalEl.textContent = `₹${grandTotal.toFixed(2)}`;
 };
 
 const populateIOSuggestions = () => {
@@ -2173,6 +2932,9 @@ const setupIOLookup = () => {
             setVal('wf-assign-desc', match.description);
             setVal('wf-assign-drg', match.drawingNo);
             setVal('wf-assign-customer', match.customer);
+            let dept = match.department || match.section || '';
+            if (dept.toLowerCase() === 'fabrication') dept = 'Fab';
+            setVal('wf-assign-department', dept); // Auto-fill department
             setVal('wf-assign-qty', match.qty);
             setVal('wf-assign-unit', match.qtyUnit || 'Nos');
             setVal('wf-assign-prod-cost', match.prodValueEa || '');
@@ -2203,7 +2965,8 @@ const setupEmployeeTimingLookup = () => {
 
 // ===== CONFIRM ASSIGNMENT =====
 
-export const confirmAssign = () => {
+export const confirmAssign = async () => {
+    if (isRosterLocked()) return;
     const empSelect = document.getElementById('wf-assign-employee');
     if (!empSelect || !empSelect.value) {
         alert('Please select an employee.');
@@ -2223,7 +2986,13 @@ export const confirmAssign = () => {
     const mainEmpId = empSelect.value;
     const mainEmpName = selectedOption.getAttribute('data-name');
     const mainEmpNo = selectedOption.getAttribute('data-empno');
-    const mainEmpDept = selectedOption.getAttribute('data-dept') || currentWorkflowDept;
+
+    // User can override the department in the modal. If empty, fall back to employee's default dept.
+    const modalDept = getVal('wf-assign-department');
+    let baseDept = modalDept || selectedOption.getAttribute('data-dept') || currentWorkflowDept;
+    if (baseDept.toLowerCase() === 'fabrication') baseDept = 'Fab';
+    const mainEmpDept = baseDept;
+
     const mainEmpRole = selectedOption.getAttribute('data-role') || '';
 
     // Get team members
@@ -2237,20 +3006,43 @@ export const confirmAssign = () => {
     const modalInTime = getVal('wf-assign-intime');
     const modalOutTime = getVal('wf-assign-outtime');
 
+    const primaryPct = parseFloat(document.getElementById('wf-assign-employee-pct')?.value) || 100;
+    const basePrimaryOverhead = parseFloat(selectedOption.getAttribute('data-overheads')) || 0;
+
     const allAssignees = [
-        { id: mainEmpId, name: mainEmpName, empNo: mainEmpNo, dept: mainEmpDept, role: mainEmpRole, overheads: parseFloat(selectedOption.getAttribute('data-overheads')) || 0 },
+        {
+            id: mainEmpId,
+            name: mainEmpName,
+            empNo: mainEmpNo,
+            dept: mainEmpDept,
+            role: mainEmpRole,
+            overheads: basePrimaryOverhead * (primaryPct / 100),
+            allocationPct: primaryPct
+        },
         ...teamMembers.map(tm => {
             const m = (window.adminApp.getCurrentMembers()).find(m => m.id === tm.id);
+            const tmPct = parseFloat(document.getElementById(`wf-team-pct-${tm.id}`)?.value) || 100;
+            const baseTmOverhead = parseFloat(m?.overheads) || 0;
+            let tmDept = modalDept || m?.section || m?.department || currentWorkflowDept;
+            if (tmDept.toLowerCase() === 'fabrication') tmDept = 'Fab';
+
             return {
                 id: tm.id,
                 name: tm.name,
                 empNo: m?.employeeId || '',
-                dept: m?.section || m?.department || currentWorkflowDept,
+                dept: tmDept,
                 role: m?.role || m?.designation || '',
-                overheads: parseFloat(m?.overheads) || 0
+                overheads: baseTmOverhead * (tmPct / 100),
+                allocationPct: tmPct
             };
         })
     ];
+
+    const food = parseFloat(getVal('wf-assign-cost-food')) || 0;
+    const consumables = parseFloat(getVal('wf-assign-cost-consumables')) || 0;
+    const transport = parseFloat(getVal('wf-assign-cost-transport')) || 0;
+    const misc = parseFloat(getVal('wf-assign-cost-misc')) || 0;
+    const totalExtra = food + consumables + transport + misc;
 
     const baseData = {
         type: orderNo ? 'order' : 'adhoc',
@@ -2260,15 +3052,19 @@ export const confirmAssign = () => {
         customer: getVal('wf-assign-customer'),
         qty: parseFloat(getVal('wf-assign-qty')) || 0,
         unit: getVal('wf-assign-unit') || 'Nos',
-        manpower: parseInt(getVal('wf-assign-manpower')) || 1,
-        workStart: getVal('wf-assign-workstart'),
-        workEnd: getVal('wf-assign-workend'),
+        manpower: 1, // Defaulting as requested since it's removed from UI
+        workStart: getVal('wf-assign-workstart') || '09:00',
+        workEnd: getVal('wf-assign-workend') || '18:00',
         priority: getVal('wf-assign-priority') || 'Medium',
         notes: getVal('wf-assign-notes'),
         status: getVal('wf-assign-status') || 'Pending',
         prodValueEa: parseFloat(getVal('wf-assign-prod-cost')) || 0,
+        costFood: food,
+        costConsumables: consumables,
+        costTransport: transport,
+        costMisc: misc,
         taskId: taskId,
-        totalOverheads: allAssignees.reduce((sum, a) => sum + (a.overheads || 0), 0)
+        totalOverheads: allAssignees.reduce((sum, a) => sum + (a.overheads || 0), 0) + totalExtra
     };
 
     if (currentEditIdx >= 0) {
@@ -2300,6 +3096,7 @@ export const confirmAssign = () => {
             role: assignee.role,
             assignedWith: others,
             overheads: assignee.overheads,
+            allocationPct: assignee.allocationPct,
             inTime: finalIn,
             outTime: finalOut
         };
@@ -2324,7 +3121,6 @@ export const confirmAssign = () => {
 
     // Close modal
     currentEditIdx = -1;
-    window.adminApp.wfSaveAll(); // Refresh and save
     const modal = document.getElementById('wf-assign-modal');
     if (modal) {
         modal.classList.remove('active');
@@ -2332,15 +3128,22 @@ export const confirmAssign = () => {
     }
 
     renderTable();
-    saveAll(); // Auto-save after addition/edit
+    await saveAll(); // Single auto-save after addition/edit
 };
 
-// ===== SAVE =====
-
 export const saveAll = async () => {
+    if (isRosterLocked()) return;
+    if (saveTimeout) clearTimeout(saveTimeout);
     if (!currentWorkflowDate) return;
 
-    const notes = (document.getElementById('wf-supervisor-notes')?.value || '').trim();
+    const statusEl = document.getElementById('wf-attendance-save-status');
+    if (statusEl) {
+        statusEl.textContent = 'Saving...';
+        statusEl.style.opacity = '1';
+    }
+
+    try {
+        const notes = (document.getElementById('wf-supervisor-notes')?.value || '').trim();
 
     const grouped = {};
     rosterRows.forEach(row => {
@@ -2355,6 +3158,14 @@ export const saveAll = async () => {
                 tasks: []
             };
         }
+
+        // DEDUPLICATION: Prevent saving multiple tasks with the same ID for the same employee
+        const isDuplicate = grouped[key].tasks.some(t => t.taskId === row.taskId);
+        if (isDuplicate) {
+            console.warn(`Skipping duplicate taskId persistence for ${row.employeeName}: ${row.taskId}`);
+            return;
+        }
+
         grouped[key].tasks.push({
             type: row.type,
             orderNo: row.orderNo,
@@ -2372,9 +3183,14 @@ export const saveAll = async () => {
             priority: row.priority,
             notes: row.notes,
             status: row.status,
+            allocationPct: parseFloat(row.allocationPct) || 100,
             overheads: parseFloat(row.overheads) || 0,
             totalOverheads: parseFloat(row.totalOverheads) || 0,
             prodValueEa: parseFloat(row.prodValueEa) || 0,
+            costFood: parseFloat(row.costFood) || 0,
+            costConsumables: parseFloat(row.costConsumables) || 0,
+            costTransport: parseFloat(row.costTransport) || 0,
+            costMisc: parseFloat(row.costMisc) || 0,
             taskId: row.taskId
         });
     });
@@ -2383,20 +3199,42 @@ export const saveAll = async () => {
 
     if (currentWorkflowDept === 'All') {
         const byDept = {};
+        const members = window.adminApp?.getCurrentMembers ? window.adminApp.getCurrentMembers() : [];
         assignments.forEach(a => {
-            const dept = a.department || 'Unassigned';
+            const dept = getNormalizedDept(a);
             if (!byDept[dept]) byDept[dept] = [];
             byDept[dept].push(a);
         });
 
-        // Ensure we update (clear) any department that was previously loaded but now has no assignments
-        const allDeptsToUpdate = new Set([...Object.keys(byDept), ...loadedDepartments]);
+        // Identify all departments we need to care about: 
+        // 1. Departments with current assignments
+        // 2. Departments that were previously loaded (to clear them if now empty)
+        // 3. Departments that have marked attendance
+        const attendanceDepts = new Set();
+        Object.keys(attendanceData).forEach(empId => {
+            const m = members.find(m => m.id === empId);
+            if (m) {
+                attendanceDepts.add(getNormalizedDept(m));
+            }
+        });
+
+        const allDeptsToUpdate = new Set([...Object.keys(byDept), ...loadedDepartments, ...attendanceDepts]);
         for (const dept of allDeptsToUpdate) {
             const deptAssignments = byDept[dept] || [];
-            await DB.saveWorkflow(currentWorkflowDate, dept, deptAssignments, notes);
+            const deptAttendance = {};
+            
+            // Filter members strictly by normalized department
+            const deptMembers = members.filter(m => getNormalizedDept(m) === dept);
+
+            deptMembers.forEach(m => {
+                if (attendanceData[m.id]) deptAttendance[m.id] = attendanceData[m.id];
+            });
+
+            await DB.saveWorkflow(currentWorkflowDate, dept, deptAssignments, notes, deptAttendance);
+            loadedDepartments.add(dept); 
         }
     } else {
-        await DB.saveWorkflow(currentWorkflowDate, currentWorkflowDept, assignments, notes);
+        await DB.saveWorkflow(currentWorkflowDate, currentWorkflowDept, assignments, notes, attendanceData);
     }
 
     // Visual feedback
@@ -2407,11 +3245,31 @@ export const saveAll = async () => {
         saveBtn.style.background = '#059669';
         setTimeout(() => { if (saveBtn) { saveBtn.innerHTML = original; saveBtn.style.background = ''; } }, 1500);
     }
+
+    if (statusEl) {
+        statusEl.textContent = 'All changes saved';
+        statusEl.style.color = '#10b981';
+        pendingAttendanceEdits.clear(); // Clear pending tracker on success
+        setTimeout(() => {
+            if (statusEl && statusEl.textContent === 'All changes saved') {
+                statusEl.style.opacity = '0';
+            }
+        }, 3000);
+    }
+} catch (error) {
+    console.error("Error saving workflow:", error);
+    const statusEl = document.getElementById('wf-attendance-save-status');
+    if (statusEl) {
+        statusEl.textContent = 'Error saving';
+        statusEl.style.color = '#f43f5e';
+    }
+}
 };
 
 // ===== COPY PREVIOUS DAY =====
 
 export const copyPreviousDay = async () => {
+    if (isRosterLocked()) return;
     if (!currentWorkflowDate) return;
 
     const prevDate = new Date(currentWorkflowDate);
@@ -2468,6 +3326,47 @@ const updateUnassignedAlert = () => {
         alertEl.classList.remove('hidden');
     } else {
         alertEl.classList.add('hidden');
+    }
+};
+
+// ===== DELETE DATA =====
+const wfDeleteRoster = async () => {
+    if (isRosterLocked()) return;
+    const pwd = prompt("Enter Password to Delete this Roster Data:");
+    if (pwd === null) return;
+    if (pwd !== 'IES') {
+        alert("Incorrect Password!");
+        return;
+    }
+
+    const dept = currentWorkflowDept;
+    const date = currentWorkflowDate;
+    const msg = dept === 'All'
+        ? `Are you sure you want to PERMANENTLY DELETE ALL roster data for ${date}?`
+        : `Are you sure you want to PERMANENTLY DELETE the ${dept} roster for ${date}?`;
+
+    if (!confirm(msg)) return;
+    if (!confirm("This action CANNOT be undone. Proceed?")) return;
+
+    try {
+        if (dept === 'All') {
+            const deptsToDelete = Array.from(loadedDepartments);
+            if (deptsToDelete.length === 0) {
+                alert("No data found to delete for this date.");
+                return;
+            }
+            for (const d of deptsToDelete) {
+                await DB.deleteDailyRoster(date, d);
+            }
+        } else {
+            await DB.deleteDailyRoster(date, dept);
+        }
+
+        alert("Data deleted successfully.");
+        location.reload();
+    } catch (err) {
+        console.error("Deletion failed:", err);
+        alert("Deletion failed. Check console.");
     }
 };
 
@@ -2637,13 +3536,139 @@ export const filterTeam = (val) => {
         }
     });
 };
+
+// ===== REPORT GENERATION =====
+
+export const openReportModal = () => {
+    if (window.adminApp?.openModal) {
+        window.adminApp.openModal('attendance-report-modal');
+        // Default range: current month
+        const now = new Date();
+        const firstDay = new Date(now.getFullYear(), now.getMonth(), 2).toISOString().split('T')[0];
+        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString().split('T')[0];
+        
+        document.getElementById('wf-report-start').value = firstDay;
+        document.getElementById('wf-report-end').value = lastDay;
+        
+        document.getElementById('attendance-report-container').classList.add('hidden');
+        document.getElementById('attendance-report-empty').classList.remove('hidden');
+    }
+};
+
+export const generateReport = async () => {
+    const start = document.getElementById('wf-report-start').value;
+    const end = document.getElementById('wf-report-end').value;
+    if (!start || !end) {
+        alert('Please select both start and end dates.');
+        return;
+    }
+
+    const container = document.getElementById('attendance-report-container');
+    const empty = document.getElementById('attendance-report-empty');
+    const tbody = document.getElementById('attendance-report-body');
+    const totalEl = document.getElementById('attendance-report-total');
+
+    empty.innerHTML = '<div class="flex flex-col items-center gap-2"><div class="spinner"></div><span>Gathering data...</span></div>';
+    empty.classList.remove('hidden');
+    container.classList.add('hidden');
+
+    try {
+        const allWorkflows = await DB.getWorkflowsForDateRange(start, end);
+        const reportData = [];
+        let grandTotal = 0;
+
+        allWorkflows.forEach(wf => {
+            const att = wf.attendance || {}; // Use attendance field to match save/load logic
+            const members = window.adminApp?.getCurrentMembers ? window.adminApp.getCurrentMembers() : [];
+            
+            Object.keys(att).forEach(empId => {
+                const entry = att[empId];
+                if (entry.present) {
+                    const m = members.find(m => m.id === empId);
+                    const shiftLabel = entry.shiftType === 'Half' ? 'Half Day' : 'Full Day';
+                    const effectiveOh = (entry.overhead || 0) * (entry.shiftType === 'Half' ? 0.5 : 1);
+                    
+                    reportData.push({
+                        date: wf.date,
+                        employee: m ? m.name : (entry.name || 'Unknown'),
+                        dept: wf.department,
+                        shift: shiftLabel,
+                        overhead: effectiveOh
+                    });
+                    grandTotal += effectiveOh;
+                }
+            });
+        });
+
+        if (reportData.length === 0) {
+            empty.innerHTML = 'No attendance recorded for this period.';
+            container.classList.add('hidden');
+            empty.classList.remove('hidden');
+            return;
+        }
+
+        reportData.sort((a, b) => a.date.localeCompare(b.date));
+
+        tbody.innerHTML = reportData.map(r => `
+            <tr>
+                <td class="p-2 border-b border-slate-50 font-mono text-[11px]">${r.date}</td>
+                <td class="p-2 border-b border-slate-50">
+                    <div class="flex flex-col">
+                        <span class="font-bold text-slate-700 text-xs">${r.employee}</span>
+                        <span class="text-[9px] text-slate-400 uppercase">${r.dept}</span>
+                    </div>
+                </td>
+                <td class="p-2 border-b border-slate-50 text-center">
+                    <span class="text-[9px] px-2 py-0.5 rounded-full font-black ${r.shift === 'Half Day' ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-emerald-100 text-emerald-700 border border-emerald-200'}">
+                        ${r.shift.toUpperCase()}
+                    </span>
+                </td>
+                <td class="p-2 border-b border-slate-50 text-right font-mono font-bold text-slate-700 text-xs">₹${r.overhead.toFixed(2)}</td>
+            </tr>
+        `).join('');
+
+        totalEl.textContent = `₹${grandTotal.toFixed(2)}`;
+        
+        empty.classList.add('hidden');
+        container.classList.remove('hidden');
+
+    } catch (err) {
+        console.error("Report failed:", err);
+        empty.innerHTML = 'Failed to generate report. Check console.';
+    }
+};
+
+export const exportCSV = () => {
+    const tbody = document.getElementById('attendance-report-body');
+    const start = document.getElementById('wf-report-start').value;
+    const end = document.getElementById('wf-report-end').value;
+    
+    if (!tbody || !start || !end) return;
+
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    let csv = 'Date,Employee,Department,Shift Type,Overhead (₹)\n';
+    rows.forEach(tr => {
+        const cols = Array.from(tr.querySelectorAll('td')).map(td => td.textContent.trim().replace(/,/g, ''));
+        csv += cols.join(',') + '\n';
+    });
+    
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.setAttribute('href', url);
+    a.setAttribute('download', `Attendance_Report_${start}_to_${end}.csv`);
+    a.click();
+};
 \n```\n\n\n### File: e:\re\Innovative Engineering Solutions\assets\admin\js\app.js\n*Description: Admin Core Logic (Routing)*\n\n```javascript\nimport * as Auth from './auth.js';
 import * as UI from './ui.js';
 import * as DB from './db.js';
 import * as Charts from './charts.js';
 import * as Monitoring from './monitoring.js';
+import * as DCRegister from './dc_register.js';
 import * as Inventory from './inventory.js';
 import * as Workflow from './workflow.js';
+import * as Reporting from './reporting.js';
+import * as Tracker from './progress_tracker.js';
 
 // App State
 let currentMembers = [];
@@ -2658,6 +3683,7 @@ let inventoryUnsubscribe = null;
 let transactionUnsubscribe = null;
 let isInventoryTrashView = false;
 let currentInventoryTab = 'master';
+let inventorySortState = { column: 'name', direction: 'asc' };
 
 // Helper: Member Search Handling
 function setupMemberSearch(containerId, inputClass, hiddenInputId, onSelectChange) {
@@ -2838,10 +3864,41 @@ window.adminApp = {
         if (viewName === 'daily_roster') {
             Workflow.initWorkflowView();
         }
+
+        if (viewName === 'daily_summary_report') {
+            const picker = document.getElementById('summary-report-month');
+            if (picker && !picker.value) {
+                picker.value = new Date().toISOString().slice(0, 7);
+            }
+            Reporting.renderDailySummaryReport(picker.value);
+        }
+
+        if (viewName === 'progress_tracker') {
+            Tracker.renderTracker();
+        }
     },
+
+    trackerInlineEdit: (id, field, val) => Tracker.handleInlineEdit(id, field, val),
+    trackerFilterCustomer: (val) => Tracker.setFilterCustomer(val),
+    trackerSort: (key) => Tracker.setSortTracker(key),
+    exportTrackerCSV: () => Tracker.exportTrackerCSV(),
+
 
     refreshDashboard: () => {
         refreshDashboard();
+    },
+
+    getCurrentOrders: () => currentOrders,
+    getCurrentProjects: () => currentProjects,
+
+    wfOpenProject: (orderNo) => {
+        if (!orderNo || orderNo === 'Ad-hoc') return;
+        const project = currentProjects.find(p => p.projectId === orderNo);
+        if (project) {
+            window.adminApp.viewProjectDetails(project.id);
+        } else {
+            alert('Linked project not found for Internal Order: ' + orderNo);
+        }
     },
 
     // Definitions
@@ -2875,6 +3932,200 @@ window.adminApp = {
         `).join('');
     },
 
+    loadProjectCosting: async (docId, projectNo) => {
+        console.log("Loading costing for:", projectNo);
+        const body = document.getElementById('project-costing-body');
+        if (body) body.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-slate-400 italic">Calculating costs...</td></tr>';
+
+        try {
+            const rosterDocs = await DB.getProjectAssignments(projectNo);
+            console.log(`Found ${rosterDocs.length} roster documents for project ${projectNo}`);
+
+            // Aggregation map based on Unique taskId to prevent team member over-counting
+            const taskMap = new Map();
+            const canonicalProjectNo = projectNo.toString().trim().toLowerCase();
+
+            rosterDocs.forEach(row => {
+                const employees = row.assignments || [];
+                employees.forEach(emp => {
+                    const tasks = emp.tasks || [];
+                    tasks.forEach(t => {
+                        const canonicalOrderNo = (t.orderNo || '').toString().trim().toLowerCase();
+
+                        if (canonicalOrderNo === canonicalProjectNo) {
+                            // Unique ID for the task-day-dept occurrence
+                            const tid = t.taskId || `${row.date}_${emp.employeeId}_${t.orderNo}`;
+
+                            if (!taskMap.has(tid)) {
+                                const food = parseFloat(t.costFood) || 0;
+                                const cons = parseFloat(t.costConsumables) || 0;
+                                const trans = parseFloat(t.costTransport) || 0;
+                                const misc = parseFloat(t.costMisc) || 0;
+                                const extras = food + cons + trans + misc;
+
+                                const qty = parseFloat(t.qty) || 0;
+                                const unitPrice = parseFloat(t.prodValueEa) || 0;
+                                const prodVal = (qty * unitPrice); // Base only, extras separated
+
+                                taskMap.set(tid, {
+                                    date: row.date,
+                                    dept: row.department,
+                                    description: t.description,
+                                    extras: extras,
+                                    prodVal: prodVal,
+                                    employees: [],
+                                    totalOverhead: 0
+                                });
+                            }
+
+                            const entry = taskMap.get(tid);
+                            // SUM individual overhead shares (t.overheads) not task-total (t.totalOverheads)
+                            const overheadShare = parseFloat(t.overheads) || 0;
+                            entry.totalOverhead += overheadShare;
+
+                            const empDetail = `${emp.employeeName} (${t.allocationPct || 100}%)`;
+                            if (!entry.employees.includes(empDetail)) {
+                                entry.employees.push(empDetail);
+                            }
+                        }
+                    });
+                });
+            });
+
+            // Final Totals
+            let totalProd = 0;
+            let totalOverhead = 0;
+            let totalExtra = 0;
+            let history = [];
+
+            taskMap.forEach((data, tid) => {
+                totalProd += data.prodVal;
+                totalOverhead += data.totalOverhead; // Base manpower overhead
+                totalExtra += data.extras;
+
+                // Push combined overhead for the table
+                history.push({
+                    date: data.date,
+                    dept: data.dept,
+                    employee: data.employees.join(', '),
+                    role: data.description,
+                    overhead: data.totalOverhead,
+                    extras: data.extras,
+                    prodVal: data.prodVal
+                });
+            });
+
+            console.log(`Aggregated: TotalProd=${totalProd}, UniqueTasks=${taskMap.size}`);
+            // Sort history by date descending
+            history.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            window.adminApp.renderProjectCosting({
+                totalProd,
+                totalOverhead,
+                totalExtra,
+                history
+            });
+
+            // If empty, show hint
+            if (taskMap.size === 0 && body) {
+                body.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="p-8 text-center text-slate-400 italic">
+                            No costing data mapped to this project ID.<br>
+                            <button class="mt-4 text-xs text-emerald-600 font-bold hover:underline" onclick="window.adminApp.syncAllProjectIndices()">
+                                ↻ Refresh Historical Links
+                            </button>
+                        </td>
+                    </tr>`;
+            }
+
+        } catch (err) {
+            console.error("Error in loadProjectCosting:", err);
+            if (body) body.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-red-500 italic">Error loading data. Check console.</td></tr>';
+        }
+    },
+
+    syncAllProjectIndices: async () => {
+        if (!confirm("This will scan all Daily Roster entries to link them to projects for the new Costing tab. This may take a moment for large datasets. Proceed?")) return;
+
+        try {
+            const workflows = await DB.getAllWorkflows();
+            console.log(`Starting sub-sync for ${workflows.length} documents...`);
+
+            let updated = 0;
+            for (const wf of workflows) {
+                const employees = wf.assignments || [];
+                // Correct extraction: flatMap tasks to get orderNo
+                const pIds = [...new Set(employees.flatMap(em => (em.tasks || []).map(t => t.orderNo)).filter(id => id && id !== 'Ad-hoc'))];
+
+                // Only update if projectIds is missing or doesn't match
+                if (!wf.projectIds || JSON.stringify(wf.projectIds.sort()) !== JSON.stringify(pIds.sort())) {
+                    console.log(`Syncing doc: ${wf.id} (${wf.date}) - New Index:`, pIds);
+                    // Use the existing saveWorkflow which now correctly extracts projectIds
+                    await DB.saveWorkflow(wf.date, wf.department, wf.assignments, wf.supervisorNotes || '', wf.id);
+                    updated++;
+                }
+            }
+
+            alert(`Sync complete! ${updated} records updated.`);
+
+            // Reload the current project costing
+            const currentId = window.adminApp.currentEditingProjectId;
+            const project = currentProjects.find(p => p.id === currentId);
+            if (project) {
+                window.adminApp.loadProjectCosting(currentId, project.projectId);
+            }
+        } catch (err) {
+            console.error("Sync failed:", err);
+            alert("Sync failed. Check console for details.");
+        }
+    },
+
+    renderProjectCosting: (data) => {
+        const elProd = document.getElementById('costing-total-prod');
+        const elOver = document.getElementById('costing-total-overhead');
+        const elExtra = document.getElementById('costing-total-extra');
+        const elMargin = document.getElementById('costing-total-margin');
+        const body = document.getElementById('project-costing-body');
+
+        if (elProd) elProd.textContent = `₹${data.totalProd.toLocaleString()}`;
+        if (elOver) elOver.textContent = `₹${(data.totalOverhead + data.totalExtra).toLocaleString()}`; // Combined display
+        if (elExtra) elExtra.textContent = `₹${data.totalExtra.toLocaleString()}`;
+
+        const margin = data.totalProd - (data.totalOverhead + data.totalExtra);
+        if (elMargin) {
+            elMargin.textContent = `₹${margin.toLocaleString()}`;
+            elMargin.style.color = margin >= 0 ? '#047857' : '#e11d48';
+        }
+
+        if (body) {
+            if (data.history.length === 0) {
+                body.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-slate-400 italic">No costing data found for this project.</td></tr>';
+            } else {
+                body.innerHTML = data.history.map(h => {
+                    const combinedOverhead = h.overhead + h.extras;
+                    let overheadHtml = `<div class="font-bold text-slate-600">₹${combinedOverhead.toLocaleString()}</div>`;
+                    if (h.extras > 0) {
+                        overheadHtml += `<div class="text-[10px] text-slate-400">Base: ₹${h.overhead.toLocaleString()}</div>
+                                         <div class="text-[10px] text-amber-500">Extra: ₹${h.extras.toLocaleString()}</div>`;
+                    }
+                    return `
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="p-3 border-b border-slate-50 font-medium text-slate-600">${h.date}</td>
+                        <td class="p-3 border-b border-slate-50"><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 uppercase">${h.dept}</span></td>
+                        <td class="p-3 border-b border-slate-50">
+                            <div class="font-bold text-slate-700">${h.employee}</div>
+                            <div class="text-[10px] text-slate-400 font-medium">${h.role}</div>
+                        </td>
+                        <td class="p-3 border-b border-slate-50 text-right">${overheadHtml}</td>
+                        <td class="p-3 border-b border-slate-50 text-right font-bold text-emerald-600">₹${h.prodVal.toLocaleString()}</td>
+                    </tr>
+                    `;
+                }).join('');
+            }
+        }
+    },
+
     selectRole: (role) => {
         if (window.adminApp.selectedRoles.has(role)) {
             window.adminApp.selectedRoles.delete(role);
@@ -2905,7 +4156,7 @@ window.adminApp = {
     },
 
     // Department Multi-Select - Matching Org Tree + Management
-    departmentsList: ["Management", "Fabrication", "CNC & VMC", "SPM", "HR"],
+    departmentsList: ["Management", "Admin", "Fabrication", "CNC & VMC", "SPM", "HR"],
     selectedDepts: new Set(),
 
     toggleDeptDropdown: () => {
@@ -3452,6 +4703,10 @@ window.adminApp = {
 
         // Adjust Table Header for Trash View
         if (headerRow) {
+            const sortIcon = (col) => {
+                if (inventorySortState.column !== col) return '<span class="inv-sort-icon">⇅</span>';
+                return inventorySortState.direction === 'asc' ? '<span class="inv-sort-icon active">▲</span>' : '<span class="inv-sort-icon active">▼</span>';
+            };
             if (isInventoryTrashView) {
                 headerRow.innerHTML = `
                     <th class="cr-emerald-bg">Item Details</th>
@@ -3462,11 +4717,11 @@ window.adminApp = {
                 `;
             } else {
                 headerRow.innerHTML = `
-                    <th class="cr-emerald-bg">Item Details</th>
-                    <th class="cr-emerald-bg">Category</th>
+                    <th class="cr-emerald-bg inv-sortable" onclick="window.adminApp.sortInventory('name')">Item Details ${sortIcon('name')}</th>
+                    <th class="cr-emerald-bg inv-sortable" onclick="window.adminApp.sortInventory('category')">Category ${sortIcon('category')}</th>
                     <th class="cr-emerald-bg">Location</th>
-                    <th class="cr-emerald-bg text-center">Current Stock</th>
-                    <th class="cr-emerald-bg">Status</th>
+                    <th class="cr-emerald-bg text-center inv-sortable" onclick="window.adminApp.sortInventory('stock')">Current Stock ${sortIcon('stock')}</th>
+                    <th class="cr-emerald-bg inv-sortable" onclick="window.adminApp.sortInventory('status')">Status ${sortIcon('status')}</th>
                     <th class="cr-emerald-bg text-right">Actions</th>
                 `;
             }
@@ -3550,6 +4805,11 @@ window.adminApp = {
                     <td class="p-3 text-right">
                         <div class="flex justify-end gap-2">
                             <button class="pm-c-primary-btn" onclick='window.adminApp.openAdjustStockModal("${item.id}")'>🔄 Adjust</button>
+                            <button class="action-btn" onclick="window.adminApp.editInventoryItem('${item.id}')" title="Edit Item" style="background: #eff6ff !important; color: #2563eb !important;">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                            </button>
                             <button class="action-btn delete" onclick="window.adminApp.trashInventoryItem('${item.id}', '${item.name}')" title="Move to Trash">
                                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -3563,8 +4823,10 @@ window.adminApp = {
     },
 
     updateInventoryStats: (items) => {
-        const total = items.length;
-        const low = items.filter(i => i.currentStock <= i.minimumLevel).length;
+        const activeItems = items.filter(i => !i.isDeleted);
+        const total = activeItems.length;
+        const low = activeItems.filter(i => i.currentStock <= i.minimumLevel).length;
+        const totalValue = activeItems.reduce((sum, i) => sum + ((i.currentStock || 0) * (i.price || 0)), 0);
 
         const setEl = (id, val) => {
             const el = document.getElementById(id);
@@ -3573,11 +4835,27 @@ window.adminApp = {
 
         setEl('inv-stat-total', total);
         setEl('inv-stat-low', low);
-        // More stats can be added if price is tracked
+        setEl('inv-stat-value', '₹' + totalValue.toLocaleString('en-IN'));
     },
 
-    openAddInventoryModal: () => {
+    editInventoryItem: (itemId) => {
+        // Password protection
+        const password = prompt('Enter admin password to edit this item:');
+        if (password === null) return;
+        if (password !== 'IES') {
+            alert('❌ Incorrect password. Edit cancelled.');
+            return;
+        }
+        window.adminApp.openAddInventoryModal(itemId);
+    },
+
+    openAddInventoryModal: (editItemId = null) => {
         const form = document.getElementById('add-inventory-form');
+        const modal = document.getElementById('add-inventory-modal');
+        const modalTitle = modal.querySelector('.modal-title');
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const stockFields = form.querySelector('.inv-stock-fields');
+        const orderField = form.querySelector('.inv-order-field');
         if (form) form.reset();
 
         // Populate Order ID dropdown (Internal Orders)
@@ -3600,6 +4878,48 @@ window.adminApp = {
         const placeholder = document.getElementById('inv-photo-preview-placeholder');
         if (preview) preview.classList.add('hidden');
         if (placeholder) placeholder.classList.remove('hidden');
+
+        if (editItemId) {
+            // EDIT MODE
+            const item = currentInventory.find(i => i.id === editItemId);
+            if (!item) { alert('Item not found.'); return; }
+
+            modal.dataset.editId = editItemId;
+            if (modalTitle) modalTitle.innerHTML = '<span>✏️</span> EDIT INVENTORY ITEM';
+            if (submitBtn) submitBtn.textContent = 'Save Changes';
+
+            // Pre-fill form fields
+            const setVal = (name, val) => { const el = form.querySelector(`[name="${name}"]`); if (el) el.value = val ?? ''; };
+            setVal('name', item.name);
+            setVal('price', item.price);
+            setVal('category', item.category);
+            setVal('unit', item.unit);
+            setVal('currentStock', item.currentStock);
+            setVal('minimumLevel', item.minimumLevel);
+            setVal('location', item.location);
+            setVal('orderId', item.orderId);
+
+            // Show photo section if Tool
+            if (item.category === 'Tool' && photoSection) {
+                photoSection.classList.remove('hidden');
+                if (item.photoUrl && preview) {
+                    preview.src = item.photoUrl;
+                    preview.classList.remove('hidden');
+                    if (placeholder) placeholder.classList.add('hidden');
+                }
+            }
+
+            // Hide stock & order fields in edit mode (stock is managed via Adjust)
+            if (stockFields) stockFields.style.display = 'none';
+            if (orderField) orderField.style.display = 'none';
+        } else {
+            // ADD MODE
+            delete modal.dataset.editId;
+            if (modalTitle) modalTitle.innerHTML = '<span>📦</span> ADD NEW INVENTORY ITEM';
+            if (submitBtn) submitBtn.textContent = 'Add Item';
+            if (stockFields) stockFields.style.display = '';
+            if (orderField) orderField.style.display = '';
+        }
 
         window.adminApp.openModal('add-inventory-modal');
     },
@@ -3643,17 +4963,8 @@ window.adminApp = {
     handleAddInventoryItem: async (event) => {
         event.preventDefault();
         const formData = new FormData(event.target);
-
-        const itemData = {
-            name: formData.get('name'),
-            price: parseFloat(formData.get('price')) || 0,
-            category: formData.get('category'),
-            unit: formData.get('unit'),
-            currentStock: parseInt(formData.get('currentStock')) || 0,
-            minimumLevel: parseInt(formData.get('minimumLevel')) || 0,
-            location: formData.get('location') || '',
-            orderId: formData.get('orderId') || null
-        };
+        const modal = document.getElementById('add-inventory-modal');
+        const editId = modal?.dataset.editId;
 
         const submitBtn = event.target.querySelector('button[type="submit"]');
         const originalText = submitBtn.innerHTML;
@@ -3662,23 +4973,61 @@ window.adminApp = {
             submitBtn.disabled = true;
             submitBtn.innerHTML = "Saving...";
 
-            const { id, error } = await Inventory.addInventoryItem(itemData);
+            if (editId) {
+                // EDIT MODE — only update editable fields
+                const updateData = {
+                    name: formData.get('name'),
+                    price: parseFloat(formData.get('price')) || 0,
+                    category: formData.get('category'),
+                    unit: formData.get('unit'),
+                    minimumLevel: parseInt(formData.get('minimumLevel')) || 0,
+                    location: formData.get('location') || ''
+                };
 
-            if (error) throw new Error(error);
+                const result = await Inventory.updateInventoryItem(editId, updateData);
+                if (!result.success) throw new Error(result.error);
 
-            // If it's a tool and has a photo selected
-            const photoInput = document.getElementById('inv-photo-input');
-            if (itemData.category === 'Tool' && photoInput.files[0]) {
-                submitBtn.innerHTML = "Uploading Photo...";
-                const photoResult = await Inventory.uploadToolPhoto(id, photoInput.files[0]);
-                if (photoResult.error) {
-                    alert("Item saved, but photo upload failed: " + photoResult.error);
+                // If it's a tool and a new photo was selected
+                const photoInput = document.getElementById('inv-photo-input');
+                if (updateData.category === 'Tool' && photoInput?.files[0]) {
+                    submitBtn.innerHTML = "Uploading Photo...";
+                    const photoResult = await Inventory.uploadToolPhoto(editId, photoInput.files[0]);
+                    if (photoResult.error) {
+                        alert("Item updated, but photo upload failed: " + photoResult.error);
+                    }
+                }
+
+                delete modal.dataset.editId;
+            } else {
+                // ADD MODE
+                const itemData = {
+                    name: formData.get('name'),
+                    price: parseFloat(formData.get('price')) || 0,
+                    category: formData.get('category'),
+                    unit: formData.get('unit'),
+                    currentStock: parseInt(formData.get('currentStock')) || 0,
+                    minimumLevel: parseInt(formData.get('minimumLevel')) || 0,
+                    location: formData.get('location') || '',
+                    orderId: formData.get('orderId') || null
+                };
+
+                const { id, error } = await Inventory.addInventoryItem(itemData);
+                if (error) throw new Error(error);
+
+                // If it's a tool and has a photo selected
+                const photoInput = document.getElementById('inv-photo-input');
+                if (itemData.category === 'Tool' && photoInput.files[0]) {
+                    submitBtn.innerHTML = "Uploading Photo...";
+                    const photoResult = await Inventory.uploadToolPhoto(id, photoInput.files[0]);
+                    if (photoResult.error) {
+                        alert("Item saved, but photo upload failed: " + photoResult.error);
+                    }
                 }
             }
 
             window.adminApp.closeModal('add-inventory-modal');
         } catch (err) {
-            alert("Failed to add item: " + err.message);
+            alert("Failed to save item: " + err.message);
         } finally {
             submitBtn.disabled = false;
             submitBtn.innerHTML = originalText;
@@ -3822,7 +5171,7 @@ window.adminApp = {
         if (!body) return;
 
         if (!transactions || transactions.length === 0) {
-            body.innerHTML = '<tr><td colspan="9" class="p-8 text-center text-slate-400 italic">No transactions found.</td></tr>';
+            body.innerHTML = '<tr><td colspan="11" class="p-8 text-center text-slate-400 italic">No transactions found.</td></tr>';
             return;
         }
 
@@ -3833,6 +5182,7 @@ window.adminApp = {
 
             const unitPrice = t.unitPrice || 0;
             const totalCost = t.totalCost || (t.quantity * unitPrice);
+            const performedBy = t.user || t.performedBy || '-';
 
             return `
                 <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
@@ -3848,9 +5198,39 @@ window.adminApp = {
                     <td class="p-3 font-bold text-slate-800 text-xs">₹${totalCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                     <td class="p-3 text-slate-500 text-xs truncate max-w-[150px]" title="${t.reason || ''}">${t.reason || '-'}</td>
                     <td class="p-3 text-teal-600 font-bold text-xs">${t.orderId || '-'}</td>
+                    <td class="p-3 text-slate-500 text-xs">${performedBy}</td>
+                    <td class="p-3 text-center">
+                        <button class="action-btn delete" onclick="window.adminApp.deleteTransactionRow('${t.id}')" title="Delete Transaction">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                        </button>
+                    </td>
                 </tr>
             `;
         }).join('');
+    },
+
+    deleteTransactionRow: async (txId) => {
+        // Prompt for password
+        const password = prompt('Enter admin password to delete this transaction:');
+        if (password === null) return; // User cancelled
+        if (password !== 'IES') {
+            alert('❌ Incorrect password. Deletion cancelled.');
+            return;
+        }
+
+        if (!confirm('Are you sure you want to delete this transaction? The stock will be reversed accordingly.')) return;
+
+        try {
+            const result = await Inventory.deleteTransaction(txId);
+            if (!result.success) {
+                alert('Failed to delete: ' + (result.error || 'Unknown error'));
+            }
+            // Real-time listener will auto-refresh the ledger
+        } catch (err) {
+            alert('Error deleting transaction: ' + err.message);
+        }
     },
 
     filterInventory: () => {
@@ -3859,7 +5239,7 @@ window.adminApp = {
         const statusFilter = document.getElementById('inv-status-filter')?.value;
 
         if (currentInventoryTab === 'master') {
-            const filteredItems = currentInventory.filter(item => {
+            let filteredItems = currentInventory.filter(item => {
                 const matchesSearch = !searchTerm ||
                     item.name.toLowerCase().includes(searchTerm) ||
                     (item.location && item.location.toLowerCase().includes(searchTerm)) ||
@@ -3877,6 +5257,9 @@ window.adminApp = {
 
                 return matchesSearch && matchesCategory && matchesStatus;
             });
+
+            // Apply sort
+            filteredItems = window.adminApp.applySortToInventory(filteredItems);
             window.adminApp.renderInventoryList(filteredItems);
         } else {
             const filteredTrans = currentTransactions.filter(t => {
@@ -3891,6 +5274,47 @@ window.adminApp = {
             });
             window.adminApp.renderInventoryTransactions(filteredTrans);
         }
+    },
+
+    sortInventory: (column) => {
+        if (inventorySortState.column === column) {
+            inventorySortState.direction = inventorySortState.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            inventorySortState.column = column;
+            inventorySortState.direction = 'asc';
+        }
+        window.adminApp.filterInventory();
+    },
+
+    applySortToInventory: (items) => {
+        const { column, direction } = inventorySortState;
+        const dir = direction === 'asc' ? 1 : -1;
+
+        return [...items].sort((a, b) => {
+            let valA, valB;
+            switch (column) {
+                case 'name':
+                    valA = (a.name || '').toLowerCase();
+                    valB = (b.name || '').toLowerCase();
+                    return valA < valB ? -dir : valA > valB ? dir : 0;
+                case 'category':
+                    valA = (a.category || '').toLowerCase();
+                    valB = (b.category || '').toLowerCase();
+                    return valA < valB ? -dir : valA > valB ? dir : 0;
+                case 'stock':
+                    return ((a.currentStock || 0) - (b.currentStock || 0)) * dir;
+                case 'status':
+                    // Order: Out of Stock (0) < Low Stock (1) < In Stock (2)
+                    const getStatusRank = (item) => {
+                        if (item.currentStock <= 0) return 0;
+                        if (item.currentStock <= item.minimumLevel) return 1;
+                        return 2;
+                    };
+                    return (getStatusRank(a) - getStatusRank(b)) * dir;
+                default:
+                    return 0;
+            }
+        });
     },
 
     openPhotoViewer: (url, name) => {
@@ -3963,14 +5387,279 @@ window.adminApp = {
 
 
     printContractReview: () => {
-        const section = document.getElementById('contract-review-section');
-        if (section) section.classList.add('open');
-        // Populate print header date
-        const printDate = document.getElementById('cr-print-date');
-        if (printDate) {
-            printDate.textContent = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-        }
-        setTimeout(() => window.print(), 200);
+        const pw = window.open('', '_blank', 'width=900,height=1000');
+        if (!pw) return;
+
+        // --- Helpers ---
+        const v = (id) => document.getElementById(id)?.value || '';
+        const formatDate = (isoStr) => {
+            if (!isoStr || !isoStr.includes('-')) return isoStr || '';
+            const [y, m, d] = isoStr.split('-');
+            return `${d}-${m}-${y}`;
+        };
+        const selText = (id) => { const s = document.getElementById(id); return s ? (s.options?.[s.selectedIndex]?.text || s.value || '') : ''; };
+        const tagText = (containerId) => {
+            const c = document.getElementById(containerId);
+            if (!c) return '';
+            // Try reading visible tag text first
+            const tags = Array.from(c.querySelectorAll('.search-tag-text, .tag-text')).map(t => t.textContent.trim()).filter(Boolean);
+            if (tags.length) return tags.join(', ');
+            // Fallback: hidden input (may contain JSON array string like '["Name"]')
+            let raw = c.querySelector('input[type=hidden]')?.value || '';
+            try { const arr = JSON.parse(raw); if (Array.isArray(arr)) return arr.join(', '); } catch(e) {}
+            return raw.replace(/^\["?|"?\]$/g, '').replace(/","/g, ', ');
+        };
+
+        const ioNo = v('cr-review-no');
+        const poNo = v('cr-po-no');
+        const drgNo = v('cr-drawing-no');
+        const crDate = formatDate(v('cr-date'));
+        const delDate = formatDate(v('cr-delivery-date'));
+        const contactPerson = v('cr-contact-person');
+        const phone = v('cr-phone');
+        const intDate = formatDate(v('cr-internal-date'));
+        const ioNumber = v('cr-io-number');
+        const team = selText('cr-team').replace('Select Team', '');
+        const accountability = tagText('cr-search-accountability');
+        const teamLeader = tagText('cr-search-team-leader');
+        const members = tagText('cr-search-members');
+        const instructions = v('cr-important-instructions');
+        const printDate = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+
+        // 6M comments
+        const cmt = (f) => document.querySelector(`[data-field="cmt-${f}"]`)?.value || '';
+        const sixM = [
+            ['Matl', cmt('matl')], ['Machine', cmt('machine')], ['Man', cmt('man')],
+            ['Method', cmt('method')], ['Measure', cmt('measure')], ['Tools', cmt('tools')]
+        ];
+
+        // Decisions
+        const decCap = selText('cr-decision-cap') === '-' ? '' : (document.querySelector('[data-field="cr-decision-cap"]')?.value || '');
+        const decOA = selText('cr-decision-oa') === '-' ? '' : (document.querySelector('[data-field="cr-decision-oa"]')?.value || '');
+        const preparedBy = tagText('cr-search-prepared');
+        const reviewedBy = tagText('cr-search-reviewed');
+        const approvedBy = tagText('cr-search-approved');
+
+        // Checklist rows from DOM
+        const checklistRows = [];
+        document.querySelectorAll('#cr-excel-checklist .cr-item-row').forEach((row, i) => {
+            const label = row.querySelector('.cr-custom-label')?.value || row.querySelector('span.px-3')?.textContent?.trim() || '';
+            const req = row.dataset.reqVal || '';
+            const out = row.dataset.outVal || '';
+            const more = row.dataset.moreVal || 'false';
+            const remarks = row.querySelector('.cr-remarks-input')?.value || '';
+            checklistRows.push({ num: i + 1, label, req, out, more, remarks });
+        });
+
+        // --- Build checklist rows HTML ---
+        const tick = '✓';
+        const circle = '○';
+        const checklistHTML = checklistRows.map(r => `
+            <tr>
+                <td style="text-align:center;color:#64748b;">${r.num}</td>
+                <td style="font-weight:600;">${r.label}</td>
+                <td class="chk ${r.req === 'yes' ? 'yes' : ''}">${r.req === 'yes' ? tick : circle}</td>
+                <td class="chk ${r.req === 'no' ? 'no' : ''}">${r.req === 'no' ? tick : circle}</td>
+                <td class="chk ${r.out === 'ok' ? 'ok' : ''}">${r.out === 'ok' ? tick : circle}</td>
+                <td class="chk ${r.out === 'nok' ? 'nok' : ''}">${r.out === 'nok' ? tick : circle}</td>
+                <td class="chk ${r.out === 'na' ? 'na' : ''}">${r.out === 'na' ? tick : circle}</td>
+                <td class="chk ${r.more === 'true' ? 'more' : ''}">${r.more === 'true' ? tick : circle}</td>
+                <td style="color:#475569;">${r.remarks}</td>
+            </tr>
+        `).join('');
+
+        // --- Write the complete self-contained document ---
+        pw.document.write(`<!DOCTYPE html><html><head>
+        <title>Contract Review - ${ioNo}</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+        <style>
+            @page { size: A4 portrait; margin: 10mm 12mm; }
+            * { box-sizing: border-box; margin: 0; padding: 0; }
+            body { font-family: 'Inter', sans-serif; font-size: 9.5pt; color: #1e293b; line-height: 1.4;
+                -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+
+            /* === HEADER === */
+            .hdr { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #0f172a; padding-bottom: 6px; margin-bottom: 10px; }
+            .hdr-left .company { font-size: 18pt; font-weight: 800; color: #0f172a; letter-spacing: 0.02em; }
+            .hdr-left .tagline { font-size: 8.5pt; color: #64748b; letter-spacing: 0.08em; margin-top: 2px; }
+            .hdr-right { text-align: right; }
+            .hdr-right .title { font-size: 15pt; font-weight: 700; color: #0f172a; }
+            .hdr-right .date { font-size: 9pt; color: #64748b; white-space: nowrap; }
+            .hdr-right .io { font-size: 11pt; font-weight: 700; color: #059669; margin-top: 2px; white-space: nowrap; }
+
+            /* === TABLES === */
+            table { width: 100%; border-collapse: collapse; margin-bottom: 0; }
+            td, th { border: 1.5px solid #94a3b8; padding: 4px 8px; font-size: 9pt; vertical-align: middle; }
+
+            /* Section headers */
+            .sec-hdr { background: #f0fdf4; color: #166534; font-weight: 800; font-size: 9pt; text-transform: uppercase; letter-spacing: 0.06em; padding: 6px 10px; }
+
+            /* Master data labels */
+            .lbl { background: #f8fafc; font-weight: 700; font-size: 8pt; color: #334155; white-space: normal; overflow: visible; }
+            .val { font-weight: 600; color: #0f172a; white-space: normal; overflow-wrap: break-word; overflow: visible; }
+            .val.nowrap { white-space: nowrap; }
+
+            /* Checklist Table specifically needs fixed layout for alignment */
+            .chk-table { table-layout: fixed; }
+
+            /* Checklist Colors */
+            .chk { text-align: center; width: 35px; font-size: 11pt; color: #cbd5e1; }
+            .chk.yes, .chk.ok { background: #dcfce7; color: #16a34a; font-weight: 800; }
+            .chk.no, .chk.nok { background: #fee2e2; color: #dc2626; font-weight: 800; }
+            .chk.na { background: #f1f5f9; color: #64748b; font-weight: 700; }
+            .chk.more { background: #fef3c7; color: #d97706; font-weight: 800; }
+
+            /* Sub-header row */
+            .sub-hdr td { background: #f0fdf4; color: #166534; font-weight: 800; font-size: 8pt; text-align: center; text-transform: uppercase; padding: 4px; }
+
+            /* Spacing between sections */
+            .spacer { height: 8px; }
+
+            /* Instructions area */
+            .instr-box { min-height: 80px; padding: 8px 10px; white-space: pre-wrap; font-size: 9pt; color: #334155; vertical-align: top; }
+
+            /* Decision */
+            .dec-val { font-weight: 800; text-align: center; font-size: 10pt; }
+            .dec-ok { color: #16a34a; }
+            .dec-nok { color: #dc2626; }
+
+            /* Footer notes */
+            .notes { font-size: 8pt; color: #64748b; padding: 8px 10px; border-top: 1px dashed #cbd5e1; margin-top: 10px; }
+            .notes strong { font-size: 8.5pt; color: #334155; text-transform: uppercase; letter-spacing: 0.05em; }
+        </style></head><body>
+
+        <!-- HEADER -->
+        <div class="hdr">
+            <div class="hdr-left">
+                <div class="company">INNOVATIVE ENGINEERING SOLUTIONS</div>
+                <div class="tagline">PRECISION • QUALITY • DELIVERY</div>
+            </div>
+            <div class="hdr-right">
+                <div class="title">Contract Review</div>
+                <div class="date">${printDate}</div>
+                <div class="io">${ioNo}</div>
+            </div>
+        </div>
+
+        <!-- SECTION 1: CUSTOMER DATA + INTERNAL ORDER -->
+        <table>
+            <colgroup>
+                <col style="width:8%"><col style="width:15%">
+                <col style="width:8%"><col style="width:14%">
+                <col style="width:9%"><col style="width:18%">
+                <col style="width:8%"><col style="width:14%">
+                <col style="width:6%">
+            </colgroup>
+            <tr>
+                <td colspan="4" class="sec-hdr">Customer Data</td>
+                <td colspan="5" class="sec-hdr">Internal Order</td>
+            </tr>
+            <tr>
+                <td class="lbl">PO No</td>
+                <td class="val">${poNo}</td>
+                <td class="lbl">Date</td>
+                <td class="val nowrap">${crDate}</td>
+                <td class="lbl">Date</td>
+                <td class="val nowrap">${intDate}</td>
+                <td class="lbl">IO Num</td>
+                <td class="val nowrap" colspan="2" style="color:#059669;font-weight:800;">${ioNumber}</td>
+            </tr>
+            <tr>
+                <td class="lbl">Drg No</td>
+                <td class="val">${drgNo}</td>
+                <td class="lbl">Del Date</td>
+                <td class="val nowrap">${delDate}</td>
+                <td class="lbl">Account</td>
+                <td class="val" colspan="2">${accountability}</td>
+                <td class="lbl">Team</td>
+                <td class="val">${team}</td>
+            </tr>
+            <tr>
+                <td class="lbl">Contact</td>
+                <td class="val">${contactPerson}</td>
+                <td class="lbl">Ph No</td>
+                <td class="val nowrap">${phone}</td>
+                <td class="lbl">Team Ldr</td>
+                <td class="val" colspan="2">${teamLeader}</td>
+                <td class="lbl">Members</td>
+                <td class="val">${members}</td>
+            </tr>
+        </table>
+
+        <div class="spacer"></div>
+
+        <!-- SECTION 2: CHECKLIST -->
+        <table class="chk-table">
+            <tr class="sub-hdr">
+                <td rowspan="2" style="width:40px;">S.No</td>
+                <td rowspan="2">Checklist Items</td>
+                <td colspan="2" style="width:80px;">Req</td>
+                <td colspan="4" style="width:160px;">Review Outcome</td>
+                <td rowspan="2" style="width:250px;">Remarks</td>
+            </tr>
+            <tr class="sub-hdr">
+                <td style="width:40px;">Yes</td><td style="width:40px;">No</td>
+                <td style="width:40px;">Ok</td><td style="width:40px;">Nok</td>
+                <td style="width:40px;">N.A</td><td style="width:40px;">Clarity</td>
+            </tr>
+            ${checklistHTML}
+        </table>
+
+        <div class="spacer"></div>
+
+        <!-- SECTION 3: INSTRUCTIONS + 6M -->
+        <table>
+            <tr>
+                <td colspan="2" class="sec-hdr" style="width:55%;">Important Instructions</td>
+                <td class="sec-hdr" style="width:15%;">6M Points</td>
+                <td class="sec-hdr" style="width:30%;">Comments</td>
+            </tr>
+            <tr>
+                <td colspan="2" rowspan="6" class="instr-box">${instructions.replace(/\n/g, '<br>')}</td>
+                <td class="lbl">Matl</td><td class="val">${sixM[0][1]}</td>
+            </tr>
+            <tr><td class="lbl">Machine</td><td class="val">${sixM[1][1]}</td></tr>
+            <tr><td class="lbl">Man</td><td class="val">${sixM[2][1]}</td></tr>
+            <tr><td class="lbl">Method</td><td class="val">${sixM[3][1]}</td></tr>
+            <tr><td class="lbl">Measure</td><td class="val">${sixM[4][1]}</td></tr>
+            <tr><td class="lbl">Tools</td><td class="val">${sixM[5][1]}</td></tr>
+        </table>
+
+        <div class="spacer"></div>
+
+        <!-- SECTION 4: FINAL VERIFICATION -->
+        <table>
+            <tr><td colspan="8" class="sec-hdr">Final Verification & Order Acceptance</td></tr>
+            <tr class="sub-hdr">
+                <td colspan="2">Decision</td>
+                <td style="width:80px;">Ok/Nok</td>
+                <td colspan="2">Prepared By</td>
+                <td colspan="2">Reviewed By</td>
+                <td>Approved By</td>
+            </tr>
+            <tr>
+                <td colspan="2" class="lbl" style="text-align:right;">Capability</td>
+                <td class="dec-val ${decCap === 'ok' ? 'dec-ok' : decCap === 'nok' ? 'dec-nok' : ''}">${decCap ? decCap.toUpperCase() : ''}</td>
+                <td colspan="2" rowspan="2" class="val wrap" style="text-align:center;height:45px;">${preparedBy}</td>
+                <td colspan="2" rowspan="2" class="val wrap" style="text-align:center;">${reviewedBy}</td>
+                <td rowspan="2" class="val wrap" style="text-align:center;">${approvedBy}</td>
+            </tr>
+            <tr>
+                <td colspan="2" class="lbl" style="text-align:right;">Order Acceptance</td>
+                <td class="dec-val ${decOA === 'ok' ? 'dec-ok' : decOA === 'nok' ? 'dec-nok' : ''}">${decOA ? decOA.toUpperCase() : ''}</td>
+            </tr>
+        </table>
+
+        <!-- FOOTER NOTES -->
+        <div class="notes">
+            <strong>Execution Guidelines:</strong>
+            1. PL to prepare Job Card and plan for resources from Day 1 itself for smooth completion.
+            2. TL to own full Responsibility for Job Quality and Delivery.
+        </div>
+
+        <script>window.onload = () => setTimeout(() => window.print(), 400);</script>
+        </body></html>`);
+        pw.document.close();
     },
 
     renderProjectCards: (projects) => {
@@ -4146,6 +5835,9 @@ window.adminApp = {
 
         // Load Contract Review form for this project
         window.adminApp.loadContractReview(id);
+
+        // Load Costing Data
+        window.adminApp.loadProjectCosting(id, project.projectId);
     },
 
     renderProgressDots: (project) => {
@@ -4176,6 +5868,15 @@ window.adminApp = {
         document.querySelectorAll('.dd-panel').forEach(p => {
             p.classList.toggle('active', p.id === `dd-panel-${tabName}`);
         });
+
+        // Trigger refresh for specific tabs
+        if (tabName === 'costing') {
+            const currentId = window.adminApp.currentEditingProjectId;
+            const project = currentProjects.find(p => p.id === currentId);
+            if (project) {
+                window.adminApp.loadProjectCosting(currentId, project.projectId);
+            }
+        }
     },
 
     renderStageAction: (project) => {
@@ -4352,13 +6053,40 @@ window.adminApp = {
         const hidden = document.getElementById('orderId-input');
         if (hidden) hidden.value = '';
 
+        // NEW: Clear breakdown table and summary stats for new orders
+        const breakdownBody = document.getElementById('io-delivery-breakdown-body');
+        if (breakdownBody) {
+            breakdownBody.innerHTML = '<tr><td colspan="4" style="padding: 1.5rem; text-align: center; color: #94a3b8; font-style: italic;">No delivery records found for this order.</td></tr>';
+        }
+
+        // Clear summary stats
+        const totalDelEl = document.getElementById('io-total-delivered');
+        const pendingQtyEl = document.getElementById('io-pending-qty');
+        const derivedStatusEl = document.getElementById('io-derived-status');
+        if (totalDelEl) totalDelEl.textContent = '0';
+        if (pendingQtyEl) pendingQtyEl.textContent = '0';
+        if (derivedStatusEl) {
+            derivedStatusEl.textContent = 'Pending';
+            derivedStatusEl.className = 'status-badge status-pending';
+        }
+
+        // Reset order status display and hidden field
+        const statusDisplay = document.getElementById('order-status-display');
+        const statusHidden = form ? form.querySelector('[name="status"]') : null;
+        if (statusDisplay) statusDisplay.value = '🟡 Pending';
+        if (statusHidden) statusHidden.value = 'Pending';
+
         // Set default date to today
         const dateInput = form.querySelector('[name="date"]');
         if (dateInput) {
             dateInput.value = new Date().toISOString().split('T')[0];
         }
 
-        // Auto-generate next Order ID (YYYYYY-NNN)
+        // Set default department to Admin
+        const deptInput = form ? form.querySelector('[name="department"]') : null;
+        if (deptInput) deptInput.value = 'Admin';
+
+        // Auto-generate next Order ID (YYYYYY-NNNN)
         const now = new Date();
         const yr = now.getFullYear();
         const mo = now.getMonth(); // 0-indexed
@@ -4375,7 +6103,11 @@ window.adminApp = {
                 if (!isNaN(num) && num > maxNum) maxNum = num;
             }
         });
-        const nextNum = String(maxNum + 1).padStart(3, '0');
+        
+        // Use 4 digits padding from financial year 2026 onwards (i.e. prefix "202627-")
+        const padLength = fyStart >= 2026 ? 4 : 3;
+        const nextNum = String(maxNum + 1).padStart(padLength, '0');
+        
         const orderNoInput = form.querySelector('[name="internalOrderNo"]');
         if (orderNoInput) orderNoInput.value = `${prefix}${nextNum}`;
 
@@ -4413,11 +6145,24 @@ window.adminApp = {
             ioLookup.value = existingOrder ? (existingOrder.internalOrderNo || '') : '';
         }
 
+        // Initialize DC Rows
+        const container = document.getElementById('dc-rows-container');
+        if (container) {
+            container.innerHTML = '';
+            if (existingOrder) {
+                // For editing, show the existing DC data in the first row
+                window.adminApp.addDCRow(existingOrder.dcNo, existingOrder.deliveryDateActual || existingOrder.date, existingOrder.deliveryQty || existingOrder.qty, existingOrder.total || '');
+            } else {
+                // For new delivery, add one default empty row
+                window.adminApp.addDCRow();
+            }
+        }
+
         // Populate datalist with all active/delivered IO numbers for autocomplete
         const datalist = document.getElementById('delivery-io-suggestions');
         if (datalist) {
             const activeOrders = currentOrders.filter(o =>
-                (o.status === 'Pending' || o.status === 'Portion Delivered' || o.status === 'Delivered' || (existingOrder && o.internalOrderNo === existingOrder.internalOrderNo)) &&
+                (o.status === 'Pending' || o.status === 'Partially Delivered' || o.status === 'Delivered' || (existingOrder && o.internalOrderNo === existingOrder.internalOrderNo)) &&
                 o.internalOrderNo &&
                 (!o.entryType || o.entryType !== 'delivery_report')
             );
@@ -4432,18 +6177,35 @@ window.adminApp = {
                 const el = form.querySelector(`[name="${name}"]`);
                 if (el) el.value = val !== undefined && val !== null ? val : '';
             };
-            setVal('date', existingOrder.deliveryDateActual || existingOrder.date);
             setVal('customer', existingOrder.customer);
             setVal('description', existingOrder.description);
             setVal('drawingNo', existingOrder.drawingNo);
-            setVal('department', existingOrder.department);
-            setVal('dcNo', existingOrder.dcNo);
-            setVal('qty', existingOrder.deliveryQty || existingOrder.qty);
-            setVal('total', existingOrder.total || '');
-            setVal('labourCost', existingOrder.labourCost || 0);
             setVal('billNo', existingOrder.billNo || '');
+            setVal('department', existingOrder.department);
+            setVal('labourCost', existingOrder.labourCost || 0);
             setVal('manpower', existingOrder.manpower || '');
             setVal('qtyUnit', existingOrder.qtyUnit || 'Nos');
+            
+            const prodValEl = document.getElementById('delivery-prodValue-input');
+            if (prodValEl) {
+                let cost = parseFloat(existingOrder.prodValueEa) || 0;
+                // If historical entry lacks cost, try to lookup from original IO
+                if (cost === 0 && existingOrder.internalOrderNo) {
+                    const original = currentOrders.find(o => 
+                        o.internalOrderNo && 
+                        o.internalOrderNo.trim().toUpperCase() === existingOrder.internalOrderNo.trim().toUpperCase() && 
+                        (!o.entryType || o.entryType !== 'delivery_report')
+                    );
+                    if (original) {
+                        cost = parseFloat(original.prodValueEa) || 0;
+                    }
+                }
+                prodValEl.value = cost;
+            }
+
+            // Set main date field to match existing order's main date if none in first DC
+            const dateInput = form.querySelector('[name="date"]');
+            if (dateInput) dateInput.value = existingOrder.date || new Date().toISOString().split('T')[0];
         } else {
             const dateInput = form.querySelector('[name="date"]');
             if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
@@ -4452,27 +6214,97 @@ window.adminApp = {
         window.adminApp.openModal('add-delivery-modal');
     },
 
+    addDCRow: (dcNo = '', date = '', qty = '', value = '') => {
+        const container = document.getElementById('dc-rows-container');
+        if (!container) return;
+
+        const dateVal = date || new Date().toISOString().split('T')[0];
+        const tr = document.createElement('tr');
+        tr.className = 'dc-row';
+        tr.innerHTML = `
+            <td style="padding: 4px;"><input type="text" name="dcNo_row" class="form-input text-xs" style="padding: 4px 6px;" value="${dcNo}" placeholder="DC #"></td>
+            <td style="padding: 4px;"><input type="date" name="dcDate_row" class="form-input text-xs" style="padding: 4px 6px;" value="${dateVal}"></td>
+            <td style="padding: 4px;"><input type="number" name="dcQty_row" class="form-input text-xs text-right" style="padding: 4px 6px;" value="${qty}" placeholder="0" oninput="window.adminApp.calculateDCRowVal(this)"></td>
+            <td style="padding: 4px;"><input type="number" name="dcVal_row" class="form-input text-xs text-right" style="padding: 4px 6px;" value="${value}" placeholder="₹0"></td>
+            <td style="padding: 4px; text-align: center;">
+                <button type="button" class="text-rose-500 hover:text-rose-700" onclick="this.closest('tr').remove()" title="Remove Row">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </td>
+        `;
+        container.appendChild(tr);
+
+        // Add Auto-calculation Listener
+        const qtyInp = tr.querySelector('[name="dcQty_row"]');
+        const valInp = tr.querySelector('[name="dcVal_row"]');
+        if (qtyInp && valInp) {
+            qtyInp.addEventListener('input', () => {
+                const prodVal = parseFloat(document.getElementById('delivery-prodValue-input')?.value) || 0;
+                const qty = parseFloat(qtyInp.value) || 0;
+                valInp.value = (prodVal * qty).toFixed(2);
+            });
+        }
+    },
+
+    removeDCRow: (btn) => {
+        const container = document.getElementById('dc-rows-container');
+        if (!container) return;
+        if (container.children.length > 1) {
+            btn.closest('tr').remove();
+        } else {
+            // Keep at least one row, just clear it
+            const row = container.querySelector('tr');
+            row.querySelectorAll('input').forEach(i => i.value = (i.type === 'date' ? new Date().toISOString().split('T')[0] : ''));
+        }
+    },
+
     // Lookup: Auto-fill delivery form from an existing Internal Order
     lookupOrderForDelivery: (ioNo) => {
         if (!ioNo || !ioNo.trim()) return;
-        const order = currentOrders.find(o => o.internalOrderNo === ioNo.trim());
+        const searchVal = ioNo.trim().toLowerCase();
+        
+        // Find order case-insensitive and excluding delivery reports
+        const order = currentOrders.find(o => 
+            o.internalOrderNo && 
+            o.internalOrderNo.trim().toLowerCase() === searchVal &&
+            (!o.entryType || o.entryType !== 'delivery_report')
+        );
+        
         if (!order) return;
 
         const form = document.getElementById('add-delivery-form');
         if (!form) return;
 
-        // Auto-fill fields (all remain editable)
+        // Auto-fill fields
         const setVal = (name, val) => {
             const el = form.querySelector(`[name="${name}"]`);
-            if (el && val) el.value = val;
+            if (el && val !== undefined) el.value = val;
         };
 
         setVal('customer', order.customer);
         setVal('description', order.description);
         setVal('drawingNo', order.drawingNo);
-        setVal('qty', order.qty);
+        if (order.billNo) setVal('billNo', order.billNo);
         setVal('qtyUnit', order.qtyUnit);
         setVal('department', order.department);
+
+        const prodValEl = document.getElementById('delivery-prodValue-input');
+        if (prodValEl) {
+            // Strictly use Production Cost Value as per user request
+            const pVal = parseFloat(order.prodValueEa) || 0;
+            prodValEl.value = pVal;
+
+            // Force recalculate all DC rows
+            const rows = document.querySelectorAll('#dc-rows-container .dc-row');
+            rows.forEach(row => {
+                const qInp = row.querySelector('[name="dcQty_row"]');
+                const vInp = row.querySelector('[name="dcVal_row"]');
+                if (qInp && vInp) {
+                    const q = parseFloat(qInp.value) || 0;
+                    vInp.value = (pVal * q).toFixed(2);
+                }
+            });
+        }
     },
 
     submitDeliveryForm: async () => {
@@ -4485,93 +6317,118 @@ window.adminApp = {
         const formData = new FormData(form);
         const orderId = formData.get('orderId');
 
-        // Construct object compatible with DB.addOrder
-        const orderData = {
+        // Collect DC Rows
+        const dcRows = [];
+        const container = document.getElementById('dc-rows-container');
+        if (container) {
+            container.querySelectorAll('tr').forEach(tr => {
+                const dcNo = tr.querySelector('[name="dcNo_row"]')?.value.trim();
+                const dcDate = tr.querySelector('[name="dcDate_row"]')?.value;
+                const dcQty = parseFloat(tr.querySelector('[name="dcQty_row"]')?.value) || 0;
+                const dcVal = parseFloat(tr.querySelector('[name="dcVal_row"]')?.value) || 0;
+
+                if (dcNo || dcQty > 0) {
+                    dcRows.push({ dcNo, dcDate, dcQty, dcVal });
+                }
+            });
+        }
+
+        if (dcRows.length === 0) {
+            alert("Please add at least one DC entry (DC Number or Quantity).");
+            return;
+        }
+
+        const baseData = {
             date: formData.get('date'),
             customer: formData.get('customer'),
             drawingNo: formData.get('drawingNo') || '',
+            billNo: formData.get('billNo')?.trim() || '',
             description: formData.get('description') || '',
             internalOrderNo: formData.get('internalOrderNo')?.trim() || '',
-            qty: parseFloat(formData.get('qty')) || 0,
-            total: parseFloat(formData.get('total')) || 0, // Manual Delivery Value
             department: formData.get('department') || '',
             labourCost: parseFloat(formData.get('labourCost')) || 0,
             manpower: parseFloat(formData.get('manpower')) || 0,
-
-            // Delivery Specifics
-            deliveryDateActual: formData.get('date'), // Same as entry date for direct delivery
-            deliveryQty: parseFloat(formData.get('qty')) || 0,
-            dcNo: formData.get('dcNo') || '',
-            billNo: formData.get('billNo') || '',
-            status: 'Delivered', // Force status
-            entryType: 'delivery_report', // Flag to distinguish from Internal Orders
-
-            // Defaults for unused fields
-            saleValueEa: 0,
-            prodValueEa: 0,
+            qtyUnit: formData.get('qtyUnit') || 'Nos',
+            status: 'Delivered',
+            entryType: 'delivery_report',
+            saleValueEa: parseFloat(formData.get('saleValueEa')) || 0,
+            prodValueEa: parseFloat(formData.get('prodValueEa')) || 0,
             priority: 'Medium',
             drgAvail: 'n',
             rawAvail: 'n',
             finishAvail: 'n'
         };
 
-        let result;
-        if (orderId) {
-            result = await DB.updateOrder(orderId, orderData);
-        } else {
-            result = await DB.addOrder(orderData);
-        }
+        // If editing an existing entry, we'll update the first DC's document
+        // and potentially create NEW ones for the rest.
+        // Simplified approach: For "Editing", user should probably edit individual entries from the report.
+        // But since they can add multiple here, we handle the first one as update if ID exists.
 
-        // Automated Sync: Update original Internal Order if IO Number is linked
-        if (!result.error && orderData.internalOrderNo) {
-            const ioNo = orderData.internalOrderNo;
-            const originalOrder = currentOrders.find(o =>
-                o.internalOrderNo === ioNo && (!o.entryType || o.entryType !== 'delivery_report')
-            );
+        try {
+            for (let i = 0; i < dcRows.length; i++) {
+                const row = dcRows[i];
+                const entryData = {
+                    ...baseData,
+                    dcNo: row.dcNo,
+                    deliveryDateActual: row.dcDate,
+                    deliveryQty: row.dcQty,
+                    qty: row.dcQty, // Keep qty same for compatibility
+                    total: row.dcVal
+                };
 
-            if (originalOrder) {
-                // 1. Calculate Total Delivered Quantity across all delivery report entries
-                const allDeliveries = currentOrders.filter(o =>
-                    o.entryType === 'delivery_report' &&
-                    o.internalOrderNo === ioNo &&
-                    o.id !== orderId // Exclude old version if editing
+                // If editing (orderId exists), only the FIRST row updates the original doc.
+                // Subsequential rows are added as new documents.
+                if (orderId && i === 0) {
+                    await DB.updateOrder(orderId, entryData);
+                } else {
+                    await DB.addOrder(entryData);
+                }
+            }
+
+            // Sync with Internal Order
+            if (baseData.internalOrderNo) {
+                const ioNo = baseData.internalOrderNo;
+                const originalOrder = currentOrders.find(o =>
+                    o.internalOrderNo === ioNo && (!o.entryType || o.entryType !== 'delivery_report')
                 );
 
-                const totalDelivered = allDeliveries.reduce((sum, o) => sum + (parseFloat(o.deliveryQty) || 0), 0) + orderData.deliveryQty;
+                if (originalOrder) {
+                    // Refetch/Re-calculate all deliveries for this IO
+                    // Since DB.addOrder is async, it might take a moment to reflect in state.
+                    // However, current system relies on real-time snapshots, so currentOrders *should* update.
+                    // To be safe, we calculate based on what we just sent + current state.
 
-                // 2. Pool DC Numbers
-                let allDCs = allDeliveries.map(o => o.dcNo?.trim()).filter(dc => dc);
-                if (orderData.dcNo?.trim() && !allDCs.includes(orderData.dcNo.trim())) {
-                    allDCs.push(orderData.dcNo.trim());
+                    const existingDeliveries = currentOrders.filter(o =>
+                        o.entryType === 'delivery_report' &&
+                        o.internalOrderNo === ioNo &&
+                        o.id !== orderId
+                    );
+
+                    const totalDelivered = existingDeliveries.reduce((sum, o) => sum + (parseFloat(o.deliveryQty) || 0), 0) +
+                        dcRows.reduce((sum, r) => sum + r.dcQty, 0);
+
+                    let allDCs = existingDeliveries.map(o => o.dcNo?.trim()).filter(dc => dc);
+                    dcRows.forEach(r => {
+                        if (r.dcNo && !allDCs.includes(r.dcNo)) allDCs.push(r.dcNo);
+                    });
+                    const pooledDCs = allDCs.join(', ');
+
+                    const orderedQty = parseFloat(originalOrder.qty) || 0;
+                    let newStatus = 'Pending';
+                    if (totalDelivered >= orderedQty && orderedQty > 0) newStatus = 'Delivered';
+                    else if (totalDelivered > 0) newStatus = 'Partially Delivered';
+
+                    await DB.updateOrder(originalOrder.id, {
+                        deliveryQty: totalDelivered,
+                        dcNo: pooledDCs,
+                        status: newStatus
+                    });
                 }
-                const pooledDCs = allDCs.join(', ');
-
-                // 3. Update Status based on completion
-                const orderedQty = parseFloat(originalOrder.qty) || 0;
-                let newStatus = originalOrder.status;
-
-                if (totalDelivered >= orderedQty && orderedQty > 0) {
-                    newStatus = 'Delivered';
-                } else if (totalDelivered > 0) {
-                    newStatus = 'Portion Delivered';
-                } else {
-                    newStatus = 'Pending';
-                }
-
-                console.log(`Automated Sync: Updating IO ${ioNo} -> ${totalDelivered}/${orderedQty} (${newStatus})`);
-
-                await DB.updateOrder(originalOrder.id, {
-                    deliveryQty: totalDelivered,
-                    dcNo: pooledDCs,
-                    status: newStatus
-                });
             }
-        }
 
-        if (result.error) {
-            alert('Error: ' + result.error);
-        } else {
             window.adminApp.closeModal('add-delivery-modal');
+        } catch (err) {
+            alert('Error: ' + err.message);
         }
     },
 
@@ -4850,6 +6707,84 @@ window.adminApp = {
         );
     },
 
+    forceCloseOrder: (id) => {
+        const password = prompt("Enter Administration Password to Force Close:");
+        if (password !== 'IES') {
+            alert("Incorrect Password. Access Denied.");
+            return;
+        }
+
+        // Open choices modal
+        window.adminApp.openModal('force-close-modal');
+
+        // Setup listeners for the choice buttons
+        const delBtn = document.getElementById('force-delivered-btn');
+        const admBtn = document.getElementById('force-admin-close-btn');
+        const commentEl = document.getElementById('force-close-comment');
+        if (commentEl) commentEl.value = ''; // Reset
+
+        // Clone and replace to remove old listeners
+        const newDelBtn = delBtn.cloneNode(true);
+        const newAdmBtn = admBtn.cloneNode(true);
+        delBtn.parentNode.replaceChild(newDelBtn, delBtn);
+        admBtn.parentNode.replaceChild(newAdmBtn, admBtn);
+
+        newDelBtn.onclick = async () => {
+            const comment = document.getElementById('force-close-comment')?.value.trim() || '';
+            if (confirm("Mark this order as DELIVERED directly?")) {
+                try {
+                    await DB.updateOrder(id, {
+                        status: 'Delivered',
+                        deliveryDateActual: new Date().toISOString().slice(0, 10),
+                        forceClosed: true,
+                        closedBy: 'Administration',
+                        forceCloseComment: comment
+                    });
+                    window.adminApp.closeModal('force-close-modal');
+                    alert("Order marked as Delivered.");
+                    // Refresh view
+                    if (window.adminApp.loadOrders) window.adminApp.loadOrders();
+                } catch (e) {
+                    alert("Error updating order: " + e.message);
+                }
+            }
+        };
+
+        newAdmBtn.onclick = async () => {
+            const comment = document.getElementById('force-close-comment')?.value.trim() || '';
+            if (confirm("Mark this order as CLOSED BY ADMIN? (Will hide from pending)")) {
+                try {
+                    await DB.updateOrder(id, {
+                        status: 'Closed by Admin',
+                        forceClosed: true,
+                        closedBy: 'Administration',
+                        forceCloseComment: comment
+                    });
+                    window.adminApp.closeModal('force-close-modal');
+                    alert("Order marked as Closed by Admin.");
+                    // Refresh view
+                    if (window.adminApp.loadOrders) window.adminApp.loadOrders();
+                } catch (e) {
+                    alert("Error updating order: " + e.message);
+                }
+            }
+        };
+    },
+
+    editFCComment: async (id) => {
+        const order = currentOrders.find(o => o.id === id);
+        if (!order) return;
+        const newComment = prompt("Edit FC Comment:", order.forceCloseComment || '');
+        if (newComment !== null) {
+            try {
+                await DB.updateOrder(id, { forceCloseComment: newComment });
+                if (window.adminApp.loadOrders) window.adminApp.loadOrders();
+            } catch(e) {
+                alert("Failed to update comment: " + e.message);
+            }
+        }
+    },
+
     softDeleteOrder: (id) => {
         window.adminApp.showConfirmModal(
             "Move to Trash?",
@@ -4992,8 +6927,29 @@ window.adminApp = {
         Monitoring.sort(key);
     },
 
-    exportToPDF: () => {
-        Monitoring.exportToPDF(currentOrders);
+    exportToCSV: () => {
+        Monitoring.exportToCSV();
+    },
+
+    // DC Register Methods
+    renderDCRegister: () => {
+        DCRegister.renderDCTable(currentOrders);
+    },
+    sortDC: (key) => {
+        DCRegister.sortDC(key);
+    },
+    toggleShowDCGaps: () => {
+        const isGapsOn = DCRegister.toggleShowMissingGaps();
+        const textEl = document.getElementById('dc-toggle-gaps-text');
+        if (textEl) textEl.textContent = isGapsOn ? 'Gap Highlights: ON' : 'Gap Highlights: OFF';
+    },
+    exportDCCSV: () => {
+        DCRegister.exportDCCSV();
+    },
+    openAddDeliveryWithDC: (dcNo) => {
+        window.adminApp.openAddDeliveryModal();
+        const firstDcInput = document.querySelector('#dc-rows-container [name="dcNo_row"]');
+        if (firstDcInput) firstDcInput.value = dcNo;
     },
 
     // New: Delivery Report Helpers
@@ -5086,6 +7042,18 @@ window.adminApp = {
     // PENDING ASSIGNMENT FUNCTIONS
     // ============================================
 
+    pendingSortState: { key: '', direction: 'asc' },
+
+    pendingSort: (key) => {
+        if (window.adminApp.pendingSortState.key === key) {
+            window.adminApp.pendingSortState.direction = window.adminApp.pendingSortState.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            window.adminApp.pendingSortState.key = key;
+            window.adminApp.pendingSortState.direction = 'asc';
+        }
+        window.adminApp.renderPendingAssignment();
+    },
+
     renderPendingAssignment: () => {
         const view = document.getElementById('view-pending_assignment');
         if (!view || view.classList.contains('hidden')) return;
@@ -5101,7 +7069,7 @@ window.adminApp = {
 
         // Filter pending orders
         let pendingOrders = currentOrders.filter(o =>
-            o.status === 'Pending' && !o.deleted
+            (o.status === 'Pending' || o.status === 'Partially Delivered' || o.status === 'Portion Delivered') && !o.deleted
         );
 
         // Apply department filter
@@ -5121,30 +7089,60 @@ window.adminApp = {
             pendingOrders = pendingOrders.filter(o => (o.priority || 'normal') === priorityFilter);
         }
 
-        // Get sort option
-        const sortBy = document.getElementById('pending-sort-by')?.value || 'priority';
+        // Get sort options
+        const dropdownSortBy = document.getElementById('pending-sort-by')?.value || 'priority';
+        const clickSortKey = window.adminApp.pendingSortState.key;
+        const clickSortDir = window.adminApp.pendingSortState.direction;
 
         // Sort based on selection
         pendingOrders.sort((a, b) => {
-            if (sortBy === 'priority') {
-                // Urgent first, then by due date
-                const priorityA = a.priority === 'urgent' ? 0 : 1;
-                const priorityB = b.priority === 'urgent' ? 0 : 1;
-                if (priorityA !== priorityB) return priorityA - priorityB;
-                // Then by due date
-                const dateA = new Date(a.estimatedCompletion || '2099-12-31');
-                const dateB = new Date(b.estimatedCompletion || '2099-12-31');
-                return dateA - dateB;
-            } else if (sortBy === 'dueDate') {
-                const dateA = new Date(a.estimatedCompletion || '2099-12-31');
-                const dateB = new Date(b.estimatedCompletion || '2099-12-31');
-                return dateA - dateB;
-            } else if (sortBy === 'orderId') {
-                const idA = a.internalOrderNo || a.id || '';
-                const idB = b.internalOrderNo || b.id || '';
-                return idA.localeCompare(idB);
+            if (clickSortKey) {
+                let valA = a[clickSortKey] || '';
+                let valB = b[clickSortKey] || '';
+                
+                if (clickSortKey === 'total' || clickSortKey === 'priorityNumber' || clickSortKey === 'qty') {
+                    valA = parseFloat(valA) || 0;
+                    valB = parseFloat(valB) || 0;
+                } else {
+                    valA = valA.toString().toLowerCase();
+                    valB = valB.toString().toLowerCase();
+                }
+
+                if (valA < valB) return clickSortDir === 'asc' ? -1 : 1;
+                if (valA > valB) return clickSortDir === 'asc' ? 1 : -1;
+                return 0;
+            } else {
+                if (dropdownSortBy === 'priority') {
+                    // 1. Group by Department
+                    const deptA = a.department || 'zzz';
+                    const deptB = b.department || 'zzz';
+                    if (deptA !== deptB) return deptA.localeCompare(deptB);
+
+                    // 2. Sort by Priority Number
+                    const pNumA = parseInt(a.priorityNumber) || 999;
+                    const pNumB = parseInt(b.priorityNumber) || 999;
+                    if (pNumA !== pNumB) return pNumA - pNumB;
+
+                    // 3. Original urgency
+                    const urgentA = a.priority === 'urgent' ? 0 : 1;
+                    const urgentB = b.priority === 'urgent' ? 0 : 1;
+                    if (urgentA !== urgentB) return urgentA - urgentB;
+
+                    // 4. Due Date
+                    const dateA = new Date(a.estimatedCompletion || '2099-12-31');
+                    const dateB = new Date(b.estimatedCompletion || '2099-12-31');
+                    return dateA - dateB;
+                } else if (dropdownSortBy === 'dueDate') {
+                    const dateA = new Date(a.estimatedCompletion || '2099-12-31');
+                    const dateB = new Date(b.estimatedCompletion || '2099-12-31');
+                    return dateA - dateB;
+                } else if (dropdownSortBy === 'orderId') {
+                    const idA = a.internalOrderNo || a.id || '';
+                    const idB = b.internalOrderNo || b.id || '';
+                    return idA.localeCompare(idB);
+                }
+                return 0;
             }
-            return 0;
         });
 
         // Update count badge
@@ -5154,7 +7152,7 @@ window.adminApp = {
 
         // Build table rows
         if (pendingOrders.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-slate-400">No pending orders found</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="18" class="text-center py-8 text-slate-400">No pending orders found</td></tr>';
             return;
         }
 
@@ -5163,179 +7161,337 @@ window.adminApp = {
             `<option value="${m.id}">${m.name}</option>`
         ).join('');
 
-        tbody.innerHTML = pendingOrders.map(order => {
-            const isUrgent = order.priority === 'urgent';
+        tbody.innerHTML = pendingOrders.map((order, index) => {
             const assignedList = (order.assignedTo || []).map(id => {
+                const member = currentMembers.find(m => m.id === id);
+                let displayName = id;
+                if(member) {
+                    const roleSuffix = member.role ? ` - ${member.role}` : (member.designation ? ` - ${member.designation}` : '');
+                    displayName = `${member.name}${roleSuffix}`;
+                }
                 return {
                     id: id,
-                    name: currentMembers.find(m => m.id === id)?.name || id
+                    name: displayName,
+                    rawName: member?.name || id
                 };
             });
+            
+            const formatDateForInput = (dateStr) => {
+                if (!dateStr || dateStr === '-') return '';
+                try {
+                    return new Date(dateStr).toISOString().split('T')[0];
+                } catch(e) {
+                    return '';
+                }
+            };
+            
+            const formatDateForDisplay = (dateStr) => {
+                if (!dateStr || dateStr === '-') return '-';
+                try {
+                    return new Date(dateStr).toLocaleDateString('en-IN');
+                } catch(e) {
+                    return '-';
+                }
+            };
 
-            // Format due date for input (YYYY-MM-DD)
-            const dueDateValue = order.estimatedCompletion
-                ? new Date(order.estimatedCompletion).toISOString().split('T')[0]
-                : '';
+            const assignedDateValue = order.assignedDate ? formatDateForInput(order.assignedDate) : '';
+            const internalOrderDate = formatDateForDisplay(order.date);
 
-            const rowClass = isUrgent ? 'pending-row-urgent' : 'pending-row-normal';
+            let priorityOptions = '<option value="">-</option>';
+            for(let i = 1; i <= 100; i++) {
+                priorityOptions += `<option value="${i}" ${order.priorityNumber == i ? 'selected' : ''}>${i}</option>`;
+            }
 
+            const depts = ['Admin', 'Fab', 'CNC', 'VMC', 'Turning', 'Assembly'];
+            let deptOptions = '<option value="">-</option>';
+            depts.forEach(d => {
+                deptOptions += `<option value="${d}" ${order.department === d ? 'selected' : ''}>${d}</option>`;
+            });
+
+            const activeMembers = currentMembers.filter(m => m.status !== 'Inactive');
+            const memberDropdownOptions = `<option value="">+ Add Member</option>` + activeMembers.map(m => {
+                const roleSuffix = m.role ? ` - ${m.role}` : (m.designation ? ` - ${m.designation}` : '');
+                return `<option value="${m.id}">${m.name}${roleSuffix}</option>`;
+            }).join('');
+
+            const sNo = index + 1;
+            const ioNo = order.internalOrderNo || order.id;
+            const statusVal = order.status || 'Pending';
+            const valueDisplay = order.saleValueEa || order.total || order.value || '-';
+            const rowColorStyle = assignedList.length > 0 ? 'background-color: #dcfce7;' : 'background-color: #fce8e8;';
+            
             return `
-                <tr class="pending-assignment-row ${rowClass}">
-                    <td style="text-align: center; vertical-align: middle;">
-                        <button onclick="window.adminApp.togglePriority('${order.id}')" 
-                                class="priority-toggle ${isUrgent ? 'is-urgent' : ''}"
-                                title="${isUrgent ? 'Mark as Normal' : 'Mark as Urgent'}">
-                            ${isUrgent ? '🔥' : '⚪'}
-                        </button>
+                <tr class="pending-assignment-row" style="${rowColorStyle}">
+                    <td style="text-align: center; vertical-align: top; padding-top: 1rem;">${sNo}</td>
+                    <td style="vertical-align: top; padding-top: 1rem;"><span class="order-id-badge">${ioNo}</span></td>
+                    <td style="vertical-align: top; padding-top: 1rem; color: #64748b; font-size: 13px; font-weight: 500;">${internalOrderDate}</td>
+                    <td style="vertical-align: top; padding-top: 1rem;"><span style="font-weight: 600; color: var(--brand-600);">${order.drawingNo || '-'}</span></td>
+                    <td style="vertical-align: top; padding-top: 1rem;"><div style="max-height: 80px; overflow-y: auto; font-size: 13px;">${order.description || '-'}</div></td>
+                    <td style="font-weight: 600; text-align: center; vertical-align: top; padding-top: 1rem;">${order.qty || '-'}</td>
+                    <td style="text-align: center; vertical-align: top; padding-top: 1rem;">${order.qtyUnit || '-'}</td>
+                    <td style="text-align: right; font-weight: 600; vertical-align: top; padding-top: 1rem;">${valueDisplay}</td>
+                    <td style="font-weight: 500; vertical-align: top; padding-top: 1rem;">${order.customer || '-'}</td>
+                    <td style="vertical-align: top; padding-top: 1rem;"><span class="status-badge status-pending">${statusVal}</span></td>
+                    <td style="vertical-align: top; padding: 0.5rem;">
+                        <textarea class="table-form-input p-2" 
+                                  placeholder="Update remarks..."
+                                  onblur="window.adminApp.pendingInlineUpdate('${order.id}', 'updateRemarks', this.value)"
+                                  style="min-height: 80px; width: 100%; resize: vertical; font-size: 11px; line-height: 1.4;"
+                        >${order.updateRemarks || ''}</textarea>
                     </td>
-                    <td><span class="order-id-badge">${order.internalOrderNo || order.id}</span></td>
-                    <td style="font-weight: 500;">${order.customer || '-'}</td>
-                    <td>${order.description || '-'}</td>
-                    <td><span style="font-weight: 600; color: var(--brand-600);">${order.drawingNo || '-'}</span></td>
-                    <td style="font-weight: 600; text-align: center;">${order.qty || '-'}</td>
-                    <td style="text-align: center;">${order.qtyUnit || '-'}</td>
-                    <td>
-                        <input type="date" class="table-form-input" 
-                               value="${dueDateValue}"
-                               onchange="window.adminApp.updateDueDate('${order.id}', this.value)"
-                               title="Click to set/change due date">
+                    <td style="vertical-align: top; padding: 0.5rem;">
+                        <select class="table-form-input p-2"
+                                onchange="window.adminApp.pendingInlineUpdate('${order.id}', 'priorityNumber', this.value)"
+                                style="width: 100%; font-size: 11px;">
+                            ${priorityOptions}
+                        </select>
                     </td>
-                    <td class="assign-cell">
+                    <td style="vertical-align: top; padding: 0.5rem;">
+                        <select class="table-form-input p-2"
+                                onchange="window.adminApp.pendingInlineUpdate('${order.id}', 'department', this.value)"
+                                style="width: 100%; font-size: 11px;">
+                            ${deptOptions}
+                        </select>
+                    </td>
+                    <td style="vertical-align: top; padding: 0.5rem;">
+                        <input type="date" class="table-form-input p-2" 
+                               value="${formatDateForInput(order.plannedDeliveryDate)}"
+                               onchange="window.adminApp.pendingInlineUpdate('${order.id}', 'plannedDeliveryDate', this.value)"
+                               title="Set planned delivery date"
+                               style="font-size: 11px; width: 100%;">
+                    </td>
+                    <td style="vertical-align: top; padding: 0.5rem;">
+                        <input type="date" class="table-form-input p-2" 
+                               value="${formatDateForInput(order.expectedDeliveryDate)}"
+                               onchange="window.adminApp.pendingInlineUpdate('${order.id}', 'expectedDeliveryDate', this.value)"
+                               title="Set delivery date"
+                               style="font-size: 11px; width: 100%;">
+                    </td>
+                    <td style="vertical-align: top; padding: 0.5rem;">
+                        <textarea class="table-form-input p-2"
+                                  placeholder="Add comments..."
+                                  onblur="window.adminApp.pendingInlineUpdate('${order.id}', 'remarks', this.value)"
+                                  style="min-height: 80px; width: 100%; resize: vertical; font-size: 11px; line-height: 1.4;"
+                        >${order.remarks || ''}</textarea>
+                    </td>
+                    <td style="vertical-align: top; padding: 0.5rem;">
+                        <input type="date" class="table-form-input p-2" 
+                               value="${assignedDateValue}"
+                               onchange="window.adminApp.pendingInlineUpdate('${order.id}', 'assignedDate', this.value)"
+                               title="Set assigned date"
+                               style="font-size: 11px; width: 100%;">
+                    </td>
+                    <td class="assign-cell" style="vertical-align: top; padding: 0.5rem;">
                         <select class="assign-dropdown" 
-                                onchange="window.adminApp.updateAssignment('${order.id}', this.value)"
+                                onchange="window.adminApp.updateAssignment('${order.id}', this.value); this.value='';"
+                                style="width: 100%; font-size: 11px; padding: 0.3rem;"
                                 id="assign-${order.id}">
-                            <option value="">+ Add</option>
-                            ${memberOptions}
+                            ${memberDropdownOptions}
                         </select>
                         ${assignedList.length > 0 ? `
-                        <div class="assign-chips">
+                        <div class="assign-chips mt-2" style="display: flex; flex-wrap: wrap; gap: 4px;">
                             ${assignedList.map(m => {
-                const initials = m.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
-                return `
-                                <span class="assign-chip">
-                                    <span class="assign-chip-avatar">${initials}</span>
+                                const initials = m.rawName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+                                return `
+                                <span class="assign-chip" style="font-size: 10px; background: #f1f5f9; border-radius: 4px; padding: 2px 6px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid #e2e8f0;">
+                                    <span style="background: #0f172a; color: white; display: inline-block; width: 16px; height: 16px; border-radius: 50%; text-align: center; line-height: 16px; font-size: 8px;">${initials}</span>
                                     <span class="assign-chip-name">${m.name}</span>
                                     <button class="assign-chip-remove" 
                                             onclick="window.adminApp.removeAssignment('${order.id}', '${m.id}')"
-                                            title="Remove">×</button>
+                                            title="Remove" style="color: #ef4444; font-weight: bold; cursor: pointer; border:none; background:none;">×</button>
                                 </span>`;
-            }).join('')}
+                            }).join('')}
                         </div>` : ''}
-                    </td>
-                    <td>
-                        <input type="text" class="table-form-input"
-                               placeholder="Add remarks..."
-                               value="${order.remarks || ''}"
-                               onblur="window.adminApp.saveRemarks('${order.id}', this.value)"
-                               id="remarks-${order.id}">
                     </td>
                 </tr>
             `;
         }).join('');
+    },
 
+    pendingInlineUpdate: async (orderId, fieldName, value) => {
+        const targetOrder = currentOrders.find(o => o.id === orderId);
+        if (!targetOrder) return;
 
+        // Use the new value for the field being updated, else use the existing value
+        const targetDept = fieldName === 'department' ? value : (targetOrder.department || '');
+        const targetPriority = fieldName === 'priorityNumber' ? value : (targetOrder.priorityNumber || '');
+
+        if (targetPriority && (fieldName === 'priorityNumber' || fieldName === 'department')) {
+            const existing = currentOrders.find(o => 
+                o.priorityNumber == targetPriority && 
+                o.department == targetDept &&
+                o.id !== orderId && 
+                (o.status === 'Pending' || o.status === 'Partially Delivered' || o.status === 'Portion Delivered') && 
+                !o.deleted
+            );
+            if (existing) {
+                alert(`Priority ${targetPriority} is already assigned to Order No ${existing.internalOrderNo || existing.id} in the ${targetDept} department. Please choose another.`);
+                window.adminApp.renderPendingAssignment();
+                return;
+            }
+        }
+
+        const updateData = {};
+        updateData[fieldName] = value;
+        const result = await DB.updateOrder(orderId, updateData);
+        if (result.error) {
+            console.error(`Failed to save ${fieldName}:`, result.error);
+        } else {
+            // Optional: Show visual success cue without fully re-rendering table
+            // However, depending on priority filtering/sorting, we might want to re-render.
+            if(fieldName === 'priorityNumber' || fieldName === 'assignedTo') {
+                window.adminApp.renderPendingAssignment();
+            }
+        }
     },
 
     updateAssignment: async (orderId, memberId) => {
         if (!memberId) return;
-
         const order = currentOrders.find(o => o.id === orderId);
         if (!order) return;
-
-        const currentAssigned = order.assignedTo || [];
-        if (!currentAssigned.includes(memberId)) {
-            currentAssigned.push(memberId);
-        }
-
-        // Log history
-        const historyEntry = {
-            action: 'assigned',
-            memberId: memberId,
-            memberName: currentMembers.find(m => m.id === memberId)?.name || memberId,
-            timestamp: new Date().toISOString(),
-            assignedBy: 'admin' // TODO: Get current user
-        };
-
-        const assignmentHistory = order.assignmentHistory || [];
-        assignmentHistory.push(historyEntry);
-
-        // Update in Firestore
-        const result = await DB.updateOrder(orderId, {
-            assignedTo: currentAssigned,
-            assignmentHistory: assignmentHistory
-        });
-
-        if (!result.error) {
-            window.adminApp.renderPendingAssignment();
+        
+        let assigned = order.assignedTo || [];
+        if (!assigned.includes(memberId)) {
+            assigned = [...assigned, memberId];
+            await window.adminApp.pendingInlineUpdate(orderId, 'assignedTo', assigned);
         }
     },
 
     removeAssignment: async (orderId, memberId) => {
         const order = currentOrders.find(o => o.id === orderId);
         if (!order) return;
-
-        const currentAssigned = (order.assignedTo || []).filter(id => id !== memberId);
-        const memberName = currentMembers.find(m => m.id === memberId)?.name || memberId;
-
-        // Log history
-        const historyEntry = {
-            action: 'removed',
-            memberId: memberId,
-            memberName: memberName,
-            timestamp: new Date().toISOString(),
-            assignedBy: 'admin'
-        };
-
-        const assignmentHistory = order.assignmentHistory || [];
-        assignmentHistory.push(historyEntry);
-
-        // Update in Firestore
-        const result = await DB.updateOrder(orderId, {
-            assignedTo: currentAssigned,
-            assignmentHistory: assignmentHistory
-        });
-
-        if (!result.error) {
-            window.adminApp.renderPendingAssignment();
-        }
+        
+        let assigned = order.assignedTo || [];
+        assigned = assigned.filter(id => id !== memberId);
+        await window.adminApp.pendingInlineUpdate(orderId, 'assignedTo', assigned);
     },
+    
+    exportPendingToCSV: () => {
+        const pendingOrders = currentOrders.filter(o => 
+            (o.status === 'Pending' || o.status === 'Partially Delivered' || o.status === 'Portion Delivered') && !o.deleted
+        );
 
-    saveRemarks: async (orderId, remarks) => {
-        const result = await DB.updateOrder(orderId, {
-            remarks: remarks
+        // Get filters
+        const deptFilter = document.getElementById('pending-filter-department')?.value || '';
+        const assignedFilter = document.getElementById('pending-filter-assigned')?.value || '';
+        const priorityFilter = document.getElementById('pending-filter-priority')?.value || '';
+
+        // Apply filters
+        let exportOrders = pendingOrders;
+        if (deptFilter) exportOrders = exportOrders.filter(o => o.department === deptFilter);
+        if (assignedFilter === 'assigned') exportOrders = exportOrders.filter(o => o.assignedTo && o.assignedTo.length > 0);
+        else if (assignedFilter === 'unassigned') exportOrders = exportOrders.filter(o => !o.assignedTo || o.assignedTo.length === 0);
+        if (priorityFilter) exportOrders = exportOrders.filter(o => (o.priority || 'normal') === priorityFilter);
+
+        // Sort based on selection
+        const dropdownSortBy = document.getElementById('pending-sort-by')?.value || 'priority';
+        const clickSortKey = window.adminApp.pendingSortState.key;
+        const clickSortDir = window.adminApp.pendingSortState.direction;
+
+        exportOrders.sort((a, b) => {
+            if (clickSortKey) {
+                let valA = a[clickSortKey] || '';
+                let valB = b[clickSortKey] || '';
+                
+                if (clickSortKey === 'total' || clickSortKey === 'priorityNumber' || clickSortKey === 'qty') {
+                    valA = parseFloat(valA) || 0;
+                    valB = parseFloat(valB) || 0;
+                } else {
+                    valA = valA.toString().toLowerCase();
+                    valB = valB.toString().toLowerCase();
+                }
+
+                if (valA < valB) return clickSortDir === 'asc' ? -1 : 1;
+                if (valA > valB) return clickSortDir === 'asc' ? 1 : -1;
+                return 0;
+            } else {
+                if (dropdownSortBy === 'priority') {
+                    const priorityA = a.priority === 'urgent' ? 0 : 1;
+                    const priorityB = b.priority === 'urgent' ? 0 : 1;
+                    if (priorityA !== priorityB) return priorityA - priorityB;
+                    const dateA = new Date(a.estimatedCompletion || '2099-12-31');
+                    const dateB = new Date(b.estimatedCompletion || '2099-12-31');
+                    return dateA - dateB;
+                } else if (dropdownSortBy === 'dueDate') {
+                    const dateA = new Date(a.estimatedCompletion || '2099-12-31');
+                    const dateB = new Date(b.estimatedCompletion || '2099-12-31');
+                    return dateA - dateB;
+                } else if (dropdownSortBy === 'orderId') {
+                    const idA = a.internalOrderNo || a.id || '';
+                    const idB = b.internalOrderNo || b.id || '';
+                    return idA.localeCompare(idB);
+                }
+                return 0;
+            }
         });
 
-        if (result.error) {
-            console.error('Failed to save remarks:', result.error);
+        if (exportOrders.length === 0) {
+            alert('No pending orders to export.');
+            return;
         }
-    },
 
-    updateDueDate: async (orderId, dateValue) => {
-        const result = await DB.updateOrder(orderId, {
-            estimatedCompletion: dateValue
+        const headers = [
+            'S.No', 'In. Order No', 'IO Date', 'Drg No', 'Description', 'Qty', 'Unit', 'Value', 
+            'Customer', 'Status', 'Update', 'Priority', 'Department', 'Planned Del. Date', 
+            'Delivery Date', 'Comments', 'Assigned Date', 'Assigned To'
+        ];
+
+        const rows = exportOrders.map((o, index) => {
+            const escapeCSV = (str) => {
+                if (!str) return '-';
+                const s = String(str).replace(/"/g, '""');
+                return /[",\n]/.test(s) ? `"${s}"` : s;
+            };
+
+            const assignedUserNames = (o.assignedTo && o.assignedTo.length > 0) 
+                 ? o.assignedTo.map(id => currentMembers.find(m => m.id === id)?.name || id).join(', ') 
+                 : '-';
+            
+            const formatDate = (dateStr) => {
+                if (!dateStr || dateStr === '-') return '-';
+                try {
+                    return new Date(dateStr).toLocaleDateString('en-IN');
+                } catch(e) {
+                    return '-';
+                }
+            };
+
+            return [
+                index + 1,
+                escapeCSV(o.internalOrderNo || o.id),
+                formatDate(o.date),
+                escapeCSV(o.drawingNo),
+                escapeCSV(o.description),
+                escapeCSV(o.qty),
+                escapeCSV(o.qtyUnit),
+                escapeCSV(o.saleValueEa || o.total || o.value),
+                escapeCSV(o.customer),
+                escapeCSV(o.status || 'Pending'),
+                escapeCSV(o.updateRemarks),
+                escapeCSV(o.priorityNumber),
+                escapeCSV(o.department),
+                formatDate(o.plannedDeliveryDate),
+                formatDate(o.expectedDeliveryDate),
+                escapeCSV(o.remarks),
+                formatDate(o.assignedDate),
+                escapeCSV(assignedUserNames)
+            ];
         });
 
-        if (!result.error) {
-            // Refresh to re-sort if needed
-            window.adminApp.renderPendingAssignment();
-        } else {
-            console.error('Failed to save due date:', result.error);
-        }
-    },
+        const csvContent = [
+            headers.join(','),
+            ...rows.map(r => r.join(','))
+        ].join('\n');
 
-    togglePriority: async (orderId) => {
-        const order = currentOrders.find(o => o.id === orderId);
-        if (!order) return;
-
-        const newPriority = order.priority === 'urgent' ? 'normal' : 'urgent';
-
-        const result = await DB.updateOrder(orderId, {
-            priority: newPriority
-        });
-
-        if (!result.error) {
-            window.adminApp.renderPendingAssignment();
-        }
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', `Pending_Assignments_${new Date().toISOString().slice(0, 10)}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     },
 
 
@@ -5584,10 +7740,10 @@ window.adminApp = {
         const result = await DB.saveReport(reportData);
 
         if (result.success) {
-            alert(`Report for ${dateStr} saved successfully!`);
+            console.log(`Report for ${dateStr} saved successfully!`);
             window.adminApp.renderReports();
         } else {
-            alert('Failed to save report: ' + (result.error || 'Unknown error'));
+            console.error('Failed to save report: ' + (result.error || 'Unknown error'));
         }
     },
 
@@ -5897,6 +8053,16 @@ document.addEventListener('DOMContentLoaded', () => {
             Monitoring.renderTable(currentOrders);
         }
 
+        const dcRegisterView = document.getElementById('view-dc_register');
+        if (dcRegisterView && !dcRegisterView.classList.contains('hidden')) {
+            DCRegister.renderDCTable(currentOrders);
+        }
+
+        const trackerView = document.getElementById('view-progress_tracker');
+        if (trackerView && !trackerView.classList.contains('hidden')) {
+            Tracker.renderTracker();
+        }
+
         // --- ADDED: Live Update for Pending Assignment ---
         const pendingView = document.getElementById('view-pending_assignment');
         if (pendingView && !pendingView.classList.contains('hidden')) {
@@ -5912,8 +8078,7 @@ document.addEventListener('DOMContentLoaded', () => {
         refreshDashboard();
     }, false);
 
-    // Filter Listeners
-    // Filter Listeners
+    // Filter Listeners: Internal Orders
     const monthFromInput = document.getElementById('order-month-from');
     const monthToInput = document.getElementById('order-month-to');
     const searchInput = document.getElementById('order-search-filter');
@@ -5938,6 +8103,27 @@ document.addEventListener('DOMContentLoaded', () => {
         searchInput.addEventListener('input', (e) => {
             Monitoring.setFilters(undefined, undefined, e.target.value);
             Monitoring.renderTable(currentOrders);
+        });
+    }
+
+    // Filter Listeners: DC Register
+    const dcMonthFromInput = document.getElementById('dc-month-from');
+    const dcMonthToInput = document.getElementById('dc-month-to');
+    const dcSearchInput = document.getElementById('dc-search-filter');
+
+    if (dcMonthFromInput && dcMonthToInput) {
+        const updateDCFilters = () => {
+            DCRegister.setFilters(dcMonthFromInput.value, dcMonthToInput.value, undefined);
+            DCRegister.renderDCTable(currentOrders);
+        };
+        dcMonthFromInput.addEventListener('change', updateDCFilters);
+        dcMonthToInput.addEventListener('change', updateDCFilters);
+    }
+
+    if (dcSearchInput) {
+        dcSearchInput.addEventListener('input', (e) => {
+            DCRegister.setFilters(undefined, undefined, e.target.value);
+            DCRegister.renderDCTable(currentOrders);
         });
     }
 
@@ -5979,6 +8165,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (result.error) {
                     UI.showLoginError(result.error);
                 } else {
+                    const user = result.user;
+                    if (!user.email || !user.email.endsWith('@iesgroups.com')) {
+                        const errEl = document.getElementById('login-error');
+                        if (errEl) {
+                            errEl.innerHTML = `Access Denied: <strong>${user.email}</strong> does not have administrator privileges. <a href="#" id="force-logout-btn" style="color:#6366f1;text-decoration:underline">Sign out</a>`;
+                            errEl.classList.remove('hidden');
+                            document.getElementById('force-logout-btn')?.addEventListener('click', (e) => { 
+                                e.preventDefault(); 
+                                Auth.logout(); 
+                            });
+                        }
+                        return;
+                    }
+
                     // Force View Switch
                     const authDiv = document.getElementById('auth-container');
                     const dashDiv = document.getElementById('dashboard-container');
@@ -6077,6 +8277,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const deliveryCompanyFilter = document.getElementById('delivery-company-filter');
+    if (deliveryCompanyFilter) {
+        deliveryCompanyFilter.addEventListener('change', () => {
+            const weekPicker = document.getElementById('delivery-week-picker');
+            const monthPicker = document.getElementById('delivery-month-picker');
+            Monitoring.renderDeliveryReport(weekPicker?.value, monthPicker?.value);
+        });
+    }
+
     // Pending Assignment Filter Listeners
     const pendingFilters = ['pending-filter-department', 'pending-filter-assigned', 'pending-filter-priority', 'pending-sort-by'];
     pendingFilters.forEach(filterId => {
@@ -6095,7 +8304,36 @@ document.addEventListener('DOMContentLoaded', () => {
         const emailSpan = document.getElementById('user-email-display');
 
         if (user) {
-            if (authDiv) authDiv.style.display = 'none';
+            // Enforce Admin Access (Only @iesgroups.com emails)
+            if (!user.email || !user.email.endsWith('@iesgroups.com')) {
+                const errEl = document.getElementById('login-error');
+                if (errEl) {
+                    errEl.innerHTML = `Access Denied: <strong>${user.email}</strong> does not have administrator privileges. <a href="#" id="force-logout-btn" style="color:#6366f1;text-decoration:underline">Sign out</a>`;
+                    errEl.classList.remove('hidden');
+                    document.getElementById('force-logout-btn')?.addEventListener('click', (e) => { 
+                        e.preventDefault(); 
+                        Auth.logout(); 
+                    });
+                }
+                if (authDiv) {
+                    authDiv.style.display = 'flex';
+                    authDiv.classList.remove('hidden');
+                }
+                if (dashDiv) {
+                    dashDiv.style.display = 'none';
+                    dashDiv.classList.add('hidden');
+                }
+                return;
+            }
+
+            // Valid Admin
+            const errEl = document.getElementById('login-error');
+            if (errEl) errEl.classList.add('hidden');
+
+            if (authDiv) {
+                authDiv.style.display = 'none';
+                authDiv.classList.add('hidden');
+            }
             if (dashDiv) {
                 dashDiv.style.display = 'flex';
                 dashDiv.classList.remove('hidden');
@@ -6146,8 +8384,16 @@ document.addEventListener('DOMContentLoaded', () => {
             // Auto-generate report if past 7 PM IST
             window.adminApp.checkAutoGenerateReport();
         } else {
-            if (authDiv) authDiv.style.display = 'flex';
-            if (dashDiv) dashDiv.style.display = 'none';
+            const errEl = document.getElementById('login-error');
+            if (errEl) errEl.classList.add('hidden');
+            if (authDiv) {
+                authDiv.style.display = 'flex';
+                authDiv.classList.remove('hidden');
+            }
+            if (dashDiv) {
+                dashDiv.style.display = 'none';
+                dashDiv.classList.add('hidden');
+            }
         }
     });
 });
@@ -6180,9 +8426,9 @@ window.adminApp.renderContractReview = (reviewData = {}) => {
 
         let labelEl = item.label;
         if (isCustom) {
-            labelEl = `< input type = "text" class="cr-master-input cr-custom-label w-full font-bold px-3 py-2 text-slate-700" value = "${itemObj.customLabel || ''}" data - item - id="${item.id}" > `;
+            labelEl = `<input type="text" class="cr-master-input cr-custom-label w-full font-bold px-3 py-2 text-slate-700" value="${itemObj.customLabel || ''}" data-item-id="${item.id}">`;
         } else {
-            labelEl = `< span class="px-3 block w-full py-2 font-bold text-slate-700" > ${item.label}</span > `;
+            labelEl = `<span class="px-3 block w-full py-2 font-bold text-slate-700">${item.label}</span>`;
         }
 
         const req = itemObj.req || '';
@@ -6190,22 +8436,22 @@ window.adminApp.renderContractReview = (reviewData = {}) => {
 
         const cell = (type, val, currentVal, extraVal) => {
             const isActive = type === 'out' && val === 'more' ? extraVal === 'true' : currentVal === val;
-            const activeClass = isActive ? `active - ${val} ` : '';
+            const activeClass = isActive ? `active-${val}` : '';
             const tick = isActive ? '✓' : '○';
 
             return `
-    < td class="p-0 select-none" onclick = "window.adminApp.setReviewItem('${item.id}', '${type}', '${val}')" >
+    <td class="p-0 select-none" onclick="window.adminApp.setReviewItem('${item.id}', '${type}', '${val}')">
         <div class="outcome-tile ${activeClass}" data-opt="${val}">
             <span class="cr-tick">${tick}</span>
         </div>
-                </td >
+    </td>
     `;
         };
 
-        const deleteBtn = isCustom ? `< button class="cr-item-delete-btn text-red-400 hover:text-red-600 px-3 flex-shrink-0" onclick = "window.adminApp.removeReviewItem('${item.id}')" title = "Remove Item" > <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button > ` : '';
+        const deleteBtn = isCustom ? `<button class="cr-item-delete-btn text-red-400 hover:text-red-600 px-3 flex-shrink-0" onclick="window.adminApp.removeReviewItem('${item.id}')" title="Remove Item"><svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>` : '';
 
         return `
-    < tr class="cr-item-row" data - item - id="${item.id}" data - req - val="${req}" data - out - val="${out}" data - more - val="${itemObj.more || 'false'}" >
+    <tr class="cr-item-row" data-item-id="${item.id}" data-req-val="${req}" data-out-val="${out}" data-more-val="${itemObj.more || 'false'}">
                 <td class="cr-item-index text-center uppercase tracking-tighter">${index + 1}</td>
                 <td class="p-0">
                     <div class="flex items-center h-full">
@@ -6222,7 +8468,7 @@ window.adminApp.renderContractReview = (reviewData = {}) => {
 <td class="p-0">
     <input type="text" class="cr-master-input w-full cr-remarks-input px-3 py-2 text-slate-600" value="${itemObj.remarks || ''}">
 </td>
-            </tr >
+            </tr>
     `;
     };
 
@@ -6248,26 +8494,26 @@ window.adminApp.addCustomContractReviewItem = () => {
     const rowCount = tbody.querySelectorAll('.cr-item-row').length;
     const newId = 'custom_' + Date.now();
 
-    const labelEl = `< input type = "text" class="cr-master-input cr-custom-label w-full font-bold px-3 py-2 text-slate-700" value = "" data - item - id="${newId}" > `;
+    const labelEl = `<input type="text" class="cr-master-input cr-custom-label w-full font-bold px-3 py-2 text-slate-700" value="" data-item-id="${newId}">`;
 
     const cell = (type, val) => {
         return `
-    < td class="p-0 select-none" onclick = "window.adminApp.setReviewItem('${newId}', '${type}', '${val}')" >
+    <td class="p-0 select-none" onclick="window.adminApp.setReviewItem('${newId}', '${type}', '${val}')">
         <div class="outcome-tile" data-opt="${val}">
             <span class="cr-tick">○</span>
         </div>
-            </td >
+    </td>
     `;
     };
 
-    const deleteBtn = `< button class="cr-item-delete-btn text-red-400 hover:text-red-600 px-3 flex-shrink-0" onclick = "window.adminApp.removeReviewItem('${newId}')" title = "Remove Item" > <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button > `;
+    const deleteBtn = `<button class="cr-item-delete-btn text-red-400 hover:text-red-600 px-3 flex-shrink-0" onclick="window.adminApp.removeReviewItem('${newId}')" title="Remove Item"><svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>`;
 
     const tr = document.createElement('tr');
     tr.className = 'cr-item-row';
     tr.dataset.itemId = newId;
 
     tr.innerHTML = `
-    < td class="cr-item-index text-center uppercase tracking-tighter" > ${rowCount + 1}</td >
+        <td class="cr-item-index text-center uppercase tracking-tighter">${rowCount + 1}</td>
         <td class="p-0">
             <div class="flex items-center h-full">
                 <div class="flex-grow">${labelEl}</div>
@@ -6291,7 +8537,7 @@ window.adminApp.addCustomContractReviewItem = () => {
 
 
 window.adminApp.removeReviewItem = (itemId) => {
-    const row = document.querySelector(`.cr - item - row[data - item - id="${itemId}"]`);
+    const row = document.querySelector(`.cr-item-row[data-item-id="${itemId}"]`);
     if (row) {
         row.remove();
         // Update indices
@@ -6303,7 +8549,7 @@ window.adminApp.removeReviewItem = (itemId) => {
 };
 
 window.adminApp.setReviewItem = (itemId, type, val) => {
-    const row = document.querySelector(`.cr - item - row[data - item - id="${itemId}"]`);
+    const row = document.querySelector(`.cr-item-row[data-item-id="${itemId}"]`);
     if (!row) return;
 
     if (type === 'out' && val === 'more') {
@@ -6339,21 +8585,21 @@ window.adminApp.setReviewItem = (itemId, type, val) => {
         const tickEl = tile.querySelector('.cr-tick');
 
         if (opt === val) {
-            const isCurrentlyActive = row.dataset[`${type} Val`] === val;
+            const isCurrentlyActive = row.dataset[`${type}Val`] === val;
             if (isCurrentlyActive) {
                 // Toggle OFF
-                tile.classList.remove(`active - ${val} `);
+                tile.classList.remove(`active-${val}`);
                 if (tickEl) tickEl.textContent = '○';
-                row.dataset[`${type} Val`] = '';
+                row.dataset[`${type}Val`] = '';
             } else {
                 // Switch ON
-                tile.classList.add(`active - ${val} `);
+                tile.classList.add(`active-${val}`);
                 if (tickEl) tickEl.textContent = '✓';
-                row.dataset[`${type} Val`] = val;
+                row.dataset[`${type}Val`] = val;
             }
         } else {
             // Force others OFF
-            tile.classList.remove(`active - ${opt} `);
+            tile.classList.remove(`active-${opt}`);
             if (tickEl) tickEl.textContent = '○';
         }
     }
@@ -6373,7 +8619,7 @@ window.adminApp.loadContractReview = async (projectId) => {
 
         // Helper to safely set value
         const setVal = (id, val) => {
-            const el = document.getElementById(id) || document.querySelector(`[data - field= "${id}"]`);
+            const el = document.getElementById(id) || document.querySelector(`[data-field="${id}"]`);
             if (el) el.value = val || '';
         };
 
@@ -6409,7 +8655,7 @@ window.adminApp.loadContractReview = async (projectId) => {
         const mGrid = ['matl', 'machine', 'man', 'method', 'measure', 'tools'];
         mGrid.forEach(key => {
             const data = reviewData.sixM?.[key] || { cmt: '' };
-            setVal(`cmt - ${key} `, data.cmt);
+            setVal(`cmt-${key}`, data.cmt);
         });
 
         // Decisions
@@ -6449,7 +8695,7 @@ window.adminApp.saveContractReview = async (action) => {
 
     // Helper to get value
     const getVal = (id) => {
-        const el = document.getElementById(id) || document.querySelector(`[data - field= "${id}"]`);
+        const el = document.getElementById(id) || document.querySelector(`[data-field="${id}"]`);
         return el ? el.value : '';
     };
 
@@ -6494,7 +8740,7 @@ window.adminApp.saveContractReview = async (action) => {
     const mGrid = ['matl', 'machine', 'man', 'method', 'measure', 'tools'];
     mGrid.forEach(key => {
         reviewData.sixM[key] = {
-            cmt: getVal(`cmt - ${key} `)
+            cmt: getVal(`cmt-${key}`)
         };
     });
 
@@ -6573,6 +8819,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Initialize Monitoring logic
         Monitoring.setupCostCalculation();
+
+        // Setup Daily Summary Report Event Listeners
+        const summaryMonth = document.getElementById('summary-report-month');
+        if (summaryMonth) {
+            summaryMonth.addEventListener('change', (e) => {
+                Reporting.renderDailySummaryReport(e.target.value);
+            });
+        }
+
+        const summaryExport = document.getElementById('summary-export-btn');
+        if (summaryExport) {
+            summaryExport.addEventListener('click', () => {
+                const picker = document.getElementById('summary-report-month');
+                Reporting.exportToExcel(picker ? picker.value : '');
+            });
+        }
     }, 100);
 });
 \n```\n\n\n### File: e:\re\Innovative Engineering Solutions\assets\admin\css\pm-theme.css\n*Description: Admin Styles (Subsets)*\n\n```css\n/* ================================================
@@ -6722,6 +8984,11 @@ document.addEventListener('DOMContentLoaded', () => {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Panel - Innovative Engineering Solutions</title>
 
+    <!-- PWA / Mobile Install config -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f172a">
+    <link rel="apple-touch-icon" href="assets/logo.png">
+
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -6742,11 +9009,69 @@ document.addEventListener('DOMContentLoaded', () => {
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js" type="module"></script>
 
     <!-- Admin Styles -->
-    <link rel="stylesheet" href="assets/admin/css/admin.css?v=1">
+    <link rel="stylesheet" href="assets/admin/css/admin.css?v=3">
     <link rel="stylesheet" href="assets/admin/css/delivery-modal.css">
     <link rel="stylesheet" href="assets/admin/css/project.css">
     <link rel="stylesheet" href="assets/admin/css/pm-theme.css">
     <style>
+        /* Force Printing in Landscape & Removing Browser headers/footers */
+        @media print {
+            @page {
+                size: landscape !important;
+                margin: 10mm !important; /* Restore physical page margins to prevent edge-clipping */
+            }
+
+            html, body, .main-wrapper, #main-content {
+                margin: 0 !important;
+                padding: 0 !important;
+                width: 100% !important;
+                display: block !important;
+            }
+
+            #view-progress_tracker {
+                padding: 0 !important; /* Rely on physical page margin instead */
+                margin: 0 !important;
+                display: block !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+            }
+
+            #progress-tracker-table {
+                width: 100% !important;
+                margin: 0 !important;
+                border-collapse: collapse !important;
+                table-layout: auto !important;
+            }
+
+            #progress-tracker-table th, 
+            #progress-tracker-table td {
+                border: 1px solid #e2e8f0 !important;
+                padding: 4px !important; /* Compact padding */
+                font-size: 7.5pt !important; /* Smaller font to fit more content */
+                word-wrap: break-word !important;
+                line-height: 1.2 !important;
+                height: auto !important;
+                vertical-align: top !important; /* Align content to top for a denser look */
+            }
+            
+            #progress-tracker-table textarea,
+            #progress-tracker-table input {
+                height: auto !important; /* Crucial override for JS calculated inline heights! */
+                min-height: 0 !important;
+                max-height: none !important;
+                white-space: pre-wrap !important;
+                overflow: visible !important;
+                padding: 0 !important;
+                font-size: 7.5pt !important;
+            }
+
+            .table-container {
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+        }
+
         /* Modal Redesign - 2 Column Layout */
         .modal-wide {
             max-width: 1000px !important;
@@ -7019,6 +9344,18 @@ document.addEventListener('DOMContentLoaded', () => {
     </div>
 
     <!-- ============================================
+         MOBILE MENU BUTTON (visible only on mobile/tablet)
+         ============================================ -->
+    <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Open Menu">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+    </button>
+
+    <!-- Mobile Sidebar Backdrop -->
+    <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+    <!-- ============================================
          DASHBOARD CONTAINER
          ============================================ -->
     <div id="dashboard-container" class="hidden">
@@ -7075,6 +9412,15 @@ document.addEventListener('DOMContentLoaded', () => {
                             </a>
                         </li>
                         <li class="nav-item">
+                            <a href="#" class="nav-link" data-view="dc_register">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                DC Register
+                            </a>
+                        </li>
+                        <li class="nav-item">
                             <a href="#" class="nav-link" data-view="pending_assignment">
                                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -7122,6 +9468,15 @@ document.addEventListener('DOMContentLoaded', () => {
                             </a>
                         </li>
                         <li class="nav-item">
+                            <a href="#" class="nav-link" data-view="progress_tracker">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                                </svg>
+                                Progress Tracker
+                            </a>
+                        </li>
+
+                        <li class="nav-item">
                             <a href="#" class="nav-link" data-view="inventory_management">
                                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -7151,12 +9506,12 @@ document.addEventListener('DOMContentLoaded', () => {
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a href="#" class="nav-link" data-view="reports">
+                            <a href="#" class="nav-link" data-view="daily_summary_report">
                                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                         d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                 </svg>
-                                Daily Reports
+                                Daily Summary Report
                             </a>
                         </li>
                     </ul>
@@ -7204,6 +9559,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     class="bg-white border-0 text-xs font-bold text-slate-700 rounded-full px-4 py-1.5 ring-1 ring-slate-200 focus:ring-2 focus:ring-teal-500 transition-all cursor-pointer outline-none shadow-sm"
                                     onchange="window.adminApp.refreshDashboard()">
                                     <option value="all">All Departments</option>
+                                    <option value="Admin">Admin</option>
                                     <option value="Fab">Fabrication</option>
                                     <option value="CNC">CNC</option>
                                     <option value="VMC">VMC</option>
@@ -7462,14 +9818,14 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </svg>
                                 Add Order
                             </button>
-                            <button onclick="window.adminApp.exportToPDF()" class="btn btn-pdf btn-lg flex items-center"
-                                title="Export monthly report to PDF">
+                            <button onclick="window.adminApp.exportToCSV()" class="btn btn-emerald btn-lg flex items-center"
+                                title="Export current view to CSV">
                                 <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z">
+                                        d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
                                     </path>
                                 </svg>
-                                Export PDF
+                                Export CSV
                             </button>
                         </div>
                     </div>
@@ -7531,6 +9887,148 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div class="pagination-info" id="pagination-info"
                                 style="padding: 1rem; color: #64748b; font-size: 0.875rem;"></div>
                             <div class="pagination-controls" id="pagination-controls"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ============================================
+                     VIEW: DC Register (Delivery Challan Tracking & Gap Detection)
+                     ============================================ -->
+                <div id="view-dc_register" class="view-section hidden">
+                    <!-- Month & Filter Header Card -->
+                    <div class="month-header-card">
+                        <div class="month-info">
+                            <span class="month-label">Filter Period</span>
+                            <div class="flex items-center gap-2">
+                                <input type="month" id="dc-month-from" class="month-picker" title="From Month">
+                                <span class="text-slate-400">to</span>
+                                <input type="month" id="dc-month-to" class="month-picker" title="To Month">
+                            </div>
+                        </div>
+                        <div class="header-divider"></div>
+                        <div class="search-box">
+                            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            <input type="text" id="dc-search-filter" class="search-input"
+                                placeholder="Search DC No, IO No, customer, description...">
+                        </div>
+                        <div class="header-actions">
+                            <button id="dc-toggle-gaps-btn" class="btn btn-ghost flex items-center gap-1.5"
+                                onclick="window.adminApp.toggleShowDCGaps()" title="Toggle In-Table Missing DC Gap Rows">
+                                <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                                <span id="dc-toggle-gaps-text">Gap Highlights: ON</span>
+                            </button>
+                            <button class="btn btn-purple btn-lg" onclick="window.adminApp.openAddDeliveryModal()">
+                                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 4v16m8-8H4" />
+                                </svg>
+                                Add DC Entry
+                            </button>
+                            <button onclick="window.adminApp.exportDCCSV()" class="btn btn-emerald btn-lg flex items-center"
+                                title="Export DC Register to CSV">
+                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+                                    </path>
+                                </svg>
+                                Export CSV
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Summary Stats Bar -->
+                    <div class="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-4">
+                        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                            <div>
+                                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Recorded DCs</span>
+                                <div class="text-2xl font-bold text-slate-800 mt-1" id="dc-total-count">0</div>
+                            </div>
+                            <div class="w-10 h-10 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center font-bold">
+                                DC
+                            </div>
+                        </div>
+                        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                            <div>
+                                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Delivered Qty</span>
+                                <div class="text-2xl font-bold text-slate-800 mt-1" id="dc-total-qty">0</div>
+                            </div>
+                            <div class="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                                #
+                            </div>
+                        </div>
+                        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                            <div>
+                                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total DC Value</span>
+                                <div class="text-2xl font-bold text-slate-800 mt-1" id="dc-total-value">₹0</div>
+                            </div>
+                            <div class="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                                ₹
+                            </div>
+                        </div>
+                        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                            <div>
+                                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Sequence Status</span>
+                                <div class="mt-1" id="dc-gaps-badge">
+                                    <span class="text-xs text-slate-400">Analyzing sequence...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- DC Register Excel-Style Table -->
+                    <div class="table-container">
+                        <div class="table-wrapper">
+                            <table id="dc-register-table" class="excel-style-table">
+                                <colgroup>
+                                    <col style="width: 42px;">   <!-- S.No -->
+                                    <col style="width: 80px;">   <!-- DC No -->
+                                    <col style="width: 95px;">   <!-- Del. Date -->
+                                    <col style="width: 130px;">  <!-- IO No -->
+                                    <col style="width: 90px;">   <!-- Bill No -->
+                                    <col style="width: 140px;">  <!-- Customer -->
+                                    <col style="width: 110px;">  <!-- Drg No -->
+                                    <col style="width: 200px;">  <!-- Description -->
+                                    <col style="width: 55px;">   <!-- Ord. Qty -->
+                                    <col style="width: 42px;">   <!-- Unit -->
+                                    <col style="width: 60px;">   <!-- Del. Qty -->
+                                    <col style="width: 100px;">  <!-- Status -->
+                                    <col style="width: 45px;">   <!-- Actions -->
+                                </colgroup>
+                                <thead>
+                                    <!-- Row 1: Groups -->
+                                    <tr class="header-group-row">
+                                        <th rowspan="2">S.No</th>
+                                        <th colspan="2" class="text-center group-order">Delivery Challan</th>
+                                        <th colspan="3" class="text-center group-customer">Order & Customer</th>
+                                        <th colspan="2" class="text-center group-item">Item Specifications</th>
+                                        <th colspan="3" class="text-center group-delivery">Quantities</th>
+                                        <th rowspan="2" class="text-center">Status</th>
+                                        <th rowspan="2" class="text-center">Act.</th>
+                                    </tr>
+                                    <!-- Row 2: Columns -->
+                                    <tr class="header-column-row">
+                                        <th class="sortable font-bold" onclick="window.adminApp.sortDC('dcNo')">DC No ↕</th>
+                                        <th class="sortable text-center" onclick="window.adminApp.sortDC('deliveryDate')">Date</th>
+                                        <th class="sortable text-center" onclick="window.adminApp.sortDC('internalOrderNo')">IO No</th>
+                                        <th class="sortable text-center" onclick="window.adminApp.sortDC('billNo')">Bill No</th>
+                                        <th class="sortable text-center" onclick="window.adminApp.sortDC('customer')">Customer</th>
+                                        <th class="text-center">Drg No</th>
+                                        <th class="text-center">Description</th>
+                                        <th class="text-right sortable" onclick="window.adminApp.sortDC('orderedQty')">Qty</th>
+                                        <th class="text-center">Unit</th>
+                                        <th class="text-right sortable" onclick="window.adminApp.sortDC('deliveredQty')">Del.</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dc-register-table-body">
+                                    <!-- Populated by JS -->
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
@@ -7609,12 +10107,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             <span id="pending-assignment-count" class="pa-count-badge">0 orders</span>
                         </div>
                         <div class="pa-header-right">
-                            <button class="pa-btn-generate" onclick="window.adminApp.generatePendingReport()">
+                            <button class="pa-btn-generate" onclick="window.adminApp.exportPendingToCSV()">
                                 <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                                 </svg>
-                                Generate Report
+                                Export CSV
                             </button>
                         </div>
                     </div>
@@ -7623,8 +10120,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="pa-filters">
                         <div class="pa-filter-group">
                             <label class="pa-filter-label">Department</label>
-                            <select id="pending-filter-department" class="pa-filter-select">
+                            <select id="pending-filter-department" class="pa-filter-select" onchange="window.adminApp.renderPendingAssignment()">
                                 <option value="">All Departments</option>
+                                <option value="Admin">Admin</option>
                                 <option value="Fab">Fab</option>
                                 <option value="CNC">CNC</option>
                                 <option value="VMC">VMC</option>
@@ -7634,28 +10132,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         <div class="pa-filter-group">
                             <label class="pa-filter-label">Assigned</label>
-                            <select id="pending-filter-assigned" class="pa-filter-select">
+                            <select id="pending-filter-assigned" class="pa-filter-select" onchange="window.adminApp.renderPendingAssignment()">
                                 <option value="">All</option>
                                 <option value="assigned">Assigned</option>
                                 <option value="unassigned">Unassigned</option>
                             </select>
                         </div>
-                        <div class="pa-filter-group">
-                            <label class="pa-filter-label">Priority</label>
-                            <select id="pending-filter-priority" class="pa-filter-select">
-                                <option value="">All</option>
-                                <option value="urgent">Urgent Only</option>
-                                <option value="normal">Normal Only</option>
-                            </select>
-                        </div>
-                        <div class="pa-filter-group" style="margin-left: auto;">
-                            <label class="pa-filter-label">Sort By</label>
-                            <select id="pending-sort-by" class="pa-filter-select">
-                                <option value="priority">Priority (Urgent First)</option>
-                                <option value="dueDate">Due Date (Earliest)</option>
-                                <option value="orderId">Order ID</option>
-                            </select>
-                        </div>
+
                     </div>
 
                     <!-- Modern Table Container -->
@@ -7664,21 +10147,29 @@ document.addEventListener('DOMContentLoaded', () => {
                             <table class="pa-table" id="pending-assignment-table">
                                 <thead>
                                     <tr>
-                                        <th style="width: 50px;">⚡</th>
-                                        <th>Order ID</th>
-                                        <th>Customer</th>
-                                        <th>Description</th>
-                                        <th class="text-center">Drg No</th>
-                                        <th style="width: 70px;">Qty</th>
+                                        <th style="width: 50px;">S.No</th>
+                                        <th class="cursor-pointer hover:bg-slate-50 transition-colors" onclick="window.adminApp.pendingSort('internalOrderNo')">In. Order No</th>
+                                        <th class="cursor-pointer hover:bg-slate-50 transition-colors" style="min-width: 90px;" onclick="window.adminApp.pendingSort('date')">IO Date</th>
+                                        <th class="text-center cursor-pointer hover:bg-slate-50 transition-colors" onclick="window.adminApp.pendingSort('drawingNo')">Drg No</th>
+                                        <th style="min-width: 200px;" class="cursor-pointer hover:bg-slate-50 transition-colors" onclick="window.adminApp.pendingSort('description')">Description</th>
+                                        <th style="width: 70px;" class="cursor-pointer hover:bg-slate-50 transition-colors" onclick="window.adminApp.pendingSort('qty')">Qty</th>
                                         <th style="width: 60px;">Unit</th>
-                                        <th style="width: 150px;">Due Date</th>
-                                        <th style="min-width: 220px;">Assigned To</th>
-                                        <th style="min-width: 200px;">Remarks</th>
+                                        <th class="cursor-pointer hover:bg-slate-50 transition-colors" onclick="window.adminApp.pendingSort('total')">Value</th>
+                                        <th class="cursor-pointer hover:bg-slate-50 transition-colors" onclick="window.adminApp.pendingSort('customer')">Customer</th>
+                                        <th class="cursor-pointer hover:bg-slate-50 transition-colors" onclick="window.adminApp.pendingSort('status')">Status</th>
+                                        <th style="min-width: 250px;">Update</th>
+                                        <th style="width: 90px;" class="cursor-pointer hover:bg-slate-50 transition-colors" onclick="window.adminApp.pendingSort('priorityNumber')">Priority</th>
+                                        <th style="min-width: 110px;" class="cursor-pointer hover:bg-slate-50 transition-colors" onclick="window.adminApp.pendingSort('department')">Department</th>
+                                        <th style="width: 120px;" class="cursor-pointer hover:bg-slate-50 transition-colors" onclick="window.adminApp.pendingSort('plannedDeliveryDate')">Planned Del. Date</th>
+                                        <th style="width: 120px;" class="cursor-pointer hover:bg-slate-50 transition-colors" onclick="window.adminApp.pendingSort('expectedDeliveryDate')">Delivery Date</th>
+                                        <th style="min-width: 250px;">Comments</th>
+                                        <th style="width: 110px;" class="cursor-pointer hover:bg-slate-50 transition-colors" onclick="window.adminApp.pendingSort('assignedDate')">Assigned Date</th>
+                                        <th style="min-width: 120px;">Assigned To</th>
                                     </tr>
                                 </thead>
                                 <tbody id="pending-assignment-body">
                                     <tr>
-                                        <td colspan="10" class="text-center py-8 text-slate-400">Loading pending
+                                        <td colspan="18" class="text-center py-8 text-slate-400">Loading pending
                                             orders...</td>
                                     </tr>
                                 </tbody>
@@ -7750,12 +10241,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 <!-- View: Inventory Management -->
                 <section id="view-inventory_management" class="view-section hidden">
                     <!-- Header Bar -->
-                    <div class="pm-header inventory-header">
-                        <div class="pm-header-title">
-                            <div style="display: flex; align-items: center; gap: 1rem;">
-                                <h2>📦 Inventory Management</h2>
-                                <span class="pm-header-badge inventory">Stock Control</span>
-                            </div>
+                    <div class="premium-emerald-header inventory-header">
+                        <div class="flex items-center gap-4">
+                            <h2>📦 Inventory Management</h2>
+                            <span class="pm-header-badge inventory">Stock Control</span>
                         </div>
                         <div class="pm-header-actions">
                             <!-- MASTER ACTIONS -->
@@ -7917,11 +10406,12 @@ document.addEventListener('DOMContentLoaded', () => {
                                         <th class="cr-emerald-bg">Reason</th>
                                         <th class="cr-emerald-bg">Order ID</th>
                                         <th class="cr-emerald-bg">By</th>
+                                        <th class="cr-emerald-bg text-center">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="inventory-ledger-body">
                                     <tr>
-                                        <td colspan="9" class="p-12 text-center text-slate-400">Loading ledger data...
+                                        <td colspan="11" class="p-12 text-center text-slate-400">Loading ledger data...
                                         </td>
                                     </tr>
                                 </tbody>
@@ -7951,6 +10441,12 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <input type="month" id="delivery-month-picker"
                                     class="text-sm bg-transparent border-none focus:outline-none text-slate-700 font-medium"
                                     title="Filter by Month">
+                                <div class="w-px h-4 bg-slate-200 mx-2"></div>
+                                <select id="delivery-company-filter"
+                                    class="text-sm bg-transparent border-none focus:outline-none text-slate-700 font-medium"
+                                    title="Filter by Company">
+                                    <option value="all">All Customers</option>
+                                </select>
                             </div>
                             <span id="delivery-week-range"
                                 class="text-sm text-slate-500 font-medium bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm hidden"></span>
@@ -8063,6 +10559,153 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </thead>
                                 <tbody id="delivery-report-body">
                                     <!-- Report rows will be injected here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- View: Daily Summary Report (Overheads, Production, Sales) -->
+                <section id="view-daily_summary_report" class="view-section hidden">
+                    <div class="flex items-center justify-between w-full bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6 no-print">
+                        <div class="flex items-center gap-4">
+                            <h2 class="text-xl font-extrabold text-slate-800 flex items-center gap-2">
+                                <span class="p-2 bg-emerald-100 text-emerald-600 rounded-lg">
+                                    <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                    </svg>
+                                </span>
+                                Daily Summary Report
+                            </h2>
+                            <div class="h-8 w-px bg-slate-200"></div>
+                            <div class="flex flex-wrap items-center gap-4">
+                                <div class="flex items-center gap-2">
+                                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Start Date</label>
+                                    <input type="date" id="summary-report-start-date" class="form-input text-xs py-1 px-2 border-slate-200 rounded-md">
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">End Date</label>
+                                    <input type="date" id="summary-report-end-date" class="form-input text-xs py-1 px-2 border-slate-200 rounded-md">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <button class="btn btn-secondary flex items-center gap-2" id="summary-export-btn">
+                                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                Export CSV
+                            </button>
+                            <button class="btn btn-primary flex items-center gap-2" id="summary-print-btn">
+                                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                </svg>
+                                Print Report
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Report Card/Container -->
+                    <div class="table-container no-print">
+                        <div class="table-wrapper">
+                            <table class="w-full text-sm" id="daily-summary-report-table">
+                                <thead class="sticky-header">
+                                    <tr class="bg-slate-800 text-white text-left border-b border-slate-700">
+                                        <th rowspan="2" class="p-4 font-bold border-r border-slate-700" style="width: 150px;">Date</th>
+                                        <th colspan="2" class="p-3 text-center font-bold bg-amber-900/50 border-r border-slate-700">Attendance</th>
+                                        <th colspan="2" class="p-3 text-center font-bold bg-slate-700/50 border-r border-slate-700">Overheads</th>
+                                        <th colspan="2" class="p-3 text-center font-bold bg-blue-900/50 border-r border-slate-700">Production</th>
+                                        <th colspan="2" class="p-3 text-center font-bold bg-emerald-900/50">Sales</th>
+                                    </tr>
+                                    <tr class="bg-slate-900 text-[10px] uppercase tracking-wider font-extrabold text-slate-400 border-b border-slate-700">
+                                        <th class="p-2 text-right">Today</th>
+                                        <th class="p-2 text-right border-r border-slate-700">Cumulative</th>
+                                        <th class="p-2 text-right">Today</th>
+                                        <th class="p-2 text-right border-r border-slate-700">Cumulative</th>
+                                        <th class="p-2 text-right">Today</th>
+                                        <th class="p-2 text-right border-r border-slate-700">Cumulative</th>
+                                        <th class="p-2 text-right">Today</th>
+                                        <th class="p-2 text-right">Cumulative</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="daily-summary-report-body" class="bg-white">
+                                    <!-- Populated by JS -->
+                                    <tr>
+                                        <td colspan="9" class="p-12 text-center text-slate-300 italic">Select a range to generate report</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- View: Project Progress Tracker -->
+                <section id="view-progress_tracker" class="view-section hidden">
+                    <!-- Professional Print-Only Header -->
+                    <div class="print-only hidden" style="margin-bottom: 2rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #1e293b; padding-bottom: 1rem;">
+                            <div>
+                                <h1 style="font-size: 1.5rem; font-weight: 800; color: #1e293b; margin: 0;">Project Progress Report</h1>
+                                <p style="font-size: 0.875rem; color: #64748b; margin: 0;">Innovative Engineering Solutions</p>
+                            </div>
+                            <div style="text-align: right;">
+                                <p style="font-size: 0.75rem; color: #64748b; margin: 0;">Date: <span id="print-current-date"></span></p>
+                                <p style="font-size: 0.75rem; color: #64748b; margin: 0;">Report Status: Live Tracking</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between w-full bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6 no-print">
+                        <div class="flex items-center gap-4">
+                            <h2 class="text-xl font-extrabold text-slate-800 flex items-center gap-2">
+                                <span class="p-2 bg-indigo-100 text-indigo-600 rounded-lg">
+                                    <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                                    </svg>
+                                </span>
+                                Project Progress Tracker
+                            </h2>
+                            <div class="h-8 w-px bg-slate-200"></div>
+                            <div class="flex items-center gap-2">
+                                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Customer Filter</label>
+                                <select id="tracker-customer-filter" class="form-input text-xs py-1 px-2 border-slate-200 rounded-md" onchange="window.adminApp.trackerFilterCustomer(this.value)">
+                                    <option value="">All Customers</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <button class="btn btn-primary flex items-center gap-2" onclick="window.adminApp.exportTrackerCSV()">
+                                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                Export CSV
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="table-container bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden" id="tracker-table-container">
+                        <div class="overflow-x-auto" style="max-height: calc(100vh - 200px);">
+                            <table class="w-full text-sm monitoring-table" id="progress-tracker-table">
+                                <thead class="sticky top-0 z-10 bg-slate-50 border-b border-slate-200 shadow-sm">
+                                    <tr class="text-left text-slate-500 font-bold uppercase text-[10px] tracking-wider">
+                                        <th class="p-3 border-r border-slate-200 w-12 text-center">S.No</th>
+                                        <th class="p-3 border-r border-slate-200 min-w-[120px] sortable cursor-pointer" data-sort="internalOrderNo" onclick="window.adminApp.trackerSort('internalOrderNo')">Internal Order No</th>
+                                        <th class="p-3 border-r border-slate-200 min-w-[200px]">Description</th>
+                                        <th class="p-3 border-r border-slate-200 min-w-[150px]">Module / Activity</th>
+                                        <th class="p-3 border-r border-slate-200 min-w-[150px]">Customer</th>
+                                        <th class="p-3 border-r border-slate-200 min-w-[150px]">Contact Person</th>
+                                        <th class="p-3 border-r border-slate-200 min-w-[120px]">PO Number</th>
+                                        <th class="p-3 border-r border-slate-200 min-w-[130px] sortable cursor-pointer" data-sort="deliveryDate" onclick="window.adminApp.trackerSort('deliveryDate')">Planned Delivery Date</th>
+                                        <th class="p-3 border-r border-slate-200 min-w-[100px]">% Completed</th>
+                                        <th class="p-3 border-r border-slate-200 min-w-[150px]">Status as of Today</th>
+                                        <th class="p-3 border-r border-slate-200 min-w-[150px]">Planned for Next Week</th>
+                                        <th class="p-3 border-r border-slate-200 min-w-[130px] sortable cursor-pointer" data-sort="expectedDeliveryDate" onclick="window.adminApp.trackerSort('expectedDeliveryDate')">Expected Delivery Date</th>
+                                        <th class="p-3 min-w-[200px]">Remarks</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="progress-tracker-body">
+                                    <tr><td colspan="12" class="p-8 text-center text-slate-400 italic">No pending orders found.</td></tr>
+                                </tbody>
                             </table>
                         </div>
                     </div>
@@ -8186,6 +10829,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <select id="project-type-filter" class="filter-input"
                                 onchange="window.adminApp.filterProjects()">
                                 <option value="all">All Types</option>
+                                <option value="Admin">Admin</option>
                                 <option value="CNC">CNC</option>
                                 <option value="VMC">VMC</option>
                                 <option value="Fabrication">Fabrication</option>
@@ -8234,26 +10878,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 <!-- View: Project Detail (Deep Dive Workspace) -->
                 <section id="view-project_detail" class="view-section hidden">
 
-                    <!-- Compact Header -->
+                    <!-- Premium Header -->
                     <div class="dd-header">
                         <div class="dd-header-left">
                             <button class="dd-back-btn" onclick="window.adminApp.switchView('project_management')">
-                                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
                                         d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                                 </svg>
                             </button>
-                            <div>
-                                <div style="display:flex;align-items:center;gap:0.5rem;">
+                            <div class="flex flex-col">
+                                <div class="flex items-center gap-3">
                                     <span id="detail-project-id" class="dd-project-id">IES-2026-00000</span>
                                     <div class="dd-status-container relative">
                                         <button id="detail-project-status"
                                             class="status-badge draft flex items-center gap-1 group"
                                             onclick="window.adminApp.toggleStatusMenu(event)">
                                             <span>Draft</span>
-                                            <svg class="w-3 h-3 opacity-50 group-hover:opacity-100 transition-opacity"
+                                            <svg class="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 transition-opacity"
                                                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
                                                     d="M19 9l-7 7-7-7"></path>
                                             </svg>
                                         </button>
@@ -8285,7 +10929,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                         </div>
                         <div class="dd-header-right">
-                            <!-- Legacy buttons removed -->
+                            <div id="dd-header-stats" class="flex gap-4">
+                                <!-- Dynamic stats can go here -->
+                            </div>
                         </div>
                     </div>
 
@@ -8300,6 +10946,14 @@ document.addEventListener('DOMContentLoaded', () => {
                                     d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                             </svg>
                             Contract Review
+                        </button>
+                        <button class="dd-tab" onclick="window.adminApp.switchDeepDiveTab('costing')"
+                            data-tab="costing">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Costing
                         </button>
                         <button class="dd-tab" onclick="window.adminApp.switchDeepDiveTab('files')" data-tab="files">
                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -8778,6 +11432,72 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                         </div>
                     </div>
+                    <!-- Panel: Costing -->
+                    <div id="dd-panel-costing" class="dd-panel">
+                        <div class="flex flex-col gap-6 p-2">
+                            <div class="grid grid-cols-4 gap-4">
+                                <!-- Production Value Card -->
+                                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                                        Total Production Value</div>
+                                    <div class="text-2xl font-bold text-slate-800" id="costing-total-prod">₹0</div>
+                                    <div class="text-[10px] text-emerald-500 font-medium mt-1">Cumulative Value</div>
+                                </div>
+                                <!-- Overhead Cost Card -->
+                                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                                        Total Overheads</div>
+                                    <div class="text-2xl font-bold text-slate-800" id="costing-total-overhead">₹0</div>
+                                    <div class="text-[10px] text-red-400 font-medium mt-1">Emp. Overheads</div>
+                                </div>
+                                <!-- Extra Costs Card -->
+                                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                                        Extra Costs</div>
+                                    <div class="text-2xl font-bold text-slate-800" id="costing-total-extra">₹0</div>
+                                    <div class="text-[10px] text-amber-500 font-medium mt-1">Food/Trans/Misc</div>
+                                </div>
+                                <!-- Margin Card -->
+                                <div
+                                    class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm highlight-emerald">
+                                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                                        Project Margin</div>
+                                    <div class="text-2xl font-bold text-emerald-700" id="costing-total-margin">₹0</div>
+                                    <div class="text-[10px] text-emerald-600 font-medium mt-1">Est. Contribution</div>
+                                </div>
+                            </div>
+
+                            <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                                <div
+                                    class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                    <h4 class="font-bold text-slate-800 text-sm">Costing History (Daily Roster)</h4>
+                                    <div class="text-[10px] font-medium text-slate-500 italic">Data pulled from daily
+                                        assignments</div>
+                                </div>
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-sm">
+                                        <thead>
+                                            <tr
+                                                class="text-left bg-slate-50 text-slate-400 font-bold uppercase text-[10px]">
+                                                <th class="p-3 border-b border-slate-100">Date</th>
+                                                <th class="p-3 border-b border-slate-100">Dept</th>
+                                                <th class="p-3 border-b border-slate-100">Employee / Role</th>
+                                                <th class="p-3 border-b border-slate-100 text-right">Total Overhead</th>
+                                                <th class="p-3 border-b border-slate-100 text-right">Prod. Value</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="project-costing-body">
+                                            <tr>
+                                                <td colspan="6" class="p-8 text-center text-slate-400 italic">No costing
+                                                    data found for this project.</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Panel: Files -->
                     <div id="dd-panel-files" class="dd-panel">
                         <input type="file" id="project-file-input" style="display:none;"
@@ -8823,6 +11543,9 @@ document.addEventListener('DOMContentLoaded', () => {
                      VIEW: Daily Roster
                      ============================================ -->
                 <section id="view-daily_roster" class="view-section hidden">
+                    <!-- Lock Status Banner -->
+                    <div id="wf-lock-banner" class="mb-4 hidden"></div>
+
                     <!-- Header Bar -->
                     <div class="wf-header">
                         <div class="wf-header-left">
@@ -8843,6 +11566,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     <label class="wf-label">Department</label>
                                     <select id="wf-dept-filter" class="form-input wf-dept-select">
                                         <option value="All">All Departments</option>
+                                        <option value="Admin">Admin</option>
                                         <option value="Fab">Fab</option>
                                         <option value="CNC">CNC</option>
                                         <option value="VMC">VMC</option>
@@ -8853,7 +11577,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                         </div>
                         <div class="wf-header-right">
-                            <button class="btn wf-btn-copy" onclick="window.adminApp.wfCopyPreviousDay()"
+                            <button id="copy-prev-btn" class="btn wf-btn-copy" onclick="window.adminApp.wfCopyPreviousDay()"
                                 title="Copy Previous Day">
                                 <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -8861,14 +11585,14 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </svg>
                                 Copy Prev Day
                             </button>
-                            <button class="btn wf-btn-add" onclick="window.adminApp.wfOpenAssignModal()">
+                            <button id="add-assignment-btn" class="btn wf-btn-add" onclick="window.adminApp.wfOpenAssignModal()">
                                 <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                         d="M12 4v16m8-8H4" />
                                 </svg>
                                 Add Assignment
                             </button>
-                            <button class="btn wf-btn-save" onclick="window.adminApp.wfSaveAll()">
+                            <button id="save-all-btn" class="btn wf-btn-save" onclick="window.adminApp.wfSaveAll()">
                                 <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                         d="M5 13l4 4L19 7" />
@@ -8882,55 +11606,129 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </svg>
                                 Print
                             </button>
+                            <button id="delete-all-btn" class="btn wf-btn-delete" onclick="window.adminApp.wfDeleteRoster()"
+                                style="border-color: #ef4444; color: #ef4444; background: #fef2f2; font-weight: 700;">
+                                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                Delete Data
+                            </button>
                         </div>
                     </div>
 
-                    <!-- Unassigned Orders Alert -->
-                    <div id="wf-unassigned-alert" class="wf-alert hidden">
-                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <span id="wf-unassigned-count">0 pending orders</span> not yet assigned today
+                    <!-- Tab Navigation -->
+                    <div class="wf-tabs-nav" style="display: flex; gap: 4px; margin: 1.5rem 0 1rem; border-bottom: 2px solid #e2e8f0; padding-bottom: 0;">
+                        <button id="wf-tab-btn-assignments" class="wf-tab-btn active" onclick="window.adminApp.wfSwitchTab('assignments')" 
+                            style="padding: 10px 24px; font-weight: 700; font-size: 0.85rem; border: none; background: transparent; color: #0d9488; border-bottom: 3px solid #0d9488; cursor: pointer; transition: all 0.2s;">
+                            Assignments
+                        </button>
+                        <button id="wf-tab-btn-attendance" class="wf-tab-btn" onclick="window.adminApp.wfSwitchTab('attendance')" 
+                            style="padding: 10px 24px; font-weight: 700; font-size: 0.85rem; border: none; background: transparent; color: #64748b; border-bottom: 3px solid transparent; cursor: pointer; transition: all 0.2s;">
+                            Attendance
+                        </button>
                     </div>
 
-                    <!-- Roster Table -->
-                    <div class="wf-table-wrap">
-                        <table class="wf-table" id="wf-roster-table">
-                            <thead>
-                                <tr>
-                                    <th style="width:3%" class="text-center">#</th>
-                                    <th style="width:15%">Employee & Timing</th>
-                                    <th style="width:7%" class="text-center">IO No</th>
-                                    <th style="width:7%" class="text-center">Drawing</th>
-                                    <th style="width:12%">Description</th>
-                                    <th style="width:8%">Customer</th>
-                                    <th style="width:5%" class="text-center">Qty</th>
-                                    <th style="width:7%" class="text-right">Prod. Value</th>
-                                    <th style="width:8%" class="text-right">Total Overhead</th>
-                                    <th style="width:4%" class="text-center">MP</th>
-                                    <th style="width:8%">Assigned With</th>
-                                    <th style="width:8%" class="text-center">Work Duration</th>
-                                    <th style="width:5%" class="text-center">Status</th>
-                                    <th style="width:3%" class="text-center">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="wf-roster-body">
-                                <tr class="wf-empty-row">
-                                    <td colspan="14" style="text-align:center; padding:2.5rem; color:#94a3b8;">No
-                                        assignments for this date. Click <strong>"Add Assignment"</strong> to get
-                                        started.</td>
-                                </tr>
-                            </tbody>
-                        </table>
+                    <div id="wf-tab-content-assignments" class="wf-tab-pane">
+                        <!-- Unassigned Orders Alert -->
+                        <div id="wf-unassigned-alert" class="wf-alert hidden">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span id="wf-unassigned-count">0 pending orders</span> not yet assigned today
+                        </div>
+
+                        <!-- Roster Table -->
+                        <div class="wf-table-wrap">
+                            <table class="wf-table" id="wf-roster-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width:3%" class="text-center">#</th>
+                                        <th style="width:15%">Employee & Timing</th>
+                                        <th style="width:7%" class="text-center">IO No</th>
+                                        <th style="width:7%" class="text-center">Drawing</th>
+                                        <th style="width:12%">Description</th>
+                                        <th style="width:8%">Customer</th>
+                                        <th style="width:5%" class="text-center">Qty</th>
+                                        <th style="width:7%" class="text-right">Prod. Value</th>
+                                        <th style="width:8%" class="text-right">Total Overhead</th>
+                                        <th style="width:4%" class="text-center">DEPARTMENT</th>
+                                        <th style="width:8%">Assigned With</th>
+                                        <th style="width:8%" class="text-center">Work Duration</th>
+                                        <th style="width:5%" class="text-center">Status</th>
+                                        <th style="width:3%" class="text-center">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="wf-roster-body">
+                                    <tr class="wf-empty-row">
+                                        <td colspan="14" style="text-align:center; padding:2.5rem; color:#94a3b8;">No
+                                            assignments for this date. Click <strong>"Add Assignment"</strong> to get
+                                            started.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Supervisor Notes (Moved here from outside) -->
+                        <div class="wf-notes-section" style="margin-top: 1.5rem; padding: 1rem; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0;">
+                            <label class="wf-notes-label" style="font-weight: 800; color: #1e293b; margin-bottom: 0.5rem; display: block;">Supervisor Notes</label>
+                            <textarea id="wf-supervisor-notes" class="wf-notes-input" rows="2"
+                                style="width: 100%; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0.75rem;"
+                                placeholder="General notes for today's roster (e.g., Machine 3 under maintenance)..."></textarea>
+                        </div>
                     </div>
 
-                    <!-- Supervisor Notes -->
-                    <div class="wf-notes-section">
-                        <label class="wf-notes-label">Supervisor Notes</label>
-                        <textarea id="wf-supervisor-notes" class="wf-notes-input" rows="2"
-                            placeholder="General notes for today's roster (e.g., Machine 3 under maintenance)..."></textarea>
+                    <div id="wf-tab-content-attendance" class="wf-tab-pane hidden">
+                        <!-- Daily Attendance Section (Card-based UI) -->
+                        <div class="wf-attendance-card" style="background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); overflow: hidden;">
+                            <div class="p-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                                <div class="flex items-center gap-3">
+                                    <div style="background: #0d9488; color: white; padding: 8px; border-radius: 10px;">
+                                        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h3 style="font-size: 1.1rem; font-weight: 800; color: #1e293b; margin: 0;">Daily Attendance & Shopfloor Overheads</h3>
+                                        <p style="font-size: 0.75rem; color: #64748b; margin: 0;">Mark presence and shift type to calculate daily costs</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-4 bg-white px-4 py-2 rounded-xl border border-emerald-100 shadow-sm" style="position: relative;">
+                                    <span id="wf-attendance-save-status" style="position: absolute; top: -16px; right: 10px; font-size: 0.6rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; transition: all 0.3s opacity; pointer-events: none;"></span>
+                                    <span style="font-size: 0.7rem; font-weight: 700; color: #059669; text-transform: uppercase; letter-spacing: 0.05em;">Total Daily Overheads</span>
+                                    <span id="wf-attendance-total" style="font-size: 1.25rem; font-weight: 800; color: #059669; font-family: 'JetBrains Mono', monospace;">₹0</span>
+                                    
+                                    <button class="btn" onclick="window.adminApp.wfOpenReportModal()"
+                                        style="background: #ecfdf5; color: #059669; border: 1px solid #10b981; font-weight: 700; font-size: 0.75rem; padding: 4px 12px; height: auto; display: flex; align-items: center; gap: 6px; border-radius: 8px; margin-left: auto;">
+                                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                        </svg>
+                                        Report
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="wf-table-wrap" style="margin: 0; border: none; border-radius: 0;">
+                                <table class="wf-table" id="wf-attendance-table">
+                                    <thead>
+                                        <tr style="background: #f8fafc;">
+                                            <th style="width:5%" class="text-center">#</th>
+                                            <th style="width:30%">Employee Details</th>
+                                            <th style="width:25%" class="text-center">Attendance & Shift</th>
+                                            <th style="width:20%" class="text-center">Work Timing</th>
+                                            <th style="width:20%" class="text-right">Daily Cost (₹)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="wf-attendance-body" style="background: white;">
+                                        <!-- Populated by JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
+
                 </section>
 
             </main>
@@ -9016,6 +11814,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                         <label class="form-label">Department</label>
                                         <select name="department" class="form-input">
                                             <option value="">Select Dept</option>
+                                            <option value="Admin" selected>Admin</option>
                                             <option value="Fab">Fab</option>
                                             <option value="CNC">CNC</option>
                                             <option value="VMC">VMC</option>
@@ -9070,13 +11869,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     <!-- RIGHT COLUMN -->
                     <div class="modal-col-right">
-                        <!-- Customer & Checks -->
+                        <!-- Customer Details -->
                         <div class="w-full">
-                            <div class="inline-section-label">Customer Details</div>
+                            <div class="inline-section-label">
+                                <span>Customer Details</span>
+                            </div>
                             <div class="modal-list-view">
-                                <div class="form-group">
-                                    <label class="form-label">Customer</label>
-                                    <input type="text" name="customer" class="form-input" placeholder="Customer Name">
+                                <div class="list-row list-row-2col">
+                                    <div class="form-group">
+                                        <label class="form-label">Customer</label>
+                                        <input type="text" name="customer" class="form-input" placeholder="Customer Name">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Bill No</label>
+                                        <input type="text" name="billNo" class="form-input" placeholder="Bill / Invoice #">
+                                    </div>
                                 </div>
                                 <div class="list-row list-row-2col">
                                     <div class="form-group">
@@ -9089,44 +11896,71 @@ document.addEventListener('DOMContentLoaded', () => {
                                     </div>
                                 </div>
                             </div>
-
                         </div>
 
-                        <!-- Delivery & Billing -->
-                        <div class="w-full">
-                            <div class="inline-section-label">Delivery & Billing</div>
-                            <div class="modal-list-view">
-                                <div class="list-row list-row-2col">
-                                    <div class="form-group">
-                                        <label class="form-label">Del. Date</label>
-                                        <input type="date" name="deliveryDateActual" class="form-input">
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Del. Qty</label>
-                                        <input type="number" name="deliveryQty" class="form-input" min="0">
-                                    </div>
+                        <!-- Delivery History Breakdown (Relocated & Compact) -->
+                        <div class="w-full" style="margin-top: 0.5rem;">
+                            <div class="inline-section-label">Delivery History</div>
+                            <div
+                                style="max-height: 200px; overflow-y: auto; background: #fff; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);">
+                                <table style="width: 100%; border-collapse: collapse; font-size: 0.75rem;">
+                                    <thead style="position: sticky; top: 0; background: #f8fafc; z-index: 1;">
+                                        <tr>
+                                            <th
+                                                style="padding: 8px 10px; text-align: left; color: #64748b; font-weight: 700; font-size: 9px; text-transform: uppercase; border-bottom: 2px solid #f1f5f9;">
+                                                DC No</th>
+                                            <th
+                                                style="padding: 8px 10px; text-align: left; color: #64748b; font-weight: 700; font-size: 9px; text-transform: uppercase; border-bottom: 2px solid #f1f5f9;">
+                                                Date</th>
+                                            <th
+                                                style="padding: 8px 10px; text-align: right; color: #64748b; font-weight: 700; font-size: 9px; text-transform: uppercase; border-bottom: 2px solid #f1f5f9;">
+                                                Qty</th>
+                                            <th
+                                                style="padding: 8px 12px; text-align: right; color: #64748b; font-weight: 700; font-size: 9px; text-transform: uppercase; border-bottom: 2px solid #f1f5f9;">
+                                                Value (₹)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="io-delivery-breakdown-body">
+                                        <!-- Populated via JS -->
+                                        <tr>
+                                            <td colspan="4"
+                                                style="padding: 1.5rem 1rem; text-align: center; color: #94a3b8; font-style: italic; background: #f8fafc;">
+                                                No deliveries.</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- Delivery Summary Stats -->
+                            <div class="delivery-summary-box"
+                                style="margin-top: 0.75rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; padding: 0.75rem; display: flex; flex-direction: column; gap: 0.5rem;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-size: 0.75rem; color: #64748b; font-weight: 600;">Total
+                                        Delivered</span>
+                                    <span id="io-total-delivered"
+                                        style="font-size: 0.85rem; color: #0f172a; font-weight: 700;">0</span>
                                 </div>
-                                <div class="list-row list-row-2col">
-                                    <div class="form-group">
-                                        <label class="form-label">DC No</label>
-                                        <input type="text" name="dcNo" class="form-input" placeholder="DC #">
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Bill No</label>
-                                        <input type="text" name="billNo" class="form-input" placeholder="Invoice #">
-                                    </div>
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-size: 0.75rem; color: #64748b; font-weight: 600;">Pending
+                                        Quantity</span>
+                                    <span id="io-pending-qty"
+                                        style="font-size: 0.85rem; color: #0f172a; font-weight: 700;">0</span>
                                 </div>
-                                <div class="list-row">
-                                    <div class="form-group">
-                                        <label class="form-label">Status</label>
-                                        <input type="text" class="form-input" value="🟡 Pending" readonly
-                                            style="background:#f8fafc; cursor:default; color:#94a3b8; font-weight:600;"
-                                            id="order-status-display">
-                                        <input type="hidden" name="status" value="Pending">
-                                    </div>
+                                <div
+                                    style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed #cbd5e1; padding-top: 0.4rem; margin-top: 0.1rem;">
+                                    <span style="font-size: 0.75rem; color: #64748b; font-weight: 600;">Current
+                                        Status</span>
+                                    <span id="io-derived-status" class="status-badge status-pending"
+                                        style="font-size: 10px; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; font-weight: 700;">Pending</span>
                                 </div>
                             </div>
                         </div>
+
+                        <!-- Hidden Summary Fields for Persistence -->
+                        <input type="hidden" name="deliveryDateActual">
+                        <input type="hidden" name="deliveryQty">
+                        <input type="hidden" name="dcNo">
+                        <input type="hidden" name="status" value="Pending">
 
                         <!-- Availability Checks -->
                         <div class="avail-checks">
@@ -9155,6 +11989,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
 
                     <input type="hidden" id="orderId-input" name="orderId">
+
                 </div>
 
                 <div class="modal-footer" style="border-top: 1px solid #e2e8f0; margin-top: 0; padding-top: 1.5rem;">
@@ -9191,6 +12026,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <form id="add-delivery-form" onsubmit="event.preventDefault(); window.adminApp.submitDeliveryForm()">
                 <div class="modal-body compact modal-2col-layout">
                     <input type="hidden" id="delivery-orderId-input" name="orderId">
+                    <input type="hidden" id="delivery-prodValue-input" name="prodValueEa" value="0">
 
                     <!-- LEFT COLUMN -->
                     <div class="modal-col-left">
@@ -9228,10 +12064,14 @@ document.addEventListener('DOMContentLoaded', () => {
                                             placeholder="Customer Name">
                                     </div>
                                 </div>
-                                <div class="list-row">
+                                <div class="list-row list-row-2col">
                                     <div class="form-group">
                                         <label class="form-label">Drawing No</label>
                                         <input type="text" name="drawingNo" class="form-input" placeholder="Drg No">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Bill No</label>
+                                        <input type="text" name="billNo" class="form-input" placeholder="Bill / Invoice #">
                                     </div>
                                 </div>
                                 <div class="list-row">
@@ -9253,10 +12093,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div class="modal-list-view">
                                 <div class="list-row list-row-3col">
                                     <div class="form-group">
-                                        <label class="form-label">Quantity</label>
-                                        <input type="number" name="qty" class="form-input" min="0" id="del-qty">
-                                    </div>
-                                    <div class="form-group">
                                         <label class="form-label">Unit</label>
                                         <input type="text" name="qtyUnit" class="form-input" value="Nos"
                                             list="unit-suggestions-del" placeholder="e.g. Nos, Kgs">
@@ -9270,20 +12106,53 @@ document.addEventListener('DOMContentLoaded', () => {
                                         </datalist>
                                     </div>
                                     <div class="form-group">
-                                        <label class="form-label">DC No</label>
-                                        <input type="text" name="dcNo" class="form-input" placeholder="DC Number">
-                                    </div>
-                                </div>
-                                <div class="list-row list-row-2col">
-                                    <div class="form-group">
-                                        <label class="form-label">Delivery Value</label>
-                                        <input type="number" name="total" class="form-input" min="0" step="0.01"
-                                            id="del-total" placeholder="Total Value">
-                                    </div>
-                                    <div class="form-group">
                                         <label class="form-label">Labour Cost</label>
                                         <input type="number" name="labourCost" class="form-input" min="0"
                                             placeholder="Cost">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Manpower</label>
+                                        <input type="number" name="manpower" class="form-input" min="0"
+                                            placeholder="Daily Value (₹)">
+                                    </div>
+                                </div>
+
+                                <!-- Dynamic DC Table Section -->
+                                <div class="dc-section-container" style="margin-top: 1rem;">
+                                    <div
+                                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; padding: 0 0.5rem;">
+                                        <span
+                                            style="font-size: 0.7rem; font-weight: 800; color: #6b21a8; text-transform: uppercase; letter-spacing: 0.05em;">DC
+                                            Breakdown</span>
+                                        <button type="button" class="btn btn-purple"
+                                            style="padding: 2px 8px; font-size: 0.75rem; height: 24px;"
+                                            onclick="window.adminApp.addDCRow()">+ Add DC</button>
+                                    </div>
+                                    <div class="dc-table-wrapper"
+                                        style="background: white; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;">
+                                        <table class="dc-dynamic-table"
+                                            style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
+                                            <thead style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                                                <tr>
+                                                    <th
+                                                        style="padding: 6px; text-align: left; font-weight: 700; color: #475569; width: 25%;">
+                                                        DC No</th>
+                                                    <th
+                                                        style="padding: 6px; text-align: left; font-weight: 700; color: #475569; width: 25%;">
+                                                        DC Date</th>
+                                                    <th
+                                                        style="padding: 6px; text-align: right; font-weight: 700; color: #475569; width: 20%;">
+                                                        Qty</th>
+                                                    <th
+                                                        style="padding: 6px; text-align: right; font-weight: 700; color: #475569; width: 20%;">
+                                                        Value (₹)</th>
+                                                    <th style="padding: 6px; text-align: center; width: 10%;"></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="dc-rows-container">
+                                                <!-- Rows will be injected here -->
+                                            </tbody>
+                                        </table>
                                     </div>
                                 </div>
                             </div>
@@ -9291,24 +12160,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         <!-- Section: Department -->
                         <div class="w-full">
-                            <div class="inline-section-label purple-theme">Department & Manpower</div>
+                            <div class="inline-section-label purple-theme">Department</div>
                             <div class="modal-list-view">
-                                <div class="list-row list-row-2col">
+                                <div class="list-row">
                                     <div class="form-group">
                                         <label class="form-label">Department</label>
                                         <select name="department" class="form-input">
                                             <option value="">Select Dept</option>
+                                            <option value="Admin">Admin</option>
                                             <option value="Fab">Fab</option>
                                             <option value="CNC">CNC</option>
                                             <option value="VMC">VMC</option>
                                             <option value="Turning">Turning</option>
                                             <option value="Assembly">Assembly</option>
                                         </select>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Manpower</label>
-                                        <input type="number" name="manpower" class="form-input" min="0"
-                                            placeholder="Daily Value (₹)">
                                     </div>
                                 </div>
                             </div>
@@ -9482,6 +12347,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <div class="form-group">
                                     <label class="form-label">Job Type</label>
                                     <select name="jobType" class="form-input">
+                                        <option value="Admin">Admin</option>
                                         <option value="CNC">CNC</option>
                                         <option value="VMC">VMC</option>
                                         <option value="Fabrication">Fabrication</option>
@@ -9721,7 +12587,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-2 gap-4">
+                        <div class="inv-stock-fields">
                             <div class="form-group">
                                 <label class="form-label"
                                     style="font-size: 0.7rem; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; display: block; text-align: center;">Initial
@@ -9730,17 +12596,17 @@ document.addEventListener('DOMContentLoaded', () => {
                                     style="height: 48px; border-radius: 10px; text-align: center; font-weight: 700;"
                                     value="0" min="0">
                             </div>
-                            <div class="form-group">
-                                <label class="form-label"
-                                    style="font-size: 0.7rem; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; display: block; text-align: center;">Min
-                                    level (Alert)</label>
-                                <input type="number" name="minimumLevel" class="form-input"
-                                    style="height: 48px; border-radius: 10px; text-align: center; font-weight: 700; color: #ef4444;"
-                                    value="5" min="0">
-                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label"
+                                style="font-size: 0.7rem; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; display: block; text-align: center;">Min
+                                level (Alert)</label>
+                            <input type="number" name="minimumLevel" class="form-input"
+                                style="height: 48px; border-radius: 10px; text-align: center; font-weight: 700; color: #ef4444;"
+                                value="5" min="0">
                         </div>
 
-                        <div class="form-group">
+                        <div class="form-group inv-order-field">
                             <label class="form-label"
                                 style="font-size: 0.7rem; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; display: block; text-align: center;">Initially
                                 Link to Order ID</label>
@@ -9928,9 +12794,177 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
     </div>
 
+    <!-- Modal: Force Close Options -->
+    <div id="force-close-modal" class="modal hidden">
+        <div class="modal-backdrop" onclick="window.adminApp.closeModal('force-close-modal')"></div>
+        <div class="modal-content" style="max-width: 450px;">
+            <div class="modal-header">
+                <h3 class="text-xl font-bold text-slate-800">Force Close Order</h3>
+                <button class="modal-close" onclick="window.adminApp.closeModal('force-close-modal')">×</button>
+            </div>
+            <div class="modal-body p-6 text-center">
+                <div class="w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg width="32" height="32" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                    </svg>
+                </div>
+                <p class="text-slate-600 mb-6">Password verified. How would you like to close this order?</p>
+                <div class="flex flex-col gap-3">
+                    <textarea id="force-close-comment" class="form-input mb-4" placeholder="Add closing comments (Optional)"></textarea>
+                    <button id="force-delivered-btn" class="btn btn-success w-full py-3 flex items-center justify-center gap-2">
+                        <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        Mark as Delivered
+                    </button>
+                    <button id="force-admin-close-btn" class="btn btn-secondary w-full py-3 flex items-center justify-center gap-2">
+                        <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        Mark Closed by Admin
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Attendance Report -->
+    <div id="attendance-report-modal" class="modal hidden">
+        <div class="modal-backdrop" onclick="window.adminApp.closeModal('attendance-report-modal')"></div>
+        <div class="modal-content modal-wide" style="max-width: 900px;">
+            <div class="modal-header">
+                <h3 class="modal-title">Attendance & Overheads Report</h3>
+                <button class="modal-close" onclick="window.adminApp.closeModal('attendance-report-modal')">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body p-6">
+                <!-- Date Range Selectors -->
+                <div class="flex gap-4 mb-6 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                    <div class="form-group flex-1">
+                        <label class="form-label" style="font-size: 0.75rem; font-weight: 700;">Start Date</label>
+                        <input type="date" id="wf-report-start" class="form-input">
+                    </div>
+                    <div class="form-group flex-1">
+                        <label class="form-label" style="font-size: 0.75rem; font-weight: 700;">End Date</label>
+                        <input type="date" id="wf-report-end" class="form-input">
+                    </div>
+                    <div class="flex items-end">
+                        <button class="btn btn-primary" onclick="window.adminApp.wfGenerateReport()" style="height: 44px; padding: 0 1.5rem;">Generate Report</button>
+                    </div>
+                </div>
+
+                <!-- Report Content Container -->
+                <div id="attendance-report-container" class="hidden">
+                    <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-100">
+                        <h4 class="font-bold text-slate-800">Report Preview</h4>
+                        <div class="flex gap-2">
+                            <button class="btn btn-secondary btn-sm" onclick="window.adminApp.wfExportCSV()">CSV</button>
+                            <button class="btn btn-secondary btn-sm" onclick="window.print()">Print</button>
+                        </div>
+                    </div>
+                    
+                    <div class="table-container" style="max-height: 50vh; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px;">
+                        <table class="monitoring-table w-full">
+                            <thead>
+                                <tr style="background: #f1f5f9; position: sticky; top: 0; z-index: 10;">
+                                    <th class="p-3 text-left">Date</th>
+                                    <th class="p-3 text-left">Employee</th>
+                                    <th class="p-3 text-left">Dept</th>
+                                    <th class="p-3 text-center">Status</th>
+                                    <th class="p-3 text-right">Base Overhead (₹)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="attendance-report-body">
+                                <!-- Data rows -->
+                            </tbody>
+                            <tfoot>
+                                <tr class="bg-slate-100 font-bold" style="background: #f1f5f9; position: sticky; bottom: 0; z-index: 10;">
+                                    <td colspan="4" class="p-3 text-right">Total Period Overheads:</td>
+                                    <td id="attendance-report-total" class="p-3 text-right text-emerald-700">₹0</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+                
+                <div id="attendance-report-empty" class="p-12 text-center text-slate-400">
+                    Select a date range and click "Generate Report"
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Application Script -->
 
-    <script type="module" src="assets/admin/js/app.js?v=12"></script>
+    <script type="module" src="assets/admin/js/app.js?v=17"></script>
+
+    <!-- Mobile Sidebar Toggle Script -->
+    <script>
+        (function () {
+            const menuBtn = document.getElementById('mobile-menu-btn');
+            const sidebar = document.getElementById('sidebar');
+            const backdrop = document.getElementById('sidebar-backdrop');
+
+            function openSidebar() {
+                sidebar.classList.add('open');
+                backdrop.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+
+            function closeSidebar() {
+                sidebar.classList.remove('open');
+                backdrop.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+
+            function toggleSidebar() {
+                if (sidebar.classList.contains('open')) {
+                    closeSidebar();
+                } else {
+                    openSidebar();
+                }
+            }
+
+            if (menuBtn) {
+                menuBtn.addEventListener('click', toggleSidebar);
+            }
+
+            if (backdrop) {
+                backdrop.addEventListener('click', closeSidebar);
+            }
+
+            // Auto-close sidebar when a nav link is clicked on mobile
+            document.querySelectorAll('#sidebar .nav-link').forEach(function (link) {
+                link.addEventListener('click', function () {
+                    if (window.innerWidth <= 768) {
+                        closeSidebar();
+                    }
+                });
+            });
+
+            // Close sidebar on window resize if going above mobile breakpoint
+            window.addEventListener('resize', function () {
+                if (window.innerWidth > 768) {
+                    closeSidebar();
+                }
+            });
+        })();
+
+        // Register Service Worker for PWA Installation
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('sw.js?v=2').then(function(registration) {
+                    registration.update();
+                    console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                }, function(err) {
+                    console.log('ServiceWorker registration failed: ', err);
+                });
+            });
+        }
+    </script>
 
 </body>
 

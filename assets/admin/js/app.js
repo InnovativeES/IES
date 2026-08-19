@@ -2519,6 +2519,7 @@ window.adminApp = {
             setVal('customer', existingOrder.customer);
             setVal('description', existingOrder.description);
             setVal('drawingNo', existingOrder.drawingNo);
+            setVal('billNo', existingOrder.billNo || '');
             setVal('department', existingOrder.department);
             setVal('labourCost', existingOrder.labourCost || 0);
             setVal('manpower', existingOrder.manpower || '');
@@ -2560,13 +2561,13 @@ window.adminApp = {
         const tr = document.createElement('tr');
         tr.className = 'dc-row';
         tr.innerHTML = `
-            <td style="padding: 4px;"><input type="text" name="dcNo_row" class="form-input" placeholder="DC #" value="${dcNo}"></td>
-            <td style="padding: 4px;"><input type="date" name="dcDate_row" class="form-input" value="${dateVal}"></td>
-            <td style="padding: 4px;"><input type="number" name="dcQty_row" class="form-input" style="text-align: right;" min="0" value="${qty}"></td>
-            <td style="padding: 4px;"><input type="number" name="dcVal_row" class="form-input" style="text-align: right;" min="0" step="0.01" value="${value}" placeholder="₹"></td>
+            <td style="padding: 4px;"><input type="text" name="dcNo_row" class="form-input text-xs" style="padding: 4px 6px;" value="${dcNo}" placeholder="DC #"></td>
+            <td style="padding: 4px;"><input type="date" name="dcDate_row" class="form-input text-xs" style="padding: 4px 6px;" value="${dateVal}"></td>
+            <td style="padding: 4px;"><input type="number" name="dcQty_row" class="form-input text-xs text-right" style="padding: 4px 6px;" value="${qty}" placeholder="0" oninput="window.adminApp.calculateDCRowVal(this)"></td>
+            <td style="padding: 4px;"><input type="number" name="dcVal_row" class="form-input text-xs text-right" style="padding: 4px 6px;" value="${value}" placeholder="₹0"></td>
             <td style="padding: 4px; text-align: center;">
-                <button type="button" class="action-btn delete" onclick="window.adminApp.removeDCRow(this)" title="Remove Row">
-                    <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                <button type="button" class="text-rose-500 hover:text-rose-700" onclick="this.closest('tr').remove()" title="Remove Row">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
             </td>
         `;
@@ -2622,6 +2623,7 @@ window.adminApp = {
         setVal('customer', order.customer);
         setVal('description', order.description);
         setVal('drawingNo', order.drawingNo);
+        if (order.billNo) setVal('billNo', order.billNo);
         setVal('qtyUnit', order.qtyUnit);
         setVal('department', order.department);
 
@@ -2679,6 +2681,7 @@ window.adminApp = {
             date: formData.get('date'),
             customer: formData.get('customer'),
             drawingNo: formData.get('drawingNo') || '',
+            billNo: formData.get('billNo')?.trim() || '',
             description: formData.get('description') || '',
             internalOrderNo: formData.get('internalOrderNo')?.trim() || '',
             department: formData.get('department') || '',

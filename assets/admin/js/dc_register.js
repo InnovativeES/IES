@@ -73,7 +73,7 @@ export const buildDCDataset = (orders = []) => {
         const customer = d.customer || (matchedBase ? matchedBase.customer : '-') || '-';
         const drgNo = d.drawingNo || d.itemCode || (matchedBase ? (matchedBase.drawingNo || matchedBase.itemCode) : '') || '-';
         const description = d.description || (matchedBase ? matchedBase.description : '') || '-';
-        const billNo = d.billNo || (matchedBase ? matchedBase.billNo : '') || '-';
+        const billNo = (matchedBase && matchedBase.billNo ? matchedBase.billNo : d.billNo) || '-';
 
         let status = 'Delivered';
         if (orderedQty > 0 && deliveredQty < orderedQty) {

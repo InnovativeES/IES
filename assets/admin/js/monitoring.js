@@ -346,6 +346,15 @@ export const handleAddOrder = async () => {
         
         // Ensure delivery quantity is ALWAYS recalculated from DC reports
         data.deliveryQty = totalDelivered;
+
+        // Sync billNo across any existing linked delivery reports
+        if (existingDeliveries.length > 0 && data.billNo !== undefined) {
+            existingDeliveries.forEach(async (d) => {
+                if (d.id && d.billNo !== data.billNo) {
+                    await DB.updateOrder(d.id, { billNo: data.billNo });
+                }
+            });
+        }
     } else {
         // For entirely new orders created here, they won't have deliveries yet.
         const dcNo = data.dcNo ? data.dcNo.trim() : '';
