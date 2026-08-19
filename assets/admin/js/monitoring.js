@@ -162,14 +162,23 @@ export const renderTable = (orders) => {
         return;
     }
 
-    // Map delivery reports by IO No and by DC No for resolving delivery date & DC
+    // Map delivery reports by IO No and by DC No for resolving delivery date, DC & Bill
     const deliveryReportsByIo = new Map();
     const deliveryReportsByDc = new Map();
     orders.filter(o => o.entryType === 'delivery_report' && !o.isDeleted).forEach(d => {
         const date = d.deliveryDateActual || d.date || '';
         const io = (d.internalOrderNo || '').trim().toUpperCase();
         const dc = (d.dcNo || '').trim();
-        if (io && date && !deliveryReportsByIo.has(io)) deliveryReportsByIo.set(io, { date, dc: d.dcNo });
+        const bill = (d.billNo || '').trim();
+        if (io) {
+            if (!deliveryReportsByIo.has(io)) {
+                deliveryReportsByIo.set(io, { dates: [], dcs: [], bills: [] });
+            }
+            const entry = deliveryReportsByIo.get(io);
+            if (date && !entry.dates.includes(date)) entry.dates.push(date);
+            if (dc && !entry.dcs.includes(dc)) entry.dcs.push(dc);
+            if (bill && !entry.bills.includes(bill)) entry.bills.push(bill);
+        }
         if (dc && date && !deliveryReportsByDc.has(dc)) deliveryReportsByDc.set(dc, date);
     });
 
@@ -178,17 +187,19 @@ export const renderTable = (orders) => {
         const tr = document.createElement('tr');
         let status = order.status ? order.status.toUpperCase() : '';
 
-        // Resolve delivery date and DC from delivery report if missing
+        // Resolve delivery date, DC, and Bill from delivery reports if missing or pooled
         let effectiveDelDate = order.deliveryDateActual;
         let effectiveDcNo = order.dcNo;
+        let effectiveBillNo = order.billNo;
 
         if (!effectiveDelDate && effectiveDcNo && deliveryReportsByDc.has(effectiveDcNo.trim())) {
             effectiveDelDate = deliveryReportsByDc.get(effectiveDcNo.trim());
         }
-        if (!effectiveDelDate && order.internalOrderNo && deliveryReportsByIo.has(order.internalOrderNo.trim().toUpperCase())) {
+        if (order.internalOrderNo && deliveryReportsByIo.has(order.internalOrderNo.trim().toUpperCase())) {
             const match = deliveryReportsByIo.get(order.internalOrderNo.trim().toUpperCase());
-            effectiveDelDate = match.date;
-            if (!effectiveDcNo && match.dc) effectiveDcNo = match.dc;
+            if (!effectiveDelDate && match.dates.length > 0) effectiveDelDate = match.dates[match.dates.length - 1];
+            if (!effectiveDcNo && match.dcs.length > 0) effectiveDcNo = match.dcs.join(', ');
+            if (!effectiveBillNo && match.bills.length > 0) effectiveBillNo = match.bills.join(', ');
         }
 
         if (!isTrashMode) {
@@ -274,9 +285,9 @@ export const renderTable = (orders) => {
             <td class="text-center">${avail(order.finishAvail)}</td>
 
             <td>${formatDate(effectiveDelDate)}</td>
-            <td>${t(effectiveDcNo)}</td>
+            <td class="col-dc-no" title="${t(effectiveDcNo)}">${t(effectiveDcNo)}</td>
             <td class="text-right">${t(order.deliveryQty)}</td>
-            <td>${t(order.billNo)}</td>
+            <td class="col-bill-no" title="${t(effectiveBillNo)}">${t(effectiveBillNo)}</td>
             <td class="text-center">${statusHtml}</td>
             <td>${actionsHtml}</td>
         `;
@@ -347,13 +358,12 @@ export const handleAddOrder = async () => {
         // Ensure delivery quantity is ALWAYS recalculated from DC reports
         data.deliveryQty = totalDelivered;
 
-        // Sync billNo across any existing linked delivery reports
-        if (existingDeliveries.length > 0 && data.billNo !== undefined) {
-            existingDeliveries.forEach(async (d) => {
-                if (d.id && d.billNo !== data.billNo) {
-                    await DB.updateOrder(d.id, { billNo: data.billNo });
-                }
-            });
+        // If single linked delivery exists and billNo was updated on IO, sync to delivery
+        if (existingDeliveries.length === 1 && data.billNo !== undefined) {
+            const d = existingDeliveries[0];
+            if (d.id && d.billNo !== data.billNo) {
+                await DB.updateOrder(d.id, { billNo: data.billNo });
+            }
         }
     } else {
         // For entirely new orders created here, they won't have deliveries yet.
@@ -480,13 +490,15 @@ export const populateForm = (order) => {
             breakdownBody.innerHTML = deliveries.map(d => `
                 <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.2s;" onmouseover="this.style.background='#fbfcfd'" onmouseout="this.style.background='transparent'">
                     <td style="padding: 10px 8px; color: #313d4f; font-weight: 500;">${d.dcNo || '-'}</td>
+                    <td style="padding: 10px 8px; color: #313d4f; font-weight: 500;">${d.billNo || '-'}</td>
                     <td style="padding: 10px 8px; color: #64748b;">${formatDate(d.deliveryDateActual || d.date)}</td>
                     <td style="padding: 10px 8px; text-align: right; color: #0f172a; font-weight: 700;">${d.deliveryQty || 0}</td>
                     <td style="padding: 10px 8px; text-align: right; color: #0d9488; font-weight: 700;">₹${(parseFloat(d.total) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                 </tr>
             `).join('');
+
         } else {
-            breakdownBody.innerHTML = '<tr><td colspan="4" style="padding: 1.5rem 1rem; text-align: center; color: #94a3b8; font-style: italic; font-size: 0.75rem; background: #f8fafc;">No deliveries recorded.</td></tr>';
+            breakdownBody.innerHTML = '<tr><td colspan="5" style="padding: 1.5rem 1rem; text-align: center; color: #94a3b8; font-style: italic; font-size: 0.75rem; background: #f8fafc;">No deliveries recorded.</td></tr>';
         }
 
         // --- NEW: Populate Summary Stats ---
@@ -501,9 +513,21 @@ export const populateForm = (order) => {
         if (totalDelEl) totalDelEl.textContent = totalDelivered;
         if (pendingQtyEl) pendingQtyEl.textContent = pendingQty;
         
-        // Ensure hidden fields match the DC calculation
+        // Ensure hidden fields match the DC and Bill calculation
         const deliveryQtyInput = form.querySelector('[name="deliveryQty"]');
         if (deliveryQtyInput) deliveryQtyInput.value = totalDelivered;
+
+        const dcNoInput = form.querySelector('[name="dcNo"]');
+        if (dcNoInput) {
+            const allDCs = [...new Set(deliveries.map(d => d.dcNo?.trim()).filter(Boolean))];
+            dcNoInput.value = allDCs.join(', ') || order.dcNo || '';
+        }
+
+        const billInput = form.querySelector('[name="billNo"]');
+        if (billInput) {
+            const allBills = [...new Set(deliveries.map(d => d.billNo?.trim()).filter(Boolean))];
+            billInput.value = allBills.join(', ') || order.billNo || '';
+        }
 
         if (derivedStatusEl) {
             let sText = 'Pending';
@@ -619,14 +643,23 @@ export const exportToCSV = () => {
             'Del Date Actual', 'DC No', 'Del Qty', 'Bill No', 'Status'
         ];
 
-        // Map delivery reports for resolving delivery date & DC in export
+        // Map delivery reports for resolving delivery date, DC & Bill in export
         const deliveryReportsByIo = new Map();
         const deliveryReportsByDc = new Map();
         orders.filter(o => o.entryType === 'delivery_report' && !o.isDeleted).forEach(d => {
             const date = d.deliveryDateActual || d.date || '';
             const io = (d.internalOrderNo || '').trim().toUpperCase();
             const dc = (d.dcNo || '').trim();
-            if (io && date && !deliveryReportsByIo.has(io)) deliveryReportsByIo.set(io, { date, dc: d.dcNo });
+            const bill = (d.billNo || '').trim();
+            if (io) {
+                if (!deliveryReportsByIo.has(io)) {
+                    deliveryReportsByIo.set(io, { dates: [], dcs: [], bills: [] });
+                }
+                const entry = deliveryReportsByIo.get(io);
+                if (date && !entry.dates.includes(date)) entry.dates.push(date);
+                if (dc && !entry.dcs.includes(dc)) entry.dcs.push(dc);
+                if (bill && !entry.bills.includes(bill)) entry.bills.push(bill);
+            }
             if (dc && date && !deliveryReportsByDc.has(dc)) deliveryReportsByDc.set(dc, date);
         });
 
@@ -634,13 +667,15 @@ export const exportToCSV = () => {
         const rows = exportOrders.map((o, index) => {
             let effectiveDelDate = o.deliveryDateActual;
             let effectiveDcNo = o.dcNo;
+            let effectiveBillNo = o.billNo;
             if (!effectiveDelDate && effectiveDcNo && deliveryReportsByDc.has(effectiveDcNo.trim())) {
                 effectiveDelDate = deliveryReportsByDc.get(effectiveDcNo.trim());
             }
-            if (!effectiveDelDate && o.internalOrderNo && deliveryReportsByIo.has(o.internalOrderNo.trim().toUpperCase())) {
+            if (o.internalOrderNo && deliveryReportsByIo.has(o.internalOrderNo.trim().toUpperCase())) {
                 const match = deliveryReportsByIo.get(o.internalOrderNo.trim().toUpperCase());
-                effectiveDelDate = match.date;
-                if (!effectiveDcNo && match.dc) effectiveDcNo = match.dc;
+                if (!effectiveDelDate && match.dates.length > 0) effectiveDelDate = match.dates[match.dates.length - 1];
+                if (!effectiveDcNo && match.dcs.length > 0) effectiveDcNo = match.dcs.join(', ');
+                if (!effectiveBillNo && match.bills.length > 0) effectiveBillNo = match.bills.join(', ');
             }
 
             return [
@@ -664,7 +699,7 @@ export const exportToCSV = () => {
                 formatDate(effectiveDelDate),
                 `"${effectiveDcNo || '-'}"`,
                 o.deliveryQty || 0,
-                `"${o.billNo || '-'}"`,
+                `"${effectiveBillNo || '-'}"`,
                 o.status || 'Pending'
             ];
         });
@@ -882,6 +917,7 @@ export const renderDeliveryReport = async (weekValue, monthValue) => {
                     <span class="px-2 py-1 rounded text-xs font-semibold bg-slate-100 text-slate-600">${order.department || '-'}</span>
                 </td>
                 <td class="px-4 py-2 text-center">${order.dcNo || '-'}</td> 
+                <td class="px-4 py-2 text-center font-mono text-xs">${order.billNo || '-'}</td>
                 <td class="px-4 py-2 text-right font-bold">${order.deliveryQty || order.qty || 0}</td>
                 <td class="px-4 py-2">${order.qtyUnit || '-'}</td>
                 <td class="px-4 py-2 text-right">₹${(parseFloat(order.total) || 0).toLocaleString('en-IN')}</td>

@@ -890,9 +890,9 @@
                                         <th title="Finished Part Availability">Fin</th>
 
                                         <th>Del. Date</th>
-                                        <th>DC No</th>
+                                        <th class="col-dc-no">DC No</th>
                                         <th class="text-right">Del. Qty</th>
-                                        <th>Bill No</th>
+                                        <th class="col-bill-no">Bill No</th>
                                         <th class="text-center sortable" onclick="window.adminApp.sort('status')">Status
                                         </th>
                                     </tr>
@@ -1571,6 +1571,7 @@
                                             NO</th>
                                         <th style="width: 100px;">Department</th>
                                         <th style="width: 80px;">DC.No</th>
+                                        <th style="width: 80px;">Bill.No</th>
                                         <th style="width: 80px;">Quantity</th>
                                         <th style="width: 50px;">Unit</th>
                                         <th style="width: 100px;">Delivery Value</th>
@@ -2897,14 +2898,10 @@
                                 <span>Customer Details</span>
                             </div>
                             <div class="modal-list-view">
-                                <div class="list-row list-row-2col">
+                                <div class="list-row">
                                     <div class="form-group">
                                         <label class="form-label">Customer</label>
                                         <input type="text" name="customer" class="form-input" placeholder="Customer Name">
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Bill No</label>
-                                        <input type="text" name="billNo" class="form-input" placeholder="Bill / Invoice #">
                                     </div>
                                 </div>
                                 <div class="list-row list-row-2col">
@@ -2933,6 +2930,9 @@
                                                 DC No</th>
                                             <th
                                                 style="padding: 8px 10px; text-align: left; color: #64748b; font-weight: 700; font-size: 9px; text-transform: uppercase; border-bottom: 2px solid #f1f5f9;">
+                                                Bill No</th>
+                                            <th
+                                                style="padding: 8px 10px; text-align: left; color: #64748b; font-weight: 700; font-size: 9px; text-transform: uppercase; border-bottom: 2px solid #f1f5f9;">
                                                 Date</th>
                                             <th
                                                 style="padding: 8px 10px; text-align: right; color: #64748b; font-weight: 700; font-size: 9px; text-transform: uppercase; border-bottom: 2px solid #f1f5f9;">
@@ -2945,7 +2945,7 @@
                                     <tbody id="io-delivery-breakdown-body">
                                         <!-- Populated via JS -->
                                         <tr>
-                                            <td colspan="4"
+                                            <td colspan="5"
                                                 style="padding: 1.5rem 1rem; text-align: center; color: #94a3b8; font-style: italic; background: #f8fafc;">
                                                 No deliveries.</td>
                                         </tr>
@@ -2982,6 +2982,7 @@
                         <input type="hidden" name="deliveryDateActual">
                         <input type="hidden" name="deliveryQty">
                         <input type="hidden" name="dcNo">
+                        <input type="hidden" name="billNo">
                         <input type="hidden" name="status" value="Pending">
 
                         <!-- Availability Checks -->
@@ -3092,12 +3093,6 @@
                                         <input type="text" name="drawingNo" class="form-input" placeholder="Drg No">
                                     </div>
                                     <div class="form-group">
-                                        <label class="form-label">Bill No</label>
-                                        <input type="text" name="billNo" class="form-input" placeholder="Bill / Invoice #">
-                                    </div>
-                                </div>
-                                <div class="list-row">
-                                    <div class="form-group">
                                         <label class="form-label">Description</label>
                                         <input type="text" name="description" class="form-input"
                                             placeholder="Description">
@@ -3139,16 +3134,16 @@
                                     </div>
                                 </div>
 
-                                <!-- Dynamic DC Table Section -->
+                                <!-- Dynamic DC & Bill Table Section -->
                                 <div class="dc-section-container" style="margin-top: 1rem;">
                                     <div
                                         style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; padding: 0 0.5rem;">
                                         <span
-                                            style="font-size: 0.7rem; font-weight: 800; color: #6b21a8; text-transform: uppercase; letter-spacing: 0.05em;">DC
+                                            style="font-size: 0.7rem; font-weight: 800; color: #6b21a8; text-transform: uppercase; letter-spacing: 0.05em;">DC & Bill
                                             Breakdown</span>
                                         <button type="button" class="btn btn-purple"
                                             style="padding: 2px 8px; font-size: 0.75rem; height: 24px;"
-                                            onclick="window.adminApp.addDCRow()">+ Add DC</button>
+                                            onclick="window.adminApp.addDCRow()">+ Add DC / Bill</button>
                                     </div>
                                     <div class="dc-table-wrapper"
                                         style="background: white; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;">
@@ -3157,18 +3152,21 @@
                                             <thead style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
                                                 <tr>
                                                     <th
-                                                        style="padding: 6px; text-align: left; font-weight: 700; color: #475569; width: 25%;">
+                                                        style="padding: 6px; text-align: left; font-weight: 700; color: #475569; width: 22%;">
                                                         DC No</th>
                                                     <th
-                                                        style="padding: 6px; text-align: left; font-weight: 700; color: #475569; width: 25%;">
+                                                        style="padding: 6px; text-align: left; font-weight: 700; color: #475569; width: 22%;">
                                                         DC Date</th>
                                                     <th
-                                                        style="padding: 6px; text-align: right; font-weight: 700; color: #475569; width: 20%;">
+                                                        style="padding: 6px; text-align: left; font-weight: 700; color: #475569; width: 20%;">
+                                                        Bill No</th>
+                                                    <th
+                                                        style="padding: 6px; text-align: right; font-weight: 700; color: #475569; width: 16%;">
                                                         Qty</th>
                                                     <th
-                                                        style="padding: 6px; text-align: right; font-weight: 700; color: #475569; width: 20%;">
+                                                        style="padding: 6px; text-align: right; font-weight: 700; color: #475569; width: 15%;">
                                                         Value (₹)</th>
-                                                    <th style="padding: 6px; text-align: center; width: 10%;"></th>
+                                                    <th style="padding: 6px; text-align: center; width: 5%;"></th>
                                                 </tr>
                                             </thead>
                                             <tbody id="dc-rows-container">

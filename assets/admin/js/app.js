@@ -2490,7 +2490,7 @@ window.adminApp = {
             container.innerHTML = '';
             if (existingOrder) {
                 // For editing, show the existing DC data in the first row
-                window.adminApp.addDCRow(existingOrder.dcNo, existingOrder.deliveryDateActual || existingOrder.date, existingOrder.deliveryQty || existingOrder.qty, existingOrder.total || '');
+                window.adminApp.addDCRow(existingOrder.dcNo, existingOrder.deliveryDateActual || existingOrder.date, existingOrder.deliveryQty || existingOrder.qty, existingOrder.total || '', existingOrder.billNo || '');
             } else {
                 // For new delivery, add one default empty row
                 window.adminApp.addDCRow();
@@ -2553,7 +2553,7 @@ window.adminApp = {
         window.adminApp.openModal('add-delivery-modal');
     },
 
-    addDCRow: (dcNo = '', date = '', qty = '', value = '') => {
+    addDCRow: (dcNo = '', date = '', qty = '', value = '', billNo = '') => {
         const container = document.getElementById('dc-rows-container');
         if (!container) return;
 
@@ -2563,6 +2563,7 @@ window.adminApp = {
         tr.innerHTML = `
             <td style="padding: 4px;"><input type="text" name="dcNo_row" class="form-input text-xs" style="padding: 4px 6px;" value="${dcNo}" placeholder="DC #"></td>
             <td style="padding: 4px;"><input type="date" name="dcDate_row" class="form-input text-xs" style="padding: 4px 6px;" value="${dateVal}"></td>
+            <td style="padding: 4px;"><input type="text" name="billNo_row" class="form-input text-xs" style="padding: 4px 6px;" value="${billNo}" placeholder="Bill #"></td>
             <td style="padding: 4px;"><input type="number" name="dcQty_row" class="form-input text-xs text-right" style="padding: 4px 6px;" value="${qty}" placeholder="0" oninput="window.adminApp.calculateDCRowVal(this)"></td>
             <td style="padding: 4px;"><input type="number" name="dcVal_row" class="form-input text-xs text-right" style="padding: 4px 6px;" value="${value}" placeholder="₹0"></td>
             <td style="padding: 4px; text-align: center;">
@@ -2623,7 +2624,13 @@ window.adminApp = {
         setVal('customer', order.customer);
         setVal('description', order.description);
         setVal('drawingNo', order.drawingNo);
-        if (order.billNo) setVal('billNo', order.billNo);
+        if (order.billNo) {
+            setVal('billNo', order.billNo);
+            const firstBillRow = document.querySelector('#dc-rows-container [name="billNo_row"]');
+            if (firstBillRow && !firstBillRow.value) {
+                firstBillRow.value = order.billNo;
+            }
+        }
         setVal('qtyUnit', order.qtyUnit);
         setVal('department', order.department);
 
@@ -2663,17 +2670,18 @@ window.adminApp = {
             container.querySelectorAll('tr').forEach(tr => {
                 const dcNo = tr.querySelector('[name="dcNo_row"]')?.value.trim();
                 const dcDate = tr.querySelector('[name="dcDate_row"]')?.value;
+                const billNo = tr.querySelector('[name="billNo_row"]')?.value.trim() || '';
                 const dcQty = parseFloat(tr.querySelector('[name="dcQty_row"]')?.value) || 0;
                 const dcVal = parseFloat(tr.querySelector('[name="dcVal_row"]')?.value) || 0;
 
-                if (dcNo || dcQty > 0) {
-                    dcRows.push({ dcNo, dcDate, dcQty, dcVal });
+                if (dcNo || dcQty > 0 || billNo) {
+                    dcRows.push({ dcNo, dcDate, billNo, dcQty, dcVal });
                 }
             });
         }
 
         if (dcRows.length === 0) {
-            alert("Please add at least one DC entry (DC Number or Quantity).");
+            alert("Please add at least one DC entry (DC Number, Bill Number, or Quantity).");
             return;
         }
 
@@ -2700,9 +2708,6 @@ window.adminApp = {
 
         // If editing an existing entry, we'll update the first DC's document
         // and potentially create NEW ones for the rest.
-        // Simplified approach: For "Editing", user should probably edit individual entries from the report.
-        // But since they can add multiple here, we handle the first one as update if ID exists.
-
         try {
             for (let i = 0; i < dcRows.length; i++) {
                 const row = dcRows[i];
@@ -2710,6 +2715,7 @@ window.adminApp = {
                     ...baseData,
                     dcNo: row.dcNo,
                     deliveryDateActual: row.dcDate,
+                    billNo: row.billNo || baseData.billNo || '',
                     deliveryQty: row.dcQty,
                     qty: row.dcQty, // Keep qty same for compatibility
                     total: row.dcVal
@@ -2732,11 +2738,6 @@ window.adminApp = {
                 );
 
                 if (originalOrder) {
-                    // Refetch/Re-calculate all deliveries for this IO
-                    // Since DB.addOrder is async, it might take a moment to reflect in state.
-                    // However, current system relies on real-time snapshots, so currentOrders *should* update.
-                    // To be safe, we calculate based on what we just sent + current state.
-
                     const existingDeliveries = currentOrders.filter(o =>
                         o.entryType === 'delivery_report' &&
                         o.internalOrderNo === ioNo &&
@@ -2752,6 +2753,12 @@ window.adminApp = {
                     });
                     const pooledDCs = allDCs.join(', ');
 
+                    let allBills = existingDeliveries.map(o => o.billNo?.trim()).filter(b => b);
+                    dcRows.forEach(r => {
+                        if (r.billNo && !allBills.includes(r.billNo)) allBills.push(r.billNo);
+                    });
+                    const pooledBills = allBills.join(', ');
+
                     const orderedQty = parseFloat(originalOrder.qty) || 0;
                     let newStatus = 'Pending';
                     if (totalDelivered >= orderedQty && orderedQty > 0) newStatus = 'Delivered';
@@ -2760,6 +2767,7 @@ window.adminApp = {
                     await DB.updateOrder(originalOrder.id, {
                         deliveryQty: totalDelivered,
                         dcNo: pooledDCs,
+                        billNo: pooledBills,
                         status: newStatus
                     });
                 }
