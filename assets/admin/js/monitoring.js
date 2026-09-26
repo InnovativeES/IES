@@ -598,8 +598,7 @@ const calculateOrderCosts = () => {
  * Uses jsPDF and jspdf-autotable loaded via CDN
  */
 /**
- * Export orders for the current VIEW to PDF
- * Uses jsPDF and jspdf-autotable
+ * Export orders for the current VIEW to CSV
  */
 export const exportToCSV = () => {
     // 1. Get currently filtered orders (State Awareness)
@@ -620,7 +619,7 @@ export const exportToCSV = () => {
         }
         let matchesSearch = true;
         if (searchTerm) {
-            const searchStr = `${order.internalOrderNo} ${order.customer} ${order.description} ${order.poNo}`.toLowerCase();
+            const searchStr = `${order.internalOrderNo} ${order.customer} ${order.description} ${order.poNo} ${order.drawingNo || ''}`.toLowerCase();
             matchesSearch = searchStr.includes(searchTerm);
         }
         return matchesMonth && matchesSearch && order.entryType !== 'delivery_report';
@@ -632,13 +631,31 @@ export const exportToCSV = () => {
     }
 
     try {
-        // Sort by Date (Descending default)
-        exportOrders.sort((a, b) => new Date(b.date) - new Date(a.date));
+        // Sort orders matching UI sort order if active, else default to Date descending
+        if (sortConfig.key) {
+            exportOrders.sort((a, b) => {
+                let valA = a[sortConfig.key] || '';
+                let valB = b[sortConfig.key] || '';
 
-        // Define Headers
+                if (sortConfig.key === 'total' || sortConfig.key === 'value' || sortConfig.key === 'qty') {
+                    valA = parseFloat(valA) || 0;
+                    valB = parseFloat(valB) || 0;
+                } else {
+                    valA = valA.toString().toLowerCase();
+                }
+
+                if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+                if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+                return 0;
+            });
+        } else {
+            exportOrders.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+        }
+
+        // Define Headers matching Internal Orders table structure
         const headers = [
             'S.No', 'Internal Order No', 'Date', 'Drg No', 'Description', 'Qty', 'Unit',
-            'Sale Value Ea', 'In-House Value', 'Outsource Value', 'Total Value',
+            'Sale Value Ea', 'In-House Value', 'Outsource Value', 'Labor', 'Total Value',
             'Customer', 'PO No', 'PO Date', 'Drg Available', 'Raw Available', 'Finish Available',
             'Del Date Actual', 'DC No', 'Del Qty', 'Bill No', 'Status'
         ];
@@ -646,7 +663,7 @@ export const exportToCSV = () => {
         // Map delivery reports for resolving delivery date, DC & Bill in export
         const deliveryReportsByIo = new Map();
         const deliveryReportsByDc = new Map();
-        orders.filter(o => o.entryType === 'delivery_report' && !o.isDeleted).forEach(d => {
+        allOrders.filter(o => o.entryType === 'delivery_report' && !o.isDeleted).forEach(d => {
             const date = d.deliveryDateActual || d.date || '';
             const io = (d.internalOrderNo || '').trim().toUpperCase();
             const dc = (d.dcNo || '').trim();
@@ -663,6 +680,11 @@ export const exportToCSV = () => {
             if (dc && date && !deliveryReportsByDc.has(dc)) deliveryReportsByDc.set(dc, date);
         });
 
+        const escapeCSV = (val) => {
+            if (val === null || val === undefined) return '""';
+            return `"${String(val).replace(/"/g, '""')}"`;
+        };
+
         // Map Rows
         const rows = exportOrders.map((o, index) => {
             let effectiveDelDate = o.deliveryDateActual;
@@ -678,29 +700,35 @@ export const exportToCSV = () => {
                 if (!effectiveBillNo && match.bills.length > 0) effectiveBillNo = match.bills.join(', ');
             }
 
+            let statusVal = o.status || 'Pending';
+            if (o.forceClosed) {
+                statusVal += ' (FC)';
+            }
+
             return [
                 index + 1,
-                `"${o.internalOrderNo || '-'}"`, // Quote to prevent CSV issues with leading zeros
-                formatDate(o.date),
-                `"${o.drawingNo || '-'}"`,
-                `"${(o.description || '-').replace(/"/g, '""')}"`, // Escape quotes
+                escapeCSV(o.internalOrderNo || '-'),
+                escapeCSV(formatDate(o.date)),
+                escapeCSV(o.drawingNo || '-'),
+                escapeCSV(o.description || '-'),
                 o.qty || 0,
-                o.qtyUnit || '-',
+                escapeCSV(o.qtyUnit || '-'),
                 o.saleValueEa || o.value || 0,
                 o.prodValueEa || 0,
                 o.outsourceValue || 0,
+                escapeCSV(o.isLaborJob === 'y' ? 'Y' : '-'),
                 o.total || 0,
-                `"${(o.customer || '-').replace(/"/g, '""')}"`,
-                `"${o.poNo || '-'}"`,
-                formatDate(o.poDate),
-                o.drgAvail === 'y' ? 'Y' : '-',
-                o.rawAvail === 'y' ? 'Y' : '-',
-                o.finishAvail === 'y' ? 'Y' : '-',
-                formatDate(effectiveDelDate),
-                `"${effectiveDcNo || '-'}"`,
+                escapeCSV(o.customer || '-'),
+                escapeCSV(o.poNo || '-'),
+                escapeCSV(formatDate(o.poDate)),
+                escapeCSV(o.drgAvail === 'y' ? 'Y' : '-'),
+                escapeCSV(o.rawAvail === 'y' ? 'Y' : '-'),
+                escapeCSV(o.finishAvail === 'y' ? 'Y' : '-'),
+                escapeCSV(formatDate(effectiveDelDate)),
+                escapeCSV(effectiveDcNo || '-'),
                 o.deliveryQty || 0,
-                `"${effectiveBillNo || '-'}"`,
-                o.status || 'Pending'
+                escapeCSV(effectiveBillNo || '-'),
+                escapeCSV(statusVal)
             ];
         });
 
@@ -710,11 +738,11 @@ export const exportToCSV = () => {
             ...rows.map(row => row.join(','))
         ].join('\n');
 
-        // Create download link
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        // Create download link with UTF-8 BOM
+        const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
-        const filename = `Internal_Orders_${new Date().toISOString().slice(0, 10)}.csv`;
+        const filename = `${isTrashMode ? 'Internal_Orders_Trash_' : 'Internal_Orders_'}${new Date().toISOString().slice(0, 10)}.csv`;
         
         link.setAttribute('href', url);
         link.setAttribute('download', filename);
@@ -722,6 +750,7 @@ export const exportToCSV = () => {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        URL.revokeObjectURL(url);
 
     } catch (error) {
         console.error('CSV Export failed:', error);
