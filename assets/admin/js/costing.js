@@ -212,34 +212,34 @@ export function renderCostingOrderList() {
             : 'bg-amber-100 text-amber-700 border-amber-200';
 
         // Row highlighting: Soft green background and green left border if filled
-        const rowClass = isFilled 
-            ? 'bg-emerald-50/50 hover:bg-emerald-100/70 border-l-4 border-l-emerald-500' 
-            : 'hover:bg-slate-50 border-l-4 border-l-transparent';
+        const rowClass = isFilled ? 'costing-row-filled' : 'hover:bg-slate-50';
 
         // Costing status badge with tick
         const costingBadge = isFilled 
-            ? `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
-                 <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            ? `<span class="costing-badge-filled" style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 9999px; font-size: 0.75rem; font-weight: 700; background-color: #d1fae5; color: #065f46; border: 1px solid #6ee7b7;">
+                 <svg style="width: 14px; height: 14px; stroke: #059669;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
                  </svg>
                  Filled (${expenses.length})
                </span>`
-            : `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-400 border border-slate-200">
+            : `<span class="costing-badge-empty" style="display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 9999px; font-size: 0.72rem; font-weight: 500; background-color: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0;">
                  Empty
                </span>`;
 
         return `
-            <tr class="transition-colors border-b border-slate-100 cursor-pointer ${rowClass}" onclick="window.adminApp.openCostingDetail('${order.id}')">
+            <tr class="transition-colors border-b border-slate-100 cursor-pointer ${rowClass}" 
+                style="${isFilled ? 'background-color: #ecfdf5 !important; border-left: 4px solid #10b981 !important;' : ''}"
+                onclick="window.adminApp.openCostingDetail('${order.id}')">
                 <td class="px-4 py-3 text-center whitespace-nowrap">
                     ${costingBadge}
                 </td>
                 <td class="px-4 py-3 font-semibold text-slate-900 flex items-center gap-2">
                     ${isFilled ? `
-                        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-600 text-white text-[11px] font-bold shadow-xs" title="Costing Sheet Filled">
+                        <span style="display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 9999px; background-color: #059669; color: #ffffff; font-size: 11px; font-weight: bold; box-shadow: 0 1px 2px rgba(0,0,0,0.15);" title="Costing Sheet Filled">
                             ✓
                         </span>
                     ` : `
-                        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-200 text-slate-400 text-[10px]">
+                        <span style="display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 9999px; background-color: #e2e8f0; color: #94a3b8; font-size: 10px;">
                             •
                         </span>
                     `}
@@ -265,13 +265,14 @@ export function renderCostingOrderList() {
                     </div>
                 </td>
                 <td class="px-4 py-3 text-center whitespace-nowrap">
-                    <button class="px-3 py-1.5 text-xs font-semibold ${isFilled ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-teal-600 hover:bg-teal-700'} text-white rounded-lg shadow-sm transition-all flex items-center gap-1.5 mx-auto"
+                    <button type="button" class="costing-btn-action ${isFilled ? 'action-edit' : 'action-fill'}"
+                            style="background: ${isFilled ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' : 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)'}; color: #ffffff !important; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 14px; border-radius: 8px; font-weight: 700; font-size: 0.75rem; border: none; cursor: pointer; box-shadow: 0 2px 6px ${isFilled ? 'rgba(5, 150, 105, 0.35)' : 'rgba(13, 148, 136, 0.35)'};"
                             onclick="event.stopPropagation(); window.adminApp.openCostingDetail('${order.id}')">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg style="width: 14px; height: 14px; stroke: #ffffff; flex-shrink: 0;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                         </svg>
-                        ${isFilled ? 'View / Edit' : 'Fill Costing'}
+                        <span style="color: #ffffff !important; font-weight: 700;">${isFilled ? 'View / Edit' : 'Fill Costing'}</span>
                     </button>
                 </td>
             </tr>

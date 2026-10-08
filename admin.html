@@ -150,6 +150,86 @@
             -webkit-overflow-scrolling: touch;
         }
 
+        /* Costing Table & Action Buttons */
+        .costing-btn-action {
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 6px !important;
+            padding: 6px 14px !important;
+            font-size: 0.75rem !important;
+            font-weight: 700 !important;
+            border-radius: 8px !important;
+            border: none !important;
+            cursor: pointer !important;
+            text-decoration: none !important;
+            transition: all 0.15s ease !important;
+            color: #ffffff !important;
+            white-space: nowrap !important;
+        }
+
+        .costing-btn-action.action-fill {
+            background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%) !important;
+            box-shadow: 0 2px 6px rgba(13, 148, 136, 0.35) !important;
+        }
+
+        .costing-btn-action.action-fill:hover {
+            background: linear-gradient(135deg, #0f766e 0%, #115e59 100%) !important;
+            transform: translateY(-1px) !important;
+        }
+
+        .costing-btn-action.action-edit {
+            background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+            box-shadow: 0 2px 6px rgba(5, 150, 105, 0.35) !important;
+        }
+
+        .costing-btn-action.action-edit:hover {
+            background: linear-gradient(135deg, #047857 0%, #065f46 100%) !important;
+            transform: translateY(-1px) !important;
+        }
+
+        .costing-btn-action svg {
+            width: 14px !important;
+            height: 14px !important;
+            stroke: #ffffff !important;
+        }
+
+        /* Filled Costing Row Highlight */
+        tr.costing-row-filled {
+            background-color: #ecfdf5 !important;
+            border-left: 4px solid #10b981 !important;
+        }
+
+        tr.costing-row-filled:hover {
+            background-color: #d1fae5 !important;
+        }
+
+        /* Costing Badges */
+        .costing-badge-filled {
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 4px !important;
+            padding: 3px 10px !important;
+            border-radius: 9999px !important;
+            font-size: 0.75rem !important;
+            font-weight: 700 !important;
+            background-color: #d1fae5 !important;
+            color: #065f46 !important;
+            border: 1px solid #6ee7b7 !important;
+        }
+
+        .costing-badge-empty {
+            display: inline-flex !important;
+            align-items: center !important;
+            padding: 3px 8px !important;
+            border-radius: 9999px !important;
+            font-size: 0.72rem !important;
+            font-weight: 500 !important;
+            background-color: #f1f5f9 !important;
+            color: #64748b !important;
+            border: 1px solid #e2e8f0 !important;
+        }
+
         .costing-table th {
             color: #1e293b !important;
             background-color: #f1f5f9 !important;
@@ -4526,7 +4606,7 @@
 
     <!-- Application Script -->
 
-    <script type="module" src="assets/admin/js/app.js?v=21"></script>
+    <script type="module" src="assets/admin/js/app.js?v=23"></script>
 
     <!-- Mobile Sidebar Toggle Script -->
     <script>
