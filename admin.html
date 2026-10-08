@@ -92,6 +92,94 @@
                 margin: 0 !important;
                 padding: 0 !important;
             }
+
+            #view-costing_detail {
+                padding: 0 !important;
+                margin: 0 !important;
+                display: block !important;
+                width: 100% !important;
+            }
+
+            .costing-print-sheet {
+                box-shadow: none !important;
+                border: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                width: 100% !important;
+                max-width: 100% !important;
+            }
+
+            .costing-table th {
+                color: #000000 !important;
+                background-color: #f1f5f9 !important;
+            }
+
+            .cr-field-input, .cr-field-select {
+                border: none !important;
+                background: transparent !important;
+                padding: 1px !important;
+                font-size: 8pt !important;
+                box-shadow: none !important;
+            }
+
+            .cr-field-select {
+                appearance: none;
+                -webkit-appearance: none;
+            }
+        }
+
+        /* Costing Sheet Views - Full Scrolling Fix (only when active) */
+        #view-costing_report:not(.hidden),
+        #view-costing_detail:not(.hidden) {
+            display: block !important;
+            height: auto !important;
+            min-height: 100% !important;
+            overflow-y: visible !important;
+            overflow-x: visible !important;
+            padding: 1.5rem !important;
+            padding-bottom: 8rem !important;
+        }
+
+        #view-costing_report.hidden,
+        #view-costing_detail.hidden {
+            display: none !important;
+        }
+
+        #main-content {
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .costing-table th {
+            color: #1e293b !important;
+            background-color: #f1f5f9 !important;
+            font-weight: 700 !important;
+            font-size: 0.75rem !important;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .cr-field-input, .cr-field-select {
+            width: 100%;
+            padding: 5px 8px;
+            border: 1px solid transparent;
+            border-radius: 4px;
+            font-size: 0.8125rem;
+            color: #0f172a;
+            background: transparent;
+            transition: all 0.15s ease-in-out;
+        }
+
+        .cr-field-input:hover, .cr-field-select:hover {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+        }
+
+        .cr-field-input:focus, .cr-field-select:focus {
+            background: #ffffff;
+            border-color: #0d9488;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.2);
         }
 
         /* Modal Redesign - 2 Column Layout */
@@ -467,6 +555,15 @@
                                         d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                 </svg>
                                 Delivery Report
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#" class="nav-link" data-view="costing_report">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                </svg>
+                                Costing Report
                             </a>
                         </li>
                     </ul>
@@ -1584,6 +1681,414 @@
                                     <!-- Report rows will be injected here -->
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- View: Costing Report (Order List) -->
+                <section id="view-costing_report" class="view-section hidden">
+                    <!-- Control Row & Filters -->
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 w-full bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6 no-print">
+                        <div class="flex flex-wrap items-center gap-3">
+                            <div class="relative min-w-[280px]">
+                                <svg class="w-4 h-4 text-slate-400 absolute left-3 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                                <input type="text" id="costing-search-input"
+                                    class="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white transition-all text-slate-700"
+                                    placeholder="Search by IO No, Customer, Part, PO..."
+                                    oninput="window.adminApp.setCostingSearch(this.value)">
+                            </div>
+
+                            <div class="flex flex-wrap items-center bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs font-semibold gap-1">
+                                <button type="button" class="px-3 py-1.5 rounded-md bg-white text-slate-800 shadow-xs costing-filter-btn"
+                                    onclick="document.querySelectorAll('.costing-filter-btn').forEach(b => { b.classList.remove('bg-white', 'text-slate-800', 'shadow-xs'); b.classList.add('text-slate-500'); }); this.classList.add('bg-white', 'text-slate-800', 'shadow-xs'); this.classList.remove('text-slate-500'); window.adminApp.setCostingStatusFilter('all')">
+                                    All Orders
+                                </button>
+                                <button type="button" class="px-3 py-1.5 rounded-md text-slate-500 costing-filter-btn hover:text-slate-800"
+                                    onclick="document.querySelectorAll('.costing-filter-btn').forEach(b => { b.classList.remove('bg-white', 'text-slate-800', 'shadow-xs'); b.classList.add('text-slate-500'); }); this.classList.add('bg-white', 'text-slate-800', 'shadow-xs'); this.classList.remove('text-slate-500'); window.adminApp.setCostingStatusFilter('Pending')">
+                                    Pending
+                                </button>
+                                <button type="button" class="px-3 py-1.5 rounded-md text-slate-500 costing-filter-btn hover:text-slate-800"
+                                    onclick="document.querySelectorAll('.costing-filter-btn').forEach(b => { b.classList.remove('bg-white', 'text-slate-800', 'shadow-xs'); b.classList.add('text-slate-500'); }); this.classList.add('bg-white', 'text-slate-800', 'shadow-xs'); this.classList.remove('text-slate-500'); window.adminApp.setCostingStatusFilter('Delivered')">
+                                    Delivered
+                                </button>
+                                <button type="button" class="px-3 py-1.5 rounded-md text-emerald-700 font-bold costing-filter-btn hover:bg-emerald-50"
+                                    onclick="document.querySelectorAll('.costing-filter-btn').forEach(b => { b.classList.remove('bg-white', 'text-slate-800', 'shadow-xs'); b.classList.add('text-slate-500'); }); this.classList.add('bg-white', 'text-slate-800', 'shadow-xs'); this.classList.remove('text-slate-500'); window.adminApp.setCostingStatusFilter('filled')">
+                                    ✓ Filled
+                                </button>
+                                <button type="button" class="px-3 py-1.5 rounded-md text-slate-500 costing-filter-btn hover:text-slate-800"
+                                    onclick="document.querySelectorAll('.costing-filter-btn').forEach(b => { b.classList.remove('bg-white', 'text-slate-800', 'shadow-xs'); b.classList.add('text-slate-500'); }); this.classList.add('bg-white', 'text-slate-800', 'shadow-xs'); this.classList.remove('text-slate-500'); window.adminApp.setCostingStatusFilter('empty')">
+                                    Empty
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <button type="button" class="btn btn-secondary btn-sm flex items-center gap-1.5"
+                                onclick="window.adminApp.exportAllCostingOrdersCSV()">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                                Export CSV Summary
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Metrics / KPIs -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 no-print">
+                        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                            <div>
+                                <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Internal Orders</p>
+                                <h3 id="costing-kpi-count" class="text-2xl font-bold text-slate-800 mt-1">0</h3>
+                            </div>
+                            <div class="p-3 bg-teal-50 text-teal-600 rounded-xl">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                            <div>
+                                <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Sales / PO</p>
+                                <h3 id="costing-kpi-po" class="text-2xl font-bold text-slate-800 mt-1">₹ 0</h3>
+                            </div>
+                            <div class="p-3 bg-blue-50 text-blue-600 rounded-xl">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                            <div>
+                                <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Expenses</p>
+                                <h3 id="costing-kpi-exp" class="text-2xl font-bold text-amber-600 mt-1">₹ 0</h3>
+                            </div>
+                            <div class="p-3 bg-amber-50 text-amber-600 rounded-xl">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                                </svg>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                            <div>
+                                <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Overall Net Profit</p>
+                                <h3 id="costing-kpi-profit" class="text-2xl font-bold text-emerald-600 mt-1">₹ 0</h3>
+                            </div>
+                            <div class="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Orders Table Container -->
+                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                        <th class="px-4 py-3 text-center">Costing Status</th>
+                                        <th class="px-4 py-3">Internal Order No</th>
+                                        <th class="px-4 py-3">WO Date</th>
+                                        <th class="px-4 py-3">Customer</th>
+                                        <th class="px-4 py-3">Part / Project</th>
+                                        <th class="px-4 py-3 text-center">Qty</th>
+                                        <th class="px-4 py-3 text-center">Status</th>
+                                        <th class="px-4 py-3 text-right">PO Value</th>
+                                        <th class="px-4 py-3 text-right">Total Expenses</th>
+                                        <th class="px-4 py-3 text-right">Profit / Loss</th>
+                                        <th class="px-4 py-3 text-center">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="costing-orders-table-body" class="divide-y divide-slate-100 text-sm">
+                                    <!-- Rendered dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="costing-orders-empty" class="p-12 text-center text-slate-400 hidden">
+                            <svg class="w-12 h-12 mx-auto mb-3 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <p class="font-medium text-slate-600">No matching internal orders found.</p>
+                            <p class="text-xs text-slate-400 mt-1">Try modifying your search or filter criteria.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- View: Costing Report Detail -->
+                <section id="view-costing_detail" class="view-section hidden">
+                    <!-- Top Action Bar (no-print) -->
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6 no-print">
+                        <div class="flex items-center gap-3">
+                            <button type="button" class="btn btn-secondary btn-sm flex items-center gap-1.5"
+                                onclick="window.adminApp.backToCostingOrders()">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                                </svg>
+                                Back to Order List
+                            </button>
+                            <div class="h-6 w-px bg-slate-200"></div>
+                            <h2 class="text-lg font-bold text-slate-800">Costing Sheet Details</h2>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-2">
+                            <button type="button" class="btn btn-primary btn-sm flex items-center gap-1.5"
+                                onclick="window.adminApp.openAddCostingExpense()">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                </svg>
+                                Add Expense
+                            </button>
+                            <button type="button" class="btn btn-secondary btn-sm flex items-center gap-1.5"
+                                onclick="window.adminApp.exportCostingPDF()">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                Export PDF
+                            </button>
+                            <button type="button" class="btn btn-secondary btn-sm flex items-center gap-1.5"
+                                onclick="window.adminApp.exportCostingCSV()">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                                CSV
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Costing Sheet Printable Container -->
+                    <div id="costing-report-sheet" class="bg-white rounded-xl border border-slate-300 shadow-md p-6 max-w-7xl mx-auto costing-print-sheet">
+                        
+                        <!-- Top Dark Blue Banner -->
+                        <div style="background-color: #1b4475; color: #ffffff; text-align: center; padding: 10px 16px; font-weight: 800; font-size: 1.15rem; letter-spacing: 0.5px; border: 1px solid #1b4475;">
+                            <span id="costing-detail-banner-title">CR -</span>
+                        </div>
+
+                        <!-- Order Info Grid (3 columns of Key-Value pairs, 4 rows) -->
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-xs text-left border-collapse border border-slate-300 costing-table" style="margin-bottom: 24px;">
+                                <tbody>
+                                    <tr class="border-b border-slate-300">
+                                        <td class="font-bold border border-slate-300 p-2 w-[12%]" style="background-color: #f1f5f9; color: #1e293b;">WO Date</td>
+                                        <td class="border border-slate-300 p-1 w-[21%]">
+                                            <input type="date" id="cr-edit-date" class="cr-field-input" onchange="window.adminApp.handleCostingOrderFieldChange('date', this.value)">
+                                        </td>
+                                        <td class="font-bold border border-slate-300 p-2 w-[12%]" style="background-color: #f1f5f9; color: #1e293b;">Drawing:</td>
+                                        <td class="border border-slate-300 p-1 w-[21%]">
+                                            <input type="text" id="cr-edit-drawing" class="cr-field-input" placeholder="Drawing No" onchange="window.adminApp.handleCostingOrderFieldChange('drawingNo', this.value)">
+                                        </td>
+                                        <td class="font-bold border border-slate-300 p-2 w-[12%]" style="background-color: #f1f5f9; color: #1e293b;">Status</td>
+                                        <td class="border border-slate-300 p-1 w-[22%]">
+                                            <select id="cr-edit-status" class="cr-field-select font-semibold" onchange="window.adminApp.handleCostingOrderFieldChange('status', this.value)">
+                                                <option value="Pending">Pending</option>
+                                                <option value="Delivered">Delivered</option>
+                                                <option value="In Progress">In Progress</option>
+                                                <option value="Cancelled">Cancelled</option>
+                                            </select>
+                                        </td>
+                                    </tr>
+                                    <tr class="border-b border-slate-300">
+                                        <td class="font-bold border border-slate-300 p-2" style="background-color: #f1f5f9; color: #1e293b;">Customer</td>
+                                        <td class="border border-slate-300 p-1">
+                                            <input type="text" id="cr-edit-customer" class="cr-field-input font-semibold" placeholder="Customer Name" onchange="window.adminApp.handleCostingOrderFieldChange('customer', this.value)">
+                                        </td>
+                                        <td class="font-bold border border-slate-300 p-2" style="background-color: #f1f5f9; color: #1e293b;">Part / Project</td>
+                                        <td class="border border-slate-300 p-1">
+                                            <input type="text" id="cr-edit-description" class="cr-field-input" placeholder="Part / Project Description" onchange="window.adminApp.handleCostingOrderFieldChange('description', this.value)">
+                                        </td>
+                                        <td class="font-bold border border-slate-300 p-2" style="background-color: #f1f5f9; color: #1e293b;">Budget:</td>
+                                        <td class="border border-slate-300 p-1">
+                                            <input type="number" step="any" id="cr-edit-budget" class="cr-field-input font-mono" placeholder="Budget amount" onchange="window.adminApp.handleCostingOrderFieldChange('budget', this.value)">
+                                        </td>
+                                    </tr>
+                                    <tr class="border-b border-slate-300">
+                                        <td class="font-bold border border-slate-300 p-2" style="background-color: #f1f5f9; color: #1e293b;">Quantity</td>
+                                        <td class="border border-slate-300 p-1">
+                                            <input type="number" step="any" id="cr-edit-qty" class="cr-field-input font-mono font-bold" placeholder="1" onchange="window.adminApp.handleCostingOrderFieldChange('qty', this.value)">
+                                        </td>
+                                        <td class="font-bold border border-slate-300 p-2" style="background-color: #f1f5f9; color: #1e293b;">PO No.</td>
+                                        <td class="border border-slate-300 p-1">
+                                            <input type="text" id="cr-edit-pono" class="cr-field-input" placeholder="PO Number" onchange="window.adminApp.handleCostingOrderFieldChange('poNo', this.value)">
+                                        </td>
+                                        <td class="font-bold border border-slate-300 p-2" style="background-color: #f1f5f9; color: #1e293b;">PO Value</td>
+                                        <td class="border border-slate-300 p-1">
+                                            <input type="number" step="any" id="cr-edit-povalue" class="cr-field-input font-mono font-bold text-slate-900" placeholder="PO Value" onchange="window.adminApp.handleCostingOrderFieldChange('total', this.value)">
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="font-bold border border-slate-300 p-2" style="background-color: #f1f5f9; color: #1e293b;">Start Date</td>
+                                        <td class="border border-slate-300 p-1">
+                                            <input type="date" id="cr-edit-startdate" class="cr-field-input" onchange="window.adminApp.handleCostingOrderFieldChange('startDate', this.value)">
+                                        </td>
+                                        <td class="font-bold border border-slate-300 p-2" style="background-color: #f1f5f9; color: #1e293b;">Delivery Date</td>
+                                        <td class="border border-slate-300 p-1">
+                                            <input type="date" id="cr-edit-deliverydate" class="cr-field-input" onchange="window.adminApp.handleCostingOrderFieldChange('deliveryDateActual', this.value)">
+                                        </td>
+                                        <td class="font-bold border border-slate-300 p-2" style="background-color: #f1f5f9; color: #1e293b;">DC NO</td>
+                                        <td class="border border-slate-300 p-1">
+                                            <input type="text" id="cr-edit-dcno" class="cr-field-input" placeholder="DC Numbers" onchange="window.adminApp.handleCostingOrderFieldChange('dcNo', this.value)">
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Expense List Header Banner with Quick Action Buttons -->
+                        <div style="background-color: #1b4475; color: #ffffff; padding: 8px 16px; border: 1px solid #1b4475;" class="flex items-center justify-between">
+                            <span class="font-extrabold text-sm md:text-base tracking-wide">EXPENSE LIST</span>
+                            <div class="flex items-center gap-2 no-print">
+                                <button type="button" class="px-2.5 py-1 text-xs font-semibold bg-white/20 hover:bg-white/30 text-white rounded transition-colors flex items-center gap-1"
+                                    onclick="window.adminApp.addQuickCostingExpenseRow()">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                                    </svg>
+                                    + Add Row
+                                </button>
+                                <button type="button" class="px-2.5 py-1 text-xs font-semibold bg-teal-500 hover:bg-teal-400 text-white rounded transition-colors flex items-center gap-1 shadow-xs"
+                                    onclick="window.adminApp.openAddCostingExpense()">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                    </svg>
+                                    + Add Expense
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Expense List Table -->
+                        <div class="overflow-x-auto" style="margin-bottom: 28px;">
+                            <table class="w-full text-xs text-left border-collapse border border-slate-300 costing-table">
+                                <thead>
+                                    <tr style="background-color: #f1f5f9;" class="border-b border-slate-300">
+                                        <th class="border border-slate-300 p-2.5 text-center w-28" style="background-color: #f1f5f9; color: #1e293b !important;">Date</th>
+                                        <th class="border border-slate-300 p-2.5 w-36" style="background-color: #f1f5f9; color: #1e293b !important;">Expense Category</th>
+                                        <th class="border border-slate-300 p-2.5 min-w-[140px]" style="background-color: #f1f5f9; color: #1e293b !important;">Expense Description</th>
+                                        <th class="border border-slate-300 p-2.5 w-40" style="background-color: #f1f5f9; color: #1e293b !important;">Supplier / Employee</th>
+                                        <th class="border border-slate-300 p-2.5 text-center w-20" style="background-color: #f1f5f9; color: #1e293b !important;">Qty/Day</th>
+                                        <th class="border border-slate-300 p-2.5 text-center w-16" style="background-color: #f1f5f9; color: #1e293b !important;">UOM</th>
+                                        <th class="border border-slate-300 p-2.5 text-right w-24" style="background-color: #f1f5f9; color: #1e293b !important;">Rate</th>
+                                        <th class="border border-slate-300 p-2.5 text-right w-28" style="background-color: #f1f5f9; color: #1e293b !important;">Amount</th>
+                                        <th class="border border-slate-300 p-2.5 min-w-[120px]" style="background-color: #f1f5f9; color: #1e293b !important;">Remarks</th>
+                                        <th class="border border-slate-300 p-2.5 text-center w-16 no-print" style="background-color: #f1f5f9; color: #1e293b !important;">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="costing-expense-list-body">
+                                    <!-- Dynamic rows -->
+                                </tbody>
+                            </table>
+                            <div class="p-2 bg-slate-50 border-x border-b border-slate-300 flex items-center justify-between no-print">
+                                <span class="text-[11px] text-slate-500 font-medium">Tip: Click any cell to edit directly, or use Add Row below.</span>
+                                <button type="button" class="text-xs font-bold text-teal-700 hover:text-teal-800 flex items-center gap-1 px-2 py-1 hover:bg-slate-200 rounded"
+                                    onclick="window.adminApp.addQuickCostingExpenseRow()">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                                    </svg>
+                                    + Add New Expense Row
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Bottom Section: Summary & Profit/Loss (2 Columns) -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            
+                            <!-- Left: Expense Summary -->
+                            <div class="border border-slate-300 overflow-hidden">
+                                <div style="background-color: #1b4475; color: #ffffff; text-align: center; padding: 7px 12px; font-weight: 800; font-size: 0.95rem; letter-spacing: 0.5px;">
+                                    EXPENSE SUMMARY
+                                </div>
+                                <table class="w-full text-xs border-collapse">
+                                    <thead>
+                                        <tr class="border-b border-slate-300 bg-slate-50 font-bold text-slate-700">
+                                            <th class="border-r border-slate-300 p-2.5 text-left">Category</th>
+                                            <th class="p-2.5 text-right w-36">Total</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-200">
+                                        <tr>
+                                            <td class="border-r border-slate-300 p-2.5 text-slate-700 font-medium">Raw Material</td>
+                                            <td class="p-2.5 text-right font-mono text-slate-800" id="cr-sum-raw-material">0</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="border-r border-slate-300 p-2.5 text-slate-700 font-medium">Direct Labour</td>
+                                            <td class="p-2.5 text-right font-mono text-slate-800" id="cr-sum-direct-labour">0</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="border-r border-slate-300 p-2.5 text-slate-700 font-medium">Machine Cost</td>
+                                            <td class="p-2.5 text-right font-mono text-slate-800" id="cr-sum-machine-cost">0</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="border-r border-slate-300 p-2.5 text-slate-700 font-medium">Subcontract</td>
+                                            <td class="p-2.5 text-right font-mono text-slate-800" id="cr-sum-subcontract">0</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="border-r border-slate-300 p-2.5 text-slate-700 font-medium">Logistics</td>
+                                            <td class="p-2.5 text-right font-mono text-slate-800" id="cr-sum-logistics">0</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="border-r border-slate-300 p-2.5 text-slate-700 font-medium">Overhead</td>
+                                            <td class="p-2.5 text-right font-mono text-slate-800" id="cr-sum-overhead">0</td>
+                                        </tr>
+                                    </tbody>
+                                    <tfoot>
+                                        <tr class="border-t-2 border-slate-400 bg-slate-100 font-bold">
+                                            <td class="border-r border-slate-300 p-2.5 text-slate-900 uppercase">TOTAL EXPENSE</td>
+                                            <td class="p-2.5 text-right font-mono text-slate-900 text-sm font-bold" id="cr-sum-total-expense">0</td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+
+                            <!-- Right: Profit / Loss -->
+                            <div class="border border-slate-300 overflow-hidden">
+                                <div style="background-color: #1b4475; color: #ffffff; text-align: center; padding: 7px 12px; font-weight: 800; font-size: 0.95rem; letter-spacing: 0.5px;">
+                                    PROFIT / LOSS
+                                </div>
+                                <table class="w-full text-xs border-collapse">
+                                    <thead>
+                                        <tr class="border-b border-slate-300 bg-slate-50 font-bold text-slate-700">
+                                            <th class="border-r border-slate-300 p-2.5 text-left">Particular</th>
+                                            <th class="p-2.5 text-right w-44">Amount</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-200">
+                                        <tr>
+                                            <td class="border-r border-slate-300 p-2.5 text-slate-700 font-medium">Sales / PO Value</td>
+                                            <td class="p-2.5 text-right font-mono font-medium text-slate-900" id="cr-pl-sales-val">₹ 0.00</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="border-r border-slate-300 p-2.5 text-slate-700 font-medium">Total Expenses</td>
+                                            <td class="p-2.5 text-right font-mono font-medium text-slate-900" id="cr-pl-total-exp">₹ 0.00</td>
+                                        </tr>
+                                        <tr class="bg-slate-50">
+                                            <td class="border-r border-slate-300 p-2.5 text-slate-900 font-bold">Profit / Loss</td>
+                                            <td class="p-2.5 text-right font-mono font-bold text-sm" id="cr-pl-profit-loss">₹ 0.00</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="border-r border-slate-300 p-2.5 text-slate-700 font-medium">Profit Margin %</td>
+                                            <td class="p-2.5 text-right font-mono font-bold text-slate-900" id="cr-pl-margin">0%</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="border-r border-slate-300 p-2.5 text-transparent">-</td>
+                                            <td class="p-2.5 text-right text-transparent">-</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="border-r border-slate-300 p-2.5 text-transparent">-</td>
+                                            <td class="p-2.5 text-right text-transparent">-</td>
+                                        </tr>
+                                    </tbody>
+                                    <tfoot>
+                                        <tr class="border-t-2 border-slate-400 bg-slate-100">
+                                            <td class="border-r border-slate-300 p-2.5 text-transparent">-</td>
+                                            <td class="p-2.5 text-right text-transparent">-</td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+
                         </div>
                     </div>
                 </section>
@@ -3917,9 +4422,111 @@
         </div>
     </div>
 
+    <!-- ============================================
+         MODAL: Costing Expense Item
+         ============================================ -->
+    <div id="costing-expense-modal" class="modal hidden">
+        <div class="modal-backdrop" onclick="window.adminApp.closeModal('costing-expense-modal')"></div>
+        <div class="modal-content" style="max-width: 650px;">
+            <div class="modal-header bg-slate-900 text-white">
+                <h3 id="costing-expense-modal-title" class="modal-title font-bold text-white">Add Expense Item</h3>
+                <button class="modal-close text-white hover:text-slate-300" onclick="window.adminApp.closeModal('costing-expense-modal')">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-5 h-5">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <form id="costing-expense-form" onsubmit="window.adminApp.handleSaveCostingExpense(event)">
+                <div class="modal-body p-6 space-y-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="form-group">
+                            <label class="form-label text-xs font-bold text-slate-700 uppercase tracking-wider mb-1 block">Expense Date</label>
+                            <input type="date" name="date" class="form-input w-full p-2.5 border border-slate-300 rounded-lg text-sm" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label text-xs font-bold text-slate-700 uppercase tracking-wider mb-1 block">Category</label>
+                            <select name="category" class="form-select w-full p-2.5 border border-slate-300 rounded-lg text-sm" required>
+                                <option value="Raw Material">Raw Material</option>
+                                <option value="Direct Labour" selected>Direct Labour</option>
+                                <option value="Machine Cost">Machine Cost</option>
+                                <option value="Subcontract">Subcontract</option>
+                                <option value="Logistics">Logistics</option>
+                                <option value="Overhead">Overhead</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label text-xs font-bold text-slate-700 uppercase tracking-wider mb-1 block">Expense Description</label>
+                        <input type="text" name="description" class="form-input w-full p-2.5 border border-slate-300 rounded-lg text-sm"
+                            placeholder="e.g. TECHNICIAN, SS 316 FLAT, Transportation" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label text-xs font-bold text-slate-700 uppercase tracking-wider mb-1 block">Supplier / Employee</label>
+                        <input type="text" name="supplierEmployee" class="form-input w-full p-2.5 border border-slate-300 rounded-lg text-sm"
+                            placeholder="e.g. ABC Steel, IES-Baliga, Operator Name">
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-3">
+                        <div class="form-group">
+                            <label class="form-label text-xs font-bold text-slate-700 uppercase tracking-wider mb-1 block">Qty / Day</label>
+                            <input type="number" step="0.001" name="qty" class="form-input w-full p-2.5 border border-slate-300 rounded-lg text-sm text-center font-mono"
+                                value="1" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label text-xs font-bold text-slate-700 uppercase tracking-wider mb-1 block">UOM</label>
+                            <input type="text" name="uom" list="costing-uom-options" class="form-input w-full p-2.5 border border-slate-300 rounded-lg text-sm text-center"
+                                placeholder="HOUR, Kg, Nos">
+                            <datalist id="costing-uom-options">
+                                <option value="HOUR">
+                                <option value="Kg">
+                                <option value="Nos">
+                                <option value="Mtr">
+                                <option value="Set">
+                                <option value="Day">
+                                <option value="Trip">
+                                <option value="Lot">
+                            </datalist>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label text-xs font-bold text-slate-700 uppercase tracking-wider mb-1 block">Rate (₹)</label>
+                            <input type="number" step="0.01" name="rate" class="form-input w-full p-2.5 border border-slate-300 rounded-lg text-sm text-right font-mono"
+                                placeholder="0.00" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label text-xs font-bold text-slate-700 uppercase tracking-wider mb-1 block">
+                            Amount (₹) <span class="text-slate-400 font-normal text-[11px]">(Auto: Qty × Rate)</span>
+                        </label>
+                        <input type="number" step="0.01" name="amount" class="form-input w-full p-2.5 border border-slate-300 rounded-lg text-sm text-right font-mono font-bold text-slate-900 bg-slate-50"
+                            placeholder="0.00" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label text-xs font-bold text-slate-700 uppercase tracking-wider mb-1 block">Remarks</label>
+                        <textarea name="remarks" rows="2" class="form-input w-full p-2.5 border border-slate-300 rounded-lg text-sm"
+                            placeholder="Optional notes (e.g. includes labor charges for work order...)"></textarea>
+                    </div>
+                </div>
+
+                <div class="modal-footer p-4 border-t border-slate-200 flex justify-end gap-2 bg-slate-50">
+                    <button type="button" class="btn btn-secondary text-sm" onclick="window.adminApp.closeModal('costing-expense-modal')">
+                        Cancel
+                    </button>
+                    <button type="submit" class="btn btn-primary text-sm px-5">
+                        Save Expense
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Application Script -->
 
-    <script type="module" src="assets/admin/js/app.js?v=18"></script>
+    <script type="module" src="assets/admin/js/app.js?v=21"></script>
 
     <!-- Mobile Sidebar Toggle Script -->
     <script>

@@ -8,6 +8,7 @@ import * as Inventory from './inventory.js';
 import * as Workflow from './workflow.js';
 import * as Reporting from './reporting.js';
 import * as Tracker from './progress_tracker.js';
+import * as Costing from './costing.js';
 
 // App State
 let currentMembers = [];
@@ -215,7 +216,29 @@ window.adminApp = {
         if (viewName === 'progress_tracker') {
             Tracker.renderTracker();
         }
+
+        if (viewName === 'costing_report') {
+            Costing.renderCostingOrderList();
+        }
     },
+
+    // Costing Report Methods
+    renderCostingReport: () => Costing.renderCostingOrderList(),
+    openCostingDetail: (orderId) => Costing.openCostingDetail(orderId),
+    backToCostingOrders: () => Costing.backToOrderList(),
+    openAddCostingExpense: () => Costing.openExpenseModal(),
+    openEditCostingExpense: (expenseId) => Costing.openExpenseModal(expenseId),
+    handleSaveCostingExpense: (e) => Costing.handleSaveExpense(e),
+    deleteCostingExpense: (expenseId) => Costing.handleDeleteExpense(expenseId),
+    setCostingSearch: (query) => Costing.setCostingSearch(query),
+    setCostingStatusFilter: (status) => Costing.setCostingStatusFilter(status),
+    printCostingReport: () => Costing.printCostingReport(),
+    exportCostingPDF: () => Costing.exportCostingPDF(),
+    exportCostingCSV: () => Costing.exportCostingCSV(),
+    exportAllCostingOrdersCSV: () => Costing.exportAllOrdersCostingCSV(),
+    handleCostingOrderFieldChange: (field, val) => Costing.updateOrderField(field, val),
+    handleInlineExpenseEdit: (id, field, val) => Costing.updateExpenseField(id, field, val),
+    addQuickCostingExpenseRow: () => Costing.addQuickExpenseRow(),
 
     trackerInlineEdit: (id, field, val) => Tracker.handleInlineEdit(id, field, val),
     trackerFilterCustomer: (val) => Tracker.setFilterCustomer(val),
@@ -4422,6 +4445,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 Monitoring.renderDeliveryReport(weekPicker.value);
             }
         }
+
+        const costingView = document.getElementById('view-costing_report');
+        if (costingView && !costingView.classList.contains('hidden')) {
+            Costing.renderCostingOrderList();
+        }
+
+        const costingDetailView = document.getElementById('view-costing_detail');
+        if (costingDetailView && !costingDetailView.classList.contains('hidden')) {
+            Costing.renderCostingDetailContent();
+        }
         refreshDashboard();
     }, false);
 
@@ -5166,6 +5199,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Initialize Monitoring logic
         Monitoring.setupCostCalculation();
+
+        // Initialize Costing Module
+        Costing.initCosting();
+        Costing.setupExpenseModalCalculations();
 
         // Setup Daily Summary Report Event Listeners
         const summaryMonth = document.getElementById('summary-report-month');

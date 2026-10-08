@@ -843,3 +843,82 @@ export const getOrdersForDateRange = async (startDate, endDate) => {
         return [];
     }
 };
+
+// === COSTING EXPENSES ===
+const COSTING_EXPENSES_COLLECTION = "costing_expenses";
+
+export const addCostingExpense = async (expenseData) => {
+    try {
+        const docRef = await addDoc(collection(db, COSTING_EXPENSES_COLLECTION), {
+            ...expenseData,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+        });
+        return { id: docRef.id, error: null };
+    } catch (error) {
+        console.error("Error adding costing expense:", error);
+        return { id: null, error: error.message };
+    }
+};
+
+export const updateCostingExpense = async (expenseId, updates) => {
+    try {
+        const docRef = doc(db, COSTING_EXPENSES_COLLECTION, expenseId);
+        await updateDoc(docRef, {
+            ...updates,
+            updatedAt: serverTimestamp()
+        });
+        return { success: true, error: null };
+    } catch (error) {
+        console.error("Error updating costing expense:", error);
+        return { success: false, error: error.message };
+    }
+};
+
+export const deleteCostingExpense = async (expenseId) => {
+    try {
+        await deleteDoc(doc(db, COSTING_EXPENSES_COLLECTION, expenseId));
+        return { success: true, error: null };
+    } catch (error) {
+        console.error("Error deleting costing expense:", error);
+        return { success: false, error: error.message };
+    }
+};
+
+export const subscribeToCostingExpenses = (orderId, callback) => {
+    const q = query(
+        collection(db, COSTING_EXPENSES_COLLECTION),
+        where("orderId", "==", orderId)
+    );
+    return onSnapshot(q, (snapshot) => {
+        const expenses = [];
+        snapshot.forEach((doc) => {
+            expenses.push({ id: doc.id, ...doc.data() });
+        });
+        // Sort chronologically by date
+        expenses.sort((a, b) => {
+            const dateA = a.date || "";
+            const dateB = b.date || "";
+            return dateA.localeCompare(dateB);
+        });
+        callback(expenses);
+    }, (error) => {
+        console.error("Error subscribing to costing expenses:", error);
+        callback([]);
+    });
+};
+
+export const subscribeToAllCostingExpenses = (callback) => {
+    const q = collection(db, COSTING_EXPENSES_COLLECTION);
+    return onSnapshot(q, (snapshot) => {
+        const expenses = [];
+        snapshot.forEach((doc) => {
+            expenses.push({ id: doc.id, ...doc.data() });
+        });
+        callback(expenses);
+    }, (error) => {
+        console.error("Error subscribing to all costing expenses:", error);
+        callback([]);
+    });
+};
+

@@ -49,7 +49,9 @@ export const switchView = (viewName) => {
             'progress_tracker': 'Project Progress Tracker',
             'project_detail': 'Project Deep Dive & Workflow',
             'daily_roster': 'Daily Roster',
-            'daily_summary_report': 'Daily Summary Report'
+            'daily_summary_report': 'Daily Summary Report',
+            'costing_report': 'Costing Report',
+            'costing_detail': 'Costing Report Detail'
         };
 
         const pageTitle = document.getElementById('page-title');
@@ -59,6 +61,11 @@ export const switchView = (viewName) => {
         updateActiveLink(viewName);
 
         // Trigger View Renders
+        if (viewName === 'costing_report') {
+            if (window.adminApp?.renderCostingReport) {
+                window.adminApp.renderCostingReport();
+            }
+        }
         if (viewName === 'daily_summary_report') {
             initDailySummaryReport();
         }
