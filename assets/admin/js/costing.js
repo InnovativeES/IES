@@ -9,6 +9,7 @@ let currentExpenses = [];
 let expensesUnsubscribe = null;
 let searchTerm = '';
 let statusFilter = 'all'; // 'all', 'Pending', 'Delivered', 'filled', 'empty'
+let monthFilter = ''; // 'YYYY-MM' or empty for All Months
 let editingExpenseId = null;
 
 // Expense Categories defined in the business format
@@ -130,6 +131,14 @@ export function setCostingStatusFilter(status) {
 }
 
 /**
+ * Set Month Filter (YYYY-MM or empty for All Months)
+ */
+export function setCostingMonthFilter(month) {
+    monthFilter = (month || '').trim();
+    renderCostingOrderList();
+}
+
+/**
  * Render the Order List View with Green Highlight & Tick on Filled Sheets
  */
 export function renderCostingOrderList() {
@@ -142,6 +151,14 @@ export function renderCostingOrderList() {
     
     // Filter active orders (not deleted)
     let filtered = allOrders.filter(o => !o.isDeleted);
+
+    // Filter by month (WO Date, Start Date, or Date)
+    if (monthFilter) {
+        filtered = filtered.filter(o => {
+            const dateStr = o.date || o.startDate || '';
+            return dateStr.startsWith(monthFilter);
+        });
+    }
 
     // Filter by status / filled status
     if (statusFilter === 'filled') {
@@ -1175,10 +1192,13 @@ export function exportCostingCSV() {
  */
 export function exportAllOrdersCostingCSV() {
     const allOrders = window.adminApp?.getCurrentOrders ? window.adminApp.getCurrentOrders() : [];
-    const activeOrders = allOrders.filter(o => !o.isDeleted);
+    let activeOrders = allOrders.filter(o => !o.isDeleted);
+    if (monthFilter) {
+        activeOrders = activeOrders.filter(o => (o.date || o.startDate || '').startsWith(monthFilter));
+    }
     
     let csv = 'INNOVATIVE ENGINEERING SOLUTIONS\r\n';
-    csv += 'COSTING SUMMARY - ALL INTERNAL ORDERS\r\n';
+    csv += `COSTING SUMMARY - ALL INTERNAL ORDERS${monthFilter ? ` (${monthFilter})` : ''}\r\n`;
     csv += `Export Date,${new Date().toLocaleDateString('en-GB')}\r\n\r\n`;
     csv += 'S.No,Internal Order No,WO Date,Customer,Part / Project,Quantity,Status,PO Value (INR),Total Expenses (INR),Net Profit / Loss (INR),Margin %,Costing Status\r\n';
 

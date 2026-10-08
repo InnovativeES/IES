@@ -232,6 +232,7 @@ window.adminApp = {
     deleteCostingExpense: (expenseId) => Costing.handleDeleteExpense(expenseId),
     setCostingSearch: (query) => Costing.setCostingSearch(query),
     setCostingStatusFilter: (status) => Costing.setCostingStatusFilter(status),
+    setCostingMonthFilter: (month) => Costing.setCostingMonthFilter(month),
     printCostingReport: () => Costing.printCostingReport(),
     exportCostingPDF: () => Costing.exportCostingPDF(),
     exportCostingCSV: () => Costing.exportCostingCSV(),

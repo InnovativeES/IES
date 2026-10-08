@@ -1780,6 +1780,21 @@
                                     oninput="window.adminApp.setCostingSearch(this.value)">
                             </div>
 
+                            <!-- Month Filter -->
+                            <div class="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg border border-slate-200">
+                                <span class="text-xs font-bold text-slate-500 pl-2">Month:</span>
+                                <input type="month" id="costing-month-filter"
+                                    class="bg-white border border-slate-200 text-xs font-semibold text-slate-700 rounded-md px-2.5 py-1 focus:ring-2 focus:ring-teal-500 outline-none cursor-pointer"
+                                    title="Filter by Month"
+                                    onchange="window.adminApp.setCostingMonthFilter(this.value)">
+                                <button type="button" id="costing-clear-month-btn"
+                                    class="text-xs text-slate-400 hover:text-rose-600 px-1.5 py-1 rounded hover:bg-white transition-colors"
+                                    title="Clear Month Filter (All Months)"
+                                    onclick="document.getElementById('costing-month-filter').value = ''; window.adminApp.setCostingMonthFilter('')">
+                                    ✕
+                                </button>
+                            </div>
+
                             <div class="flex flex-wrap items-center bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs font-semibold gap-1">
                                 <button type="button" class="px-3 py-1.5 rounded-md bg-white text-slate-800 shadow-xs costing-filter-btn"
                                     onclick="document.querySelectorAll('.costing-filter-btn').forEach(b => { b.classList.remove('bg-white', 'text-slate-800', 'shadow-xs'); b.classList.add('text-slate-500'); }); this.classList.add('bg-white', 'text-slate-800', 'shadow-xs'); this.classList.remove('text-slate-500'); window.adminApp.setCostingStatusFilter('all')">
@@ -4606,7 +4621,7 @@
 
     <!-- Application Script -->
 
-    <script type="module" src="assets/admin/js/app.js?v=23"></script>
+    <script type="module" src="assets/admin/js/app.js?v=24"></script>
 
     <!-- Mobile Sidebar Toggle Script -->
     <script>
