@@ -139,6 +139,91 @@ export function setCostingMonthFilter(month) {
 }
 
 /**
+ * Sanitize orders for Costing:
+ * 1. Filter out direct delivery reports (entryType === 'delivery_report') to prevent duplicate clones
+ * 2. Deduplicate orders by internalOrderNo, merging delivery details (DC No, delivery date, bill No)
+ * 3. Include stand-alone delivery records only if no base internal order exists
+ */
+export function getSanitizedInternalOrders(allOrders) {
+    if (!Array.isArray(allOrders)) return [];
+
+    const rawActive = allOrders.filter(o => !o.isDeleted && !o.deleted);
+
+    // 1. Separate base production orders from delivery reports
+    const baseOrders = rawActive.filter(o => o.entryType !== 'delivery_report');
+    const deliveryReports = rawActive.filter(o => o.entryType === 'delivery_report');
+
+    // 2. Map delivery reports by IO number for quick lookup
+    const deliveriesByIo = new Map();
+    deliveryReports.forEach(d => {
+        const ioKey = (d.internalOrderNo || '').trim().toUpperCase();
+        if (!ioKey) return;
+        if (!deliveriesByIo.has(ioKey)) {
+            deliveriesByIo.set(ioKey, []);
+        }
+        deliveriesByIo.get(ioKey).push(d);
+    });
+
+    // 3. Deduplicate base orders by internalOrderNo
+    const uniqueOrdersMap = new Map();
+
+    baseOrders.forEach(order => {
+        const ioKey = (order.internalOrderNo || order.id || '').trim().toUpperCase();
+        if (!ioKey) {
+            uniqueOrdersMap.set(order.id, { ...order });
+            return;
+        }
+
+        if (!uniqueOrdersMap.has(ioKey)) {
+            uniqueOrdersMap.set(ioKey, { ...order });
+        } else {
+            // Merge duplicate base orders (pick the one with valid PO value or newer data)
+            const existing = uniqueOrdersMap.get(ioKey);
+            const existingVal = getOrderSaleValue(existing);
+            const currentVal = getOrderSaleValue(order);
+
+            if (currentVal > existingVal || (!existing.poNo && order.poNo) || (!existing.drawingNo && order.drawingNo)) {
+                uniqueOrdersMap.set(ioKey, { ...existing, ...order });
+            }
+        }
+    });
+
+    // 4. If any delivery reports exist for an IO that has NO base internal order at all, include them
+    deliveryReports.forEach(d => {
+        const ioKey = (d.internalOrderNo || '').trim().toUpperCase();
+        if (ioKey && !uniqueOrdersMap.has(ioKey)) {
+            uniqueOrdersMap.set(ioKey, { ...d });
+        }
+    });
+
+    // 5. Merge delivery metadata (delivery date, DC No, Bill No) into the base orders
+    const result = Array.from(uniqueOrdersMap.values()).map(order => {
+        const ioKey = (order.internalOrderNo || '').trim().toUpperCase();
+        const linkedDeliveries = deliveriesByIo.get(ioKey) || [];
+
+        if (linkedDeliveries.length > 0) {
+            const merged = { ...order };
+            const latestDel = linkedDeliveries[linkedDeliveries.length - 1];
+            if (!merged.deliveryDateActual && (latestDel.deliveryDateActual || latestDel.date)) {
+                merged.deliveryDateActual = latestDel.deliveryDateActual || latestDel.date;
+            }
+            if (!merged.dcNo) {
+                const dcs = linkedDeliveries.map(d => d.dcNo).filter(Boolean);
+                if (dcs.length) merged.dcNo = [...new Set(dcs)].join(', ');
+            }
+            if (!merged.billNo) {
+                const bills = linkedDeliveries.map(d => d.billNo).filter(Boolean);
+                if (bills.length) merged.billNo = [...new Set(bills)].join(', ');
+            }
+            return merged;
+        }
+        return order;
+    });
+
+    return result;
+}
+
+/**
  * Render the Order List View with Green Highlight & Tick on Filled Sheets
  */
 export function renderCostingOrderList() {
@@ -146,11 +231,9 @@ export function renderCostingOrderList() {
     const emptyState = document.getElementById('costing-orders-empty');
     if (!tableBody) return;
 
-    // Get orders from app state
+    // Get orders from app state and sanitize/deduplicate
     const allOrders = window.adminApp?.getCurrentOrders ? window.adminApp.getCurrentOrders() : [];
-    
-    // Filter active orders (not deleted)
-    let filtered = allOrders.filter(o => !o.isDeleted);
+    let filtered = getSanitizedInternalOrders(allOrders);
 
     // Filter by month (WO Date, Start Date, or Date)
     if (monthFilter) {
@@ -329,7 +412,9 @@ export function renderCostingOrderList() {
  */
 export function openCostingDetail(orderId) {
     const allOrders = window.adminApp?.getCurrentOrders ? window.adminApp.getCurrentOrders() : [];
-    currentOrder = allOrders.find(o => o.id === orderId || o.internalOrderNo === orderId);
+    const sanitizedOrders = getSanitizedInternalOrders(allOrders);
+    const lookupKey = String(orderId || '').trim().toUpperCase();
+    currentOrder = sanitizedOrders.find(o => o.id === orderId || (o.internalOrderNo && o.internalOrderNo.trim().toUpperCase() === lookupKey));
     
     if (!currentOrder) {
         alert('Internal order not found.');
@@ -1192,7 +1277,7 @@ export function exportCostingCSV() {
  */
 export function exportAllOrdersCostingCSV() {
     const allOrders = window.adminApp?.getCurrentOrders ? window.adminApp.getCurrentOrders() : [];
-    let activeOrders = allOrders.filter(o => !o.isDeleted);
+    let activeOrders = getSanitizedInternalOrders(allOrders);
     if (monthFilter) {
         activeOrders = activeOrders.filter(o => (o.date || o.startDate || '').startsWith(monthFilter));
     }
