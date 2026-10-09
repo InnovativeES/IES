@@ -10,6 +10,7 @@ let expensesUnsubscribe = null;
 let searchTerm = '';
 let statusFilter = 'all'; // 'all', 'Pending', 'Delivered', 'filled', 'empty'
 let monthFilter = ''; // 'YYYY-MM' or empty for All Months
+let defaultMonthApplied = false;
 let editingExpenseId = null;
 
 // Expense Categories defined in the business format
@@ -131,10 +132,56 @@ export function setCostingStatusFilter(status) {
 }
 
 /**
+ * Extract YYYY-MM from order date or startDate (handles both YYYY-MM-DD and DD-MM-YYYY)
+ */
+export function getOrderMonth(order) {
+    if (!order) return '';
+    const rawDate = String(order.date || order.startDate || '').trim();
+    if (!rawDate) return '';
+    // YYYY-MM or YYYY-MM-DD
+    if (/^\d{4}-\d{2}/.test(rawDate)) {
+        return rawDate.slice(0, 7);
+    }
+    // DD-MM-YYYY
+    const parts = rawDate.split('-');
+    if (parts.length === 3 && parts[2].length === 4 && parts[1].length === 2) {
+        return `${parts[2]}-${parts[1]}`;
+    }
+    return '';
+}
+
+/**
+ * Detect latest order month from orders list (defaults to current month if no orders)
+ */
+export function detectLatestOrderMonth(orders) {
+    let latest = '';
+    if (Array.isArray(orders)) {
+        orders.forEach(o => {
+            const m = getOrderMonth(o);
+            if (m && (!latest || m > latest)) {
+                latest = m;
+            }
+        });
+    }
+    if (!latest) {
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        latest = `${y}-${m}`;
+    }
+    return latest;
+}
+
+/**
  * Set Month Filter (YYYY-MM or empty for All Months)
  */
 export function setCostingMonthFilter(month) {
     monthFilter = (month || '').trim();
+    defaultMonthApplied = true;
+    const monthInput = document.getElementById('costing-month-filter');
+    if (monthInput && monthInput.value !== monthFilter) {
+        monthInput.value = monthFilter;
+    }
     renderCostingOrderList();
 }
 
@@ -233,14 +280,28 @@ export function renderCostingOrderList() {
 
     // Get orders from app state and sanitize/deduplicate
     const allOrders = window.adminApp?.getCurrentOrders ? window.adminApp.getCurrentOrders() : [];
-    let filtered = getSanitizedInternalOrders(allOrders);
+    const sanitized = getSanitizedInternalOrders(allOrders);
+
+    // Apply default month filter to latest month on initial load to avoid rendering lag
+    if (!defaultMonthApplied && sanitized.length > 0) {
+        monthFilter = detectLatestOrderMonth(sanitized);
+        defaultMonthApplied = true;
+        const monthInput = document.getElementById('costing-month-filter');
+        if (monthInput) {
+            monthInput.value = monthFilter;
+        }
+    } else if (monthFilter) {
+        const monthInput = document.getElementById('costing-month-filter');
+        if (monthInput && monthInput.value !== monthFilter) {
+            monthInput.value = monthFilter;
+        }
+    }
+
+    let filtered = sanitized;
 
     // Filter by month (WO Date, Start Date, or Date)
     if (monthFilter) {
-        filtered = filtered.filter(o => {
-            const dateStr = o.date || o.startDate || '';
-            return dateStr.startsWith(monthFilter);
-        });
+        filtered = filtered.filter(o => getOrderMonth(o) === monthFilter);
     }
 
     // Filter by status / filled status
@@ -1279,7 +1340,7 @@ export function exportAllOrdersCostingCSV() {
     const allOrders = window.adminApp?.getCurrentOrders ? window.adminApp.getCurrentOrders() : [];
     let activeOrders = getSanitizedInternalOrders(allOrders);
     if (monthFilter) {
-        activeOrders = activeOrders.filter(o => (o.date || o.startDate || '').startsWith(monthFilter));
+        activeOrders = activeOrders.filter(o => getOrderMonth(o) === monthFilter);
     }
     
     let csv = 'INNOVATIVE ENGINEERING SOLUTIONS\r\n';
