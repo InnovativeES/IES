@@ -360,7 +360,6 @@ export function exportMonthlyPayrollCSV() {
         "Pay Date",
         "Paid Days",
         "LOP Days",
-        "PF Account No",
         "UAN",
         "Gross Earnings (INR)",
         "Total Deductions (INR)",
@@ -377,7 +376,6 @@ export function exportMonthlyPayrollCSV() {
         `"${p.payDate || ''}"`,
         p.paidDays ?? '',
         p.lopDays ?? 0,
-        `"${p.pfAccountNo || ''}"`,
         `"${p.uan || ''}"`,
         p.grossEarnings ?? 0,
         p.totalDeductions ?? 0,
@@ -558,7 +556,6 @@ function initNewPayslipForm() {
     setInputValue('ps-field-pay-date', nowStr);
     setInputValue('ps-field-paid-days', totalDays);
     setInputValue('ps-field-lop-days', 0);
-    setInputValue('ps-field-pf', '');
     setInputValue('ps-field-uan', '');
 
     // Generate Audit Reference Number: IES/PAY/YYYYMM/RANDOM
@@ -600,7 +597,6 @@ function populateFormWithData(data) {
     setInputValue('ps-field-pay-date', data.payDate || '');
     setInputValue('ps-field-paid-days', data.paidDays ?? 30);
     setInputValue('ps-field-lop-days', data.lopDays ?? 0);
-    setInputValue('ps-field-pf', data.pfAccountNo || '');
     setInputValue('ps-field-uan', data.uan || '');
     setInputValue('ps-field-audit-ref', data.auditRefNo || '');
 
@@ -778,7 +774,6 @@ export function collectFormData() {
     const payDate = document.getElementById('ps-field-pay-date')?.value || '';
     const paidDays = Number(document.getElementById('ps-field-paid-days')?.value) || 0;
     const lopDays = Number(document.getElementById('ps-field-lop-days')?.value) || 0;
-    const pfAccountNo = document.getElementById('ps-field-pf')?.value?.trim() || '';
     const uan = document.getElementById('ps-field-uan')?.value?.trim() || '';
     const auditRefNo = document.getElementById('ps-field-audit-ref')?.value?.trim() || '';
 
@@ -919,7 +914,6 @@ export async function cloneFromLastMonth() {
     setInputValue('ps-field-doj', last.dateOfJoining || '');
     setInputValue('ps-field-paid-days', totalDays);
     setInputValue('ps-field-lop-days', 0);
-    setInputValue('ps-field-pf', last.pfAccountNo || '');
     setInputValue('ps-field-uan', last.uan || '');
 
     // Clone Earnings & Deductions
@@ -1065,78 +1059,78 @@ export function backToPayslipDashboard() {
 export function buildPayslipPrintHTML(data) {
     const earningsRows = (data.earnings || []).map(e => `
         <tr style="border-bottom: 1px solid #f1f5f9;">
-            <td style="padding: 9px 12px; font-size: 13px; color: #1e293b; font-weight: 500;">${escapeHtml(e.label || '-')}</td>
-            <td style="padding: 9px 12px; font-size: 13px; color: #0f172a; font-weight: 700; text-align: right;">${formatCurrency(e.amount)}</td>
-            <td style="padding: 9px 12px; font-size: 13px; color: #475569; font-weight: 600; text-align: right;">${formatCurrency(e.ytd)}</td>
+            <td style="padding: 5px 8px; font-size: 11px; color: #1e293b; font-weight: 500;">${escapeHtml(e.label || '-')}</td>
+            <td style="padding: 5px 8px; font-size: 11px; color: #0f172a; font-weight: 700; text-align: right;">${formatCurrency(e.amount)}</td>
+            <td style="padding: 5px 8px; font-size: 11px; color: #475569; font-weight: 600; text-align: right;">${formatCurrency(e.ytd)}</td>
         </tr>
-    `).join('') || `<tr><td colspan="3" style="padding: 12px; text-align: center; color: #94a3b8; font-size: 12px;">No earnings</td></tr>`;
+    `).join('') || `<tr><td colspan="3" style="padding: 8px; text-align: center; color: #94a3b8; font-size: 11px;">No earnings</td></tr>`;
 
     const deductionsRows = (data.deductions || []).map(d => `
         <tr style="border-bottom: 1px solid #f1f5f9;">
-            <td style="padding: 9px 12px; font-size: 13px; color: #1e293b; font-weight: 500;">${escapeHtml(d.label || '-')}</td>
-            <td style="padding: 9px 12px; font-size: 13px; color: #0f172a; font-weight: 700; text-align: right;">${formatCurrency(d.amount)}</td>
-            <td style="padding: 9px 12px; font-size: 13px; color: #475569; font-weight: 600; text-align: right;">${formatCurrency(d.ytd)}</td>
+            <td style="padding: 5px 8px; font-size: 11px; color: #1e293b; font-weight: 500;">${escapeHtml(d.label || '-')}</td>
+            <td style="padding: 5px 8px; font-size: 11px; color: #0f172a; font-weight: 700; text-align: right;">${formatCurrency(d.amount)}</td>
+            <td style="padding: 5px 8px; font-size: 11px; color: #475569; font-weight: 600; text-align: right;">${formatCurrency(d.ytd)}</td>
         </tr>
-    `).join('') || `<tr><td colspan="3" style="padding: 12px; text-align: center; color: #94a3b8; font-size: 12px;">No deductions</td></tr>`;
+    `).join('') || `<tr><td colspan="3" style="padding: 8px; text-align: center; color: #94a3b8; font-size: 11px;">No deductions</td></tr>`;
 
     return `
-        <div class="payslip-document-wrapper" style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 0 auto; background: #ffffff; padding: 36px 40px; box-sizing: border-box; color: #1e293b;">
+        <div class="payslip-document-wrapper" style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 760px; margin: 0 auto; background: #ffffff; padding: 16px 22px; box-sizing: border-box; color: #1e293b; page-break-inside: avoid; break-inside: avoid;">
             <!-- Header Section -->
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #e2e8f0;">
-                <div style="display: flex; align-items: center; gap: 16px;">
-                    <img src="assets/new logo.png" alt="IES Logo" style="height: 52px; object-fit: contain; max-width: 170px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid #e2e8f0;">
+                <div style="display: flex; align-items: center; gap: 14px;">
+                    <img src="assets/new logo.png" alt="IES Logo" style="height: 46px; object-fit: contain; max-width: 150px;">
                     <div>
-                        <div style="font-size: 20px; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; line-height: 1.2;">Innovative Engineering Solutions</div>
-                        <div style="font-size: 12px; color: #64748b; font-weight: 500; margin-top: 3px;">Chennai, Tamil Nadu, India</div>
+                        <div style="font-size: 18px; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; line-height: 1.2;">Innovative Engineering Solutions</div>
+                        <div style="font-size: 11px; color: #64748b; font-weight: 500; margin-top: 2px;">Chennai, Tamil Nadu, India</div>
                     </div>
                 </div>
                 <div style="text-align: right;">
-                    <div style="font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Payslip For the Month</div>
-                    <div style="font-size: 20px; font-weight: 800; color: #0f172a; margin-top: 2px;">${escapeHtml(formatMonthDisplay(data.payPeriod))}</div>
+                    <div style="font-size: 10.5px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Payslip For the Month</div>
+                    <div style="font-size: 17px; font-weight: 800; color: #0f172a; margin-top: 2px;">${escapeHtml(formatMonthDisplay(data.payPeriod))}</div>
                 </div>
             </div>
 
             <!-- Employee Summary Section -->
-            <div style="display: flex; gap: 24px; margin-bottom: 24px;">
+            <div style="display: flex; gap: 18px; margin-bottom: 12px;">
                 <!-- Left Details Column -->
                 <div style="flex: 1;">
-                    <div style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px;">Employee Summary</div>
-                    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                    <div style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px;">Employee Summary</div>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 11.5px; line-height: 1.35;">
                         <tr>
-                            <td style="padding: 4px 0; color: #64748b; width: 140px;">Employee Name</td>
-                            <td style="padding: 4px 0; font-weight: 700; color: #0f172a;">: &nbsp;${escapeHtml(data.employeeName || '-')}</td>
+                            <td style="padding: 2px 0; color: #64748b; width: 125px;">Employee Name</td>
+                            <td style="padding: 2px 0; font-weight: 700; color: #0f172a;">: &nbsp;${escapeHtml(data.employeeName || '-')}</td>
                         </tr>
                         <tr>
-                            <td style="padding: 4px 0; color: #64748b;">Designation</td>
-                            <td style="padding: 4px 0; font-weight: 600; color: #1e293b;">: &nbsp;${escapeHtml(data.designation || '-')}</td>
+                            <td style="padding: 2px 0; color: #64748b;">Designation</td>
+                            <td style="padding: 2px 0; font-weight: 600; color: #1e293b;">: &nbsp;${escapeHtml(data.designation || '-')}</td>
                         </tr>
                         <tr>
-                            <td style="padding: 4px 0; color: #64748b;">Employee ID</td>
-                            <td style="padding: 4px 0; font-weight: 600; color: #1e293b;">: &nbsp;${escapeHtml(data.employeeCode || '-')}</td>
+                            <td style="padding: 2px 0; color: #64748b;">Employee ID</td>
+                            <td style="padding: 2px 0; font-weight: 600; color: #1e293b;">: &nbsp;${escapeHtml(data.employeeCode || '-')}</td>
                         </tr>
                         <tr>
-                            <td style="padding: 4px 0; color: #64748b;">Date of Joining</td>
-                            <td style="padding: 4px 0; font-weight: 600; color: #1e293b;">: &nbsp;${escapeHtml(data.dateOfJoining || '-')}</td>
+                            <td style="padding: 2px 0; color: #64748b;">Date of Joining</td>
+                            <td style="padding: 2px 0; font-weight: 600; color: #1e293b;">: &nbsp;${escapeHtml(data.dateOfJoining || '-')}</td>
                         </tr>
                         <tr>
-                            <td style="padding: 4px 0; color: #64748b;">Pay Period</td>
-                            <td style="padding: 4px 0; font-weight: 600; color: #1e293b;">: &nbsp;${escapeHtml(formatMonthDisplay(data.payPeriod))}</td>
+                            <td style="padding: 2px 0; color: #64748b;">Pay Period</td>
+                            <td style="padding: 2px 0; font-weight: 600; color: #1e293b;">: &nbsp;${escapeHtml(formatMonthDisplay(data.payPeriod))}</td>
                         </tr>
                         <tr>
-                            <td style="padding: 4px 0; color: #64748b;">Pay Date</td>
-                            <td style="padding: 4px 0; font-weight: 600; color: #1e293b;">: &nbsp;${escapeHtml(data.payDate || '-')}</td>
+                            <td style="padding: 2px 0; color: #64748b;">Pay Date</td>
+                            <td style="padding: 2px 0; font-weight: 600; color: #1e293b;">: &nbsp;${escapeHtml(data.payDate || '-')}</td>
                         </tr>
                     </table>
                 </div>
 
                 <!-- Right Net Pay Card Box -->
-                <div style="width: 250px; border: 1px solid #d1fae5; border-radius: 12px; overflow: hidden; background: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
-                    <div style="background: #ecfdf5; padding: 18px 20px; border-bottom: 1px dashed #a7f3d0; text-align: left; border-left: 4px solid #10b981;">
-                        <div style="font-size: 26px; font-weight: 800; color: #047857; letter-spacing: -0.02em; line-height: 1;">${formatCurrency(data.netPayable)}</div>
-                        <div style="font-size: 11px; font-weight: 600; color: #059669; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 5px;">Employee Net Pay</div>
+                <div style="width: 215px; border: 1px solid #d1fae5; border-radius: 8px; overflow: hidden; background: #ffffff;">
+                    <div style="background: #ecfdf5; padding: 10px 14px; border-bottom: 1px dashed #a7f3d0; text-align: left; border-left: 4px solid #10b981;">
+                        <div style="font-size: 22px; font-weight: 800; color: #047857; letter-spacing: -0.02em; line-height: 1;">${formatCurrency(data.netPayable)}</div>
+                        <div style="font-size: 9.5px; font-weight: 600; color: #059669; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 3px;">Employee Net Pay</div>
                     </div>
-                    <div style="padding: 14px 20px; font-size: 13px; color: #334155;">
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                    <div style="padding: 8px 14px; font-size: 11.5px; color: #334155;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
                             <span style="color: #64748b;">Paid Days</span>
                             <span style="font-weight: 700; color: #0f172a;">${data.paidDays ?? 30}</span>
                         </div>
@@ -1148,29 +1142,25 @@ export function buildPayslipPrintHTML(data) {
                 </div>
             </div>
 
-            <!-- PF & UAN Bar -->
-            <div style="display: flex; justify-content: space-between; padding: 10px 16px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 24px; font-size: 12px;">
-                <div>
-                    <span style="color: #64748b; font-weight: 600;">PF A/C Number:</span>
-                    <span style="font-weight: 700; color: #0f172a; margin-left: 6px;">${escapeHtml(data.pfAccountNo || '-')}</span>
-                </div>
+            <!-- UAN Bar (PF Number Removed per user request) -->
+            <div style="display: flex; justify-content: flex-end; align-items: center; padding: 5px 12px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0; margin-bottom: 10px; font-size: 10.5px;">
                 <div>
                     <span style="color: #64748b; font-weight: 600;">UAN:</span>
-                    <span style="font-weight: 700; color: #0f172a; margin-left: 6px;">${escapeHtml(data.uan || '-')}</span>
+                    <span style="font-weight: 700; color: #0f172a; margin-left: 6px; font-family: 'JetBrains Mono', monospace;">${escapeHtml(data.uan || '-')}</span>
                 </div>
             </div>
 
             <!-- Earnings & Deductions Tables Container -->
-            <div style="border: 1px solid #cbd5e1; border-radius: 10px; overflow: hidden; margin-bottom: 20px;">
+            <div style="border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; margin-bottom: 10px;">
                 <div style="display: flex;">
                     <!-- Earnings Column -->
                     <div style="flex: 1; border-right: 1px solid #e2e8f0;">
                         <table style="width: 100%; border-collapse: collapse;">
                             <thead>
                                 <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
-                                    <th style="padding: 10px 12px; font-size: 11px; font-weight: 800; text-align: left; color: #475569; text-transform: uppercase; letter-spacing: 0.05em;">EARNINGS</th>
-                                    <th style="padding: 10px 12px; font-size: 11px; font-weight: 800; text-align: right; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; width: 95px;">AMOUNT</th>
-                                    <th style="padding: 10px 12px; font-size: 11px; font-weight: 800; text-align: right; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; width: 95px;">YTD</th>
+                                    <th style="padding: 6px 8px; font-size: 9.5px; font-weight: 800; text-align: left; color: #475569; text-transform: uppercase; letter-spacing: 0.05em;">EARNINGS</th>
+                                    <th style="padding: 6px 8px; font-size: 9.5px; font-weight: 800; text-align: right; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; width: 85px;">AMOUNT</th>
+                                    <th style="padding: 6px 8px; font-size: 9.5px; font-weight: 800; text-align: right; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; width: 85px;">YTD</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1178,8 +1168,8 @@ export function buildPayslipPrintHTML(data) {
                             </tbody>
                             <tfoot>
                                 <tr style="background: #f8fafc; border-top: 1px solid #cbd5e1;">
-                                    <td style="padding: 11px 12px; font-size: 13px; font-weight: 800; color: #0f172a;">Gross Earnings</td>
-                                    <td style="padding: 11px 12px; font-size: 13px; font-weight: 800; color: #0f172a; text-align: right;" colspan="2">${formatCurrency(data.grossEarnings)}</td>
+                                    <td style="padding: 6px 8px; font-size: 11px; font-weight: 800; color: #0f172a;">Gross Earnings</td>
+                                    <td style="padding: 6px 8px; font-size: 11px; font-weight: 800; color: #0f172a; text-align: right;" colspan="2">${formatCurrency(data.grossEarnings)}</td>
                                 </tr>
                             </tfoot>
                         </table>
@@ -1190,9 +1180,9 @@ export function buildPayslipPrintHTML(data) {
                         <table style="width: 100%; border-collapse: collapse;">
                             <thead>
                                 <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
-                                    <th style="padding: 10px 12px; font-size: 11px; font-weight: 800; text-align: left; color: #475569; text-transform: uppercase; letter-spacing: 0.05em;">DEDUCTIONS</th>
-                                    <th style="padding: 10px 12px; font-size: 11px; font-weight: 800; text-align: right; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; width: 95px;">AMOUNT</th>
-                                    <th style="padding: 10px 12px; font-size: 11px; font-weight: 800; text-align: right; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; width: 95px;">YTD</th>
+                                    <th style="padding: 6px 8px; font-size: 9.5px; font-weight: 800; text-align: left; color: #475569; text-transform: uppercase; letter-spacing: 0.05em;">DEDUCTIONS</th>
+                                    <th style="padding: 6px 8px; font-size: 9.5px; font-weight: 800; text-align: right; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; width: 85px;">AMOUNT</th>
+                                    <th style="padding: 6px 8px; font-size: 9.5px; font-weight: 800; text-align: right; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; width: 85px;">YTD</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1200,8 +1190,8 @@ export function buildPayslipPrintHTML(data) {
                             </tbody>
                             <tfoot>
                                 <tr style="background: #f8fafc; border-top: 1px solid #cbd5e1;">
-                                    <td style="padding: 11px 12px; font-size: 13px; font-weight: 800; color: #0f172a;">Total Deductions</td>
-                                    <td style="padding: 11px 12px; font-size: 13px; font-weight: 800; color: #e11d48; text-align: right;" colspan="2">${formatCurrency(data.totalDeductions)}</td>
+                                    <td style="padding: 6px 8px; font-size: 11px; font-weight: 800; color: #0f172a;">Total Deductions</td>
+                                    <td style="padding: 6px 8px; font-size: 11px; font-weight: 800; color: #e11d48; text-align: right;" colspan="2">${formatCurrency(data.totalDeductions)}</td>
                                 </tr>
                             </tfoot>
                         </table>
@@ -1210,23 +1200,23 @@ export function buildPayslipPrintHTML(data) {
             </div>
 
             <!-- Total Net Payable Banner -->
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; background: #ffffff; border: 1px solid #d1fae5; border-radius: 8px; margin-bottom: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 14px; background: #ffffff; border: 1px solid #d1fae5; border-radius: 6px; margin-bottom: 8px;">
                 <div>
-                    <div style="font-size: 13px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.04em;">TOTAL NET PAYABLE</div>
-                    <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Gross Earnings - Total Deductions</div>
+                    <div style="font-size: 11.5px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.04em;">TOTAL NET PAYABLE</div>
+                    <div style="font-size: 9.5px; color: #64748b;">Gross Earnings - Total Deductions</div>
                 </div>
-                <div style="background: #ecfdf5; padding: 6px 18px; border-radius: 6px; font-size: 18px; font-weight: 800; color: #047857; letter-spacing: -0.01em;">
+                <div style="background: #ecfdf5; padding: 4px 12px; border-radius: 6px; font-size: 15px; font-weight: 800; color: #047857;">
                     ${formatCurrency(data.netPayable)}
                 </div>
             </div>
 
             <!-- Amount in Words -->
-            <div style="text-align: right; font-size: 12px; color: #475569; margin-bottom: 24px; padding-right: 4px;">
+            <div style="text-align: right; font-size: 10.5px; color: #475569; margin-bottom: 10px; padding-right: 2px;">
                 <span style="color: #64748b;">Amount In Words :</span> <strong style="color: #0f172a;">${escapeHtml(data.netPayableWords || '')}</strong>
             </div>
 
             <!-- Footer Line -->
-            <div style="border-top: 1px solid #e2e8f0; padding-top: 16px; text-align: center; font-size: 11px; color: #94a3b8; font-style: italic;">
+            <div style="border-top: 1px solid #e2e8f0; padding-top: 8px; text-align: center; font-size: 9.5px; color: #94a3b8; font-style: italic;">
                 -- This document has been automatically generated by IES Payroll; therefore, a signature is not required. --
             </div>
         </div>
