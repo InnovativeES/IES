@@ -1010,15 +1010,26 @@ export const subscribeToPayslipsByMonth = (month, callback) => {
     });
 };
 
-export const getEmployeePayslipsInFY = async (employeeId, financialYear) => {
+export const getEmployeePayslipsInFY = async (employeeId, financialYear, employeeCode = '') => {
     try {
-        const q = query(
-            collection(db, PAYSLIPS_COLLECTION),
-            where("employeeId", "==", employeeId),
-            where("financialYear", "==", financialYear)
-        );
-        const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        let docs = [];
+        if (employeeId) {
+            const q = query(
+                collection(db, PAYSLIPS_COLLECTION),
+                where("employeeId", "==", employeeId)
+            );
+            const snapshot = await getDocs(q);
+            docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        }
+        if (!docs.length && employeeCode) {
+            const q = query(
+                collection(db, PAYSLIPS_COLLECTION),
+                where("employeeCode", "==", employeeCode)
+            );
+            const snapshot = await getDocs(q);
+            docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        }
+        return docs.filter(p => !financialYear || p.financialYear === financialYear);
     } catch (error) {
         console.error("Error fetching employee payslips in FY:", error);
         return [];

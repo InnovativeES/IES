@@ -9,7 +9,7 @@ import * as Workflow from './workflow.js';
 import * as Reporting from './reporting.js';
 import * as Tracker from './progress_tracker.js';
 import * as Costing from './costing.js';
-import * as Payslip from './payslip.js?v=29';
+import * as Payslip from './payslip.js?v=30';
 
 // App State
 let currentMembers = [];
@@ -253,7 +253,10 @@ window.adminApp = {
     addEarningRow: () => Payslip.addEarningRow(),
     addDeductionRow: () => Payslip.addDeductionRow(),
     onEarningAmountChange: (el) => Payslip.onEarningAmountChange(el),
+    onEarningLabelChange: (el) => Payslip.onEarningLabelChange(el),
     onDeductionAmountChange: (el) => Payslip.onDeductionAmountChange(el),
+    onDeductionLabelChange: (el) => Payslip.onDeductionLabelChange(el),
+    onPayPeriodChange: () => Payslip.onPayPeriodChange(),
     updateLiveCalculations: () => Payslip.updateLiveCalculations(),
     triggerYTDRecalculation: () => Payslip.triggerYTDRecalculation(),
     cloneFromLastMonth: () => Payslip.cloneFromLastMonth(),

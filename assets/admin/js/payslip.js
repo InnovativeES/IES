@@ -12,6 +12,8 @@ let payslipsUnsubscribe = null;
 let currentEditingPayslip = null;
 let savedFormats = [];
 let currentMembersList = [];
+let pastEarningsCumulative = {};
+let pastDeductionsCumulative = {};
 
 const PASSWORD_KEY = 'payrollUnlocked';
 const PAYROLL_PIN = 'IES_PAYROLL';
@@ -508,11 +510,12 @@ export async function openPayslipForm(payslipId = null) {
         if (p) {
             currentEditingPayslip = p;
             populateFormWithData(p);
+            await triggerYTDRecalculation(p.id);
         }
     } else {
         // Create mode
         currentEditingPayslip = null;
-        initNewPayslipForm();
+        await initNewPayslipForm();
     }
 }
 
@@ -540,7 +543,7 @@ async function populateEmployeeDropdown() {
 /**
  * Handle Employee selection change
  */
-export function onEmployeeSelected(memberId) {
+export async function onEmployeeSelected(memberId) {
     if (!memberId) return;
     const member = currentMembersList.find(m => m.id === memberId);
     if (!member) return;
@@ -568,14 +571,96 @@ export function onEmployeeSelected(memberId) {
     setInputValue('ps-field-pan', member.pan || '');
 
     // Auto calculate YTD for existing rows
-    triggerYTDRecalculation();
+    await triggerYTDRecalculation();
+    updateLiveCalculations();
+}
+
+/**
+ * Normalize salary component labels for fuzzy matching (Base, Basic, Basic Salary -> basic)
+ */
+export function normalizeSalaryKey(str) {
+    if (!str) return '';
+    const clean = str.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (clean === 'base' || clean === 'basic' || clean === 'basicsalary' || clean === 'basepay') {
+        return 'basic';
+    }
+    if (clean === 'hra' || clean === 'houserentallowance') {
+        return 'hra';
+    }
+    if (clean === 'epf' || clean === 'epfcontribution' || clean === 'pf' || clean === 'providentfund') {
+        return 'epf';
+    }
+    if (clean === 'pt' || clean === 'professionaltax') {
+        return 'pt';
+    }
+    return clean;
+}
+
+/**
+ * Generate sequential audit reference number for a given pay period:
+ * Format: IES/PAY/YYYYMM/001, 002, 003...
+ */
+export async function generateSequentialAuditRef(payPeriod) {
+    const period = payPeriod || selectedMonth || new Date().toISOString().slice(0, 7);
+    const periodCode = period.replace('-', '');
+    const prefix = `IES/PAY/${periodCode}/`;
+
+    try {
+        const monthPayslips = await DB.getPayslipsByMonth(period);
+        let maxSeq = 0;
+        const scan = (item) => {
+            if (!item || !item.auditRefNo) return;
+            const ref = String(item.auditRefNo).trim();
+            if (ref.startsWith(prefix)) {
+                const seq = parseInt(ref.slice(prefix.length), 10);
+                if (!isNaN(seq) && seq > maxSeq) {
+                    maxSeq = seq;
+                }
+            } else if (ref.includes(periodCode)) {
+                const parts = ref.split('/');
+                const last = parseInt(parts[parts.length - 1], 10);
+                if (!isNaN(last) && last > maxSeq) {
+                    maxSeq = last;
+                }
+            }
+        };
+
+        (monthPayslips || []).forEach(scan);
+        if (selectedMonth === period) {
+            (currentPayslips || []).forEach(scan);
+        }
+
+        const nextSeq = String(maxSeq + 1).padStart(3, '0');
+        return `${prefix}${nextSeq}`;
+    } catch (e) {
+        console.error("Error generating sequential audit ref:", e);
+        return `${prefix}001`;
+    }
+}
+
+/**
+ * Handle change of Pay Period input in the form
+ */
+export async function onPayPeriodChange() {
+    const payPeriod = document.getElementById('ps-field-pay-period')?.value || selectedMonth;
+    const isNew = !document.getElementById('ps-form-id')?.value;
+    if (isNew) {
+        const refCode = await generateSequentialAuditRef(payPeriod);
+        setInputValue('ps-field-audit-ref', refCode);
+    }
+    const totalDays = getDaysInMonth(payPeriod);
+    const paidDaysInput = document.getElementById('ps-field-paid-days');
+    if (paidDaysInput && (Number(paidDaysInput.value) === 30 || Number(paidDaysInput.value) === 31 || Number(paidDaysInput.value) === 28 || Number(paidDaysInput.value) === 29)) {
+        paidDaysInput.value = totalDays;
+    }
+    await triggerYTDRecalculation();
     updateLiveCalculations();
 }
 
 /**
  * Initialize a blank new payslip form
  */
-function initNewPayslipForm() {
+async function initNewPayslipForm() {
     const titleEl = document.getElementById('ps-form-title');
     if (titleEl) titleEl.textContent = 'Generate New Payslip';
 
@@ -596,8 +681,12 @@ function initNewPayslipForm() {
     setInputValue('ps-field-uan', '');
     setInputValue('ps-field-pan', '');
 
-    // Generate Audit Reference Number: IES/PAY/YYYYMM/RANDOM
-    const refCode = `IES/PAY/${payPeriod.replace('-', '')}/${Math.floor(100 + Math.random() * 900)}`;
+    // Reset past YTD cache
+    pastEarningsCumulative = {};
+    pastDeductionsCumulative = {};
+
+    // Generate Sequential Audit Reference Number: IES/PAY/YYYYMM/001
+    const refCode = await generateSequentialAuditRef(payPeriod);
     setInputValue('ps-field-audit-ref', refCode);
 
     // Default Earnings & Deductions matching Zoho sample
@@ -697,7 +786,7 @@ function appendEarningRow(label = '', amount = 0, ytd = 0) {
     row.innerHTML = `
         <div class="flex-1">
             <input type="text" class="ps-earning-label form-input text-xs w-full py-1.5 px-2 bg-white"
-                placeholder="Earning Name (e.g. Basic)" value="${escapeHtml(label)}" oninput="window.adminApp.updateLiveCalculations()">
+                placeholder="Earning Name (e.g. Basic)" value="${escapeHtml(label)}" oninput="window.adminApp.onEarningLabelChange(this)">
         </div>
         <div class="w-28">
             <input type="number" step="0.01" min="0" class="ps-earning-amount form-input text-xs w-full py-1.5 px-2 text-right bg-white font-semibold"
@@ -734,7 +823,7 @@ function appendDeductionRow(label = '', amount = 0, ytd = 0) {
     row.innerHTML = `
         <div class="flex-1">
             <input type="text" class="ps-deduction-label form-input text-xs w-full py-1.5 px-2 bg-white"
-                placeholder="Deduction Name (e.g. EPF)" value="${escapeHtml(label)}" oninput="window.adminApp.updateLiveCalculations()">
+                placeholder="Deduction Name (e.g. EPF)" value="${escapeHtml(label)}" oninput="window.adminApp.onDeductionLabelChange(this)">
         </div>
         <div class="w-28">
             <input type="number" step="0.01" min="0" class="ps-deduction-amount form-input text-xs w-full py-1.5 px-2 text-right bg-white font-semibold text-rose-600"
@@ -755,25 +844,72 @@ function appendDeductionRow(label = '', amount = 0, ytd = 0) {
 }
 
 /**
- * When earning amount changes, if YTD is 0 or unedited, suggest initial YTD = amount
+ * When earning amount changes, dynamically recalculate YTD = past cumulative in FY + current amount
  */
 export function onEarningAmountChange(input) {
     const row = input.closest('.ps-dynamic-row');
     if (row) {
+        const label = row.querySelector('.ps-earning-label')?.value || '';
+        const k = normalizeSalaryKey(label);
+        const amount = Number(input.value) || 0;
+        const past = pastEarningsCumulative[k] || 0;
         const ytdInput = row.querySelector('.ps-earning-ytd');
-        if (ytdInput && (!ytdInput.value || Number(ytdInput.value) === 0)) {
-            ytdInput.value = input.value;
+        if (ytdInput) {
+            ytdInput.value = (past + amount).toFixed(2);
         }
     }
     updateLiveCalculations();
 }
 
+/**
+ * When earning label changes, look up past cumulative for the new label
+ */
+export function onEarningLabelChange(input) {
+    const row = input.closest('.ps-dynamic-row');
+    if (row) {
+        const k = normalizeSalaryKey(input.value);
+        const amountInput = row.querySelector('.ps-earning-amount');
+        const amount = Number(amountInput?.value) || 0;
+        const past = pastEarningsCumulative[k] || 0;
+        const ytdInput = row.querySelector('.ps-earning-ytd');
+        if (ytdInput && (amount > 0 || past > 0)) {
+            ytdInput.value = (past + amount).toFixed(2);
+        }
+    }
+    updateLiveCalculations();
+}
+
+/**
+ * When deduction amount changes, dynamically recalculate YTD = past cumulative in FY + current amount
+ */
 export function onDeductionAmountChange(input) {
     const row = input.closest('.ps-dynamic-row');
     if (row) {
+        const label = row.querySelector('.ps-deduction-label')?.value || '';
+        const k = normalizeSalaryKey(label);
+        const amount = Number(input.value) || 0;
+        const past = pastDeductionsCumulative[k] || 0;
         const ytdInput = row.querySelector('.ps-deduction-ytd');
-        if (ytdInput && (!ytdInput.value || Number(ytdInput.value) === 0)) {
-            ytdInput.value = input.value;
+        if (ytdInput) {
+            ytdInput.value = (past + amount).toFixed(2);
+        }
+    }
+    updateLiveCalculations();
+}
+
+/**
+ * When deduction label changes, look up past cumulative for the new label
+ */
+export function onDeductionLabelChange(input) {
+    const row = input.closest('.ps-dynamic-row');
+    if (row) {
+        const k = normalizeSalaryKey(input.value);
+        const amountInput = row.querySelector('.ps-deduction-amount');
+        const amount = Number(amountInput?.value) || 0;
+        const past = pastDeductionsCumulative[k] || 0;
+        const ytdInput = row.querySelector('.ps-deduction-ytd');
+        if (ytdInput && (amount > 0 || past > 0)) {
+            ytdInput.value = (past + amount).toFixed(2);
         }
     }
     updateLiveCalculations();
@@ -873,52 +1009,66 @@ export function collectFormData() {
 }
 
 /**
- * Suggestion 1: Trigger smart YTD auto-calculation
- * Sums past payslips in FY for the selected employee, but keeps manual overrides
+ * Smart YTD auto-calculation:
+ * Sums past payslips in FY for the selected employee, and adds the current month's amount
  */
-export async function triggerYTDRecalculation() {
+export async function triggerYTDRecalculation(excludePayslipId = null) {
     const employeeId = document.getElementById('ps-form-employee-select')?.value;
+    const employeeCode = document.getElementById('ps-field-employee-code')?.value?.trim();
     const payPeriod = document.getElementById('ps-field-pay-period')?.value || selectedMonth;
-    if (!employeeId || !payPeriod) return;
+    const currentId = excludePayslipId || document.getElementById('ps-form-id')?.value || null;
 
-    const fy = getFinancialYear(payPeriod);
-    const pastPayslips = await DB.getEmployeePayslipsInFY(employeeId, fy);
+    pastEarningsCumulative = {};
+    pastDeductionsCumulative = {};
 
-    // Filter past months (strictly before current payPeriod)
-    const priorPayslips = pastPayslips.filter(p => (p.payPeriod || '') < payPeriod);
+    if ((employeeId || employeeCode) && payPeriod) {
+        const fy = getFinancialYear(payPeriod);
+        const pastPayslips = await DB.getEmployeePayslipsInFY(employeeId, fy, employeeCode);
 
-    // Sum past amounts by label
-    const pastEarningsMap = {};
-    const pastDeductionsMap = {};
-
-    priorPayslips.forEach(p => {
-        (p.earnings || []).forEach(e => {
-            const k = (e.label || '').trim().toLowerCase();
-            pastEarningsMap[k] = (pastEarningsMap[k] || 0) + (Number(e.amount) || 0);
+        // Filter past months strictly before the current payPeriod in this financial year
+        // and exclude current editing payslip record
+        const priorPayslips = pastPayslips.filter(p => {
+            if (currentId && p.id === currentId) return false;
+            return (p.payPeriod || '') < payPeriod;
         });
-        (p.deductions || []).forEach(d => {
-            const k = (d.label || '').trim().toLowerCase();
-            pastDeductionsMap[k] = (pastDeductionsMap[k] || 0) + (Number(d.amount) || 0);
-        });
-    });
 
-    // Update Earning YTD inputs if past records exist
+        priorPayslips.forEach(p => {
+            (p.earnings || []).forEach(e => {
+                const k = normalizeSalaryKey(e.label);
+                if (k) {
+                    pastEarningsCumulative[k] = (pastEarningsCumulative[k] || 0) + (Number(e.amount) || 0);
+                }
+            });
+            (p.deductions || []).forEach(d => {
+                const k = normalizeSalaryKey(d.label);
+                if (k) {
+                    pastDeductionsCumulative[k] = (pastDeductionsCumulative[k] || 0) + (Number(d.amount) || 0);
+                }
+            });
+        });
+    }
+
+    // Update Earning YTD inputs for all rows currently in the form
     document.querySelectorAll('#ps-earnings-rows-container .ps-dynamic-row').forEach(row => {
-        const label = row.querySelector('.ps-earning-label')?.value?.trim().toLowerCase();
+        const label = row.querySelector('.ps-earning-label')?.value || '';
+        const k = normalizeSalaryKey(label);
         const amount = Number(row.querySelector('.ps-earning-amount')?.value) || 0;
+        const past = pastEarningsCumulative[k] || 0;
         const ytdInput = row.querySelector('.ps-earning-ytd');
-        if (label && pastEarningsMap[label] !== undefined && ytdInput) {
-            ytdInput.value = (pastEarningsMap[label] + amount).toFixed(2);
+        if (ytdInput) {
+            ytdInput.value = (past + amount).toFixed(2);
         }
     });
 
-    // Update Deduction YTD inputs if past records exist
+    // Update Deduction YTD inputs for all rows currently in the form
     document.querySelectorAll('#ps-deductions-rows-container .ps-dynamic-row').forEach(row => {
-        const label = row.querySelector('.ps-deduction-label')?.value?.trim().toLowerCase();
+        const label = row.querySelector('.ps-deduction-label')?.value || '';
+        const k = normalizeSalaryKey(label);
         const amount = Number(row.querySelector('.ps-deduction-amount')?.value) || 0;
+        const past = pastDeductionsCumulative[k] || 0;
         const ytdInput = row.querySelector('.ps-deduction-ytd');
-        if (label && pastDeductionsMap[label] !== undefined && ytdInput) {
-            ytdInput.value = (pastDeductionsMap[label] + amount).toFixed(2);
+        if (ytdInput) {
+            ytdInput.value = (past + amount).toFixed(2);
         }
     });
 
