@@ -9,7 +9,7 @@ import * as Workflow from './workflow.js';
 import * as Reporting from './reporting.js';
 import * as Tracker from './progress_tracker.js';
 import * as Costing from './costing.js';
-import * as Payslip from './payslip.js?v=28';
+import * as Payslip from './payslip.js?v=29';
 
 // App State
 let currentMembers = [];
@@ -682,6 +682,8 @@ window.adminApp = {
         setField('status', member.status);
         setField('joiningDate', member.joiningDate);
         setField('overheads', member.overheads || '');
+        setField('pan', member.pan || '');
+        setField('uan', member.uan || '');
 
         // Populate Roles
         window.adminApp.selectedRoles.clear();
@@ -749,7 +751,9 @@ window.adminApp = {
             status: formData.get('status') || 'Active',
             joiningDate: formData.get('joiningDate') || '',
             overheads: parseFloat(formData.get('overheads')) || 0,
-            reportingManagerId: formData.get('reportingManager') || null
+            reportingManagerId: formData.get('reportingManager') || null,
+            pan: (formData.get('pan') || '').trim().toUpperCase(),
+            uan: (formData.get('uan') || '').trim()
         };
 
         let result;

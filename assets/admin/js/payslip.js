@@ -387,8 +387,8 @@ export function exportMonthlyPayrollCSV() {
         "Pay Date",
         "Paid Days",
         "LOP Days",
-        "PF Account No",
         "UAN",
+        "PAN",
         "Gross Earnings (INR)",
         "Total Deductions (INR)",
         "Net Payable (INR)"
@@ -404,8 +404,8 @@ export function exportMonthlyPayrollCSV() {
         `"${formatDateDMY(p.payDate)}"`,
         p.paidDays ?? '',
         p.lopDays ?? 0,
-        `"${p.pfAccountNo || ''}"`,
         `"${p.uan || ''}"`,
+        `"${p.pan || ''}"`,
         p.grossEarnings ?? 0,
         p.totalDeductions ?? 0,
         p.netPayable ?? 0
@@ -545,19 +545,27 @@ export function onEmployeeSelected(memberId) {
     const member = currentMembersList.find(m => m.id === memberId);
     if (!member) return;
 
-    // Fill basics
+    // Fill basics from selected Team Member
     setInputValue('ps-field-employee-name', member.name || '');
     setInputValue('ps-field-employee-code', member.employeeId || '');
-    setInputValue('ps-field-designation', (member.roles && member.roles.length) ? member.roles.join(', ') : (member.department || 'Staff'));
-    if (member.dateOfJoining) {
-        setInputValue('ps-field-doj', member.dateOfJoining);
+    
+    // Designation: support orgRoles array, roles array, role string, designation string, department
+    const desig = (member.orgRoles && member.orgRoles.length) 
+        ? member.orgRoles.join(', ') 
+        : ((member.roles && member.roles.length) 
+            ? member.roles.join(', ') 
+            : (member.role || member.designation || member.department || 'Staff'));
+    setInputValue('ps-field-designation', desig);
+
+    // Joining Date
+    const doj = member.joiningDate || member.dateOfJoining || '';
+    if (doj) {
+        setInputValue('ps-field-doj', doj);
     }
-    if (member.pfAccountNo) {
-        setInputValue('ps-field-pf', member.pfAccountNo);
-    }
-    if (member.uan) {
-        setInputValue('ps-field-uan', member.uan);
-    }
+    
+    // Statutory IDs
+    setInputValue('ps-field-uan', member.uan || '');
+    setInputValue('ps-field-pan', member.pan || '');
 
     // Auto calculate YTD for existing rows
     triggerYTDRecalculation();
@@ -585,8 +593,8 @@ function initNewPayslipForm() {
     setInputValue('ps-field-pay-date', nowStr);
     setInputValue('ps-field-paid-days', totalDays);
     setInputValue('ps-field-lop-days', 0);
-    setInputValue('ps-field-pf', '');
     setInputValue('ps-field-uan', '');
+    setInputValue('ps-field-pan', '');
 
     // Generate Audit Reference Number: IES/PAY/YYYYMM/RANDOM
     const refCode = `IES/PAY/${payPeriod.replace('-', '')}/${Math.floor(100 + Math.random() * 900)}`;
@@ -627,8 +635,8 @@ function populateFormWithData(data) {
     setInputValue('ps-field-pay-date', data.payDate || '');
     setInputValue('ps-field-paid-days', data.paidDays ?? 30);
     setInputValue('ps-field-lop-days', data.lopDays ?? 0);
-    setInputValue('ps-field-pf', data.pfAccountNo || '');
     setInputValue('ps-field-uan', data.uan || '');
+    setInputValue('ps-field-pan', data.pan || '');
     setInputValue('ps-field-audit-ref', data.auditRefNo || '');
 
     // Select employee in dropdown if matches
@@ -805,8 +813,8 @@ export function collectFormData() {
     const payDate = document.getElementById('ps-field-pay-date')?.value || '';
     const paidDays = Number(document.getElementById('ps-field-paid-days')?.value) || 0;
     const lopDays = Number(document.getElementById('ps-field-lop-days')?.value) || 0;
-    const pfAccountNo = document.getElementById('ps-field-pf')?.value?.trim() || '';
     const uan = document.getElementById('ps-field-uan')?.value?.trim() || '';
+    const pan = document.getElementById('ps-field-pan')?.value?.trim().toUpperCase() || '';
     const auditRefNo = document.getElementById('ps-field-audit-ref')?.value?.trim() || '';
 
     // Collect Earnings
@@ -851,8 +859,8 @@ export function collectFormData() {
         payDate,
         paidDays,
         lopDays,
-        pfAccountNo,
         uan,
+        pan,
         auditRefNo,
         earnings,
         deductions,
@@ -1175,11 +1183,15 @@ export function buildPayslipPrintHTML(data) {
                 </div>
             </div>
 
-            <!-- UAN Bar (PF removed, UAN on the left) -->
-            <div style="display: flex; align-items: center; padding: 6px 12px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0; margin-bottom: 12px; font-size: 12px;">
+            <!-- UAN & PAN Bar -->
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 14px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0; margin-bottom: 12px; font-size: 12px;">
                 <div>
                     <span style="color: #64748b; font-weight: 600;">UAN:</span>
-                    <span style="font-weight: 700; color: #0f172a; margin-left: 8px;">${escapeHtml(data.uan || '-')}</span>
+                    <span style="font-weight: 700; color: #0f172a; margin-left: 6px;">${escapeHtml(data.uan || '-')}</span>
+                </div>
+                <div>
+                    <span style="color: #64748b; font-weight: 600;">PAN:</span>
+                    <span style="font-weight: 700; color: #0f172a; margin-left: 6px;">${escapeHtml(data.pan || '-')}</span>
                 </div>
             </div>
 
