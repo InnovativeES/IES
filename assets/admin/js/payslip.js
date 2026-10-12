@@ -151,37 +151,30 @@ export function formatMonthDisplay(payPeriod) {
 }
 
 /**
- * Format Date as DD-MM-YYYY (date-month-year)
+ * Format Date as DD-MM-YYYY (Date-Month-Year)
  */
 export function formatDateDMY(dateStr) {
     if (!dateStr) return '-';
-    const str = String(dateStr).trim();
-    if (!str) return '-';
-    // If already DD-MM-YYYY
-    if (/^\d{2}-\d{2}-\d{4}$/.test(str)) return str;
-    // If YYYY-MM-DD
-    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
-        const [y, m, d] = str.split('-');
+    // If already in DD-MM-YYYY or DD/MM/YYYY
+    if (/^\d{2}[-/]\d{2}[-/]\d{4}$/.test(dateStr)) {
+        return dateStr.replace(/\//g, '-');
+    }
+    // If in YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        const [y, m, d] = dateStr.split('-');
         return `${d}-${m}-${y}`;
     }
-    // If ISO with T
-    if (str.includes('T')) {
-        const datePart = str.split('T')[0];
-        if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
-            const [y, m, d] = datePart.split('-');
-            return `${d}-${m}-${y}`;
-        }
-    }
+    // Try Date parsing
     try {
-        const d = new Date(str);
-        if (isNaN(d.getTime())) return str;
-        const day = String(d.getDate()).padStart(2, '0');
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const year = d.getFullYear();
-        return `${day}-${month}-${year}`;
-    } catch {
-        return str;
-    }
+        const d = new Date(dateStr);
+        if (!isNaN(d.getTime())) {
+            const day = String(d.getDate()).padStart(2, '0');
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const year = d.getFullYear();
+            return `${day}-${month}-${year}`;
+        }
+    } catch {}
+    return dateStr;
 }
 
 /**
@@ -342,10 +335,7 @@ function renderPayslipsTable(payslips) {
                     <div class="text-xs text-slate-400">ID: ${p.employeeCode || '-'} · Ref: ${p.auditRefNo || '-'}</div>
                 </td>
                 <td class="px-4 py-3 text-xs text-slate-600">${p.designation || '-'}</td>
-                <td class="px-4 py-3 text-xs text-slate-600 font-medium">
-                    <div class="font-semibold text-slate-700">${formatMonthDisplay(p.payPeriod)}</div>
-                    ${p.payDate ? `<div class="text-[11px] text-slate-400 mt-0.5">Pay Date: ${formatDateDMY(p.payDate)}</div>` : ''}
-                </td>
+                <td class="px-4 py-3 text-xs text-slate-600 font-medium">${formatMonthDisplay(p.payPeriod)}</td>
                 <td class="px-4 py-3 text-xs text-center text-slate-700 font-medium">
                     <span class="inline-block px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-semibold">${p.paidDays ?? '-'}</span>
                     ${p.lopDays ? `<span class="inline-block px-1.5 py-0.5 rounded bg-red-50 text-red-600 text-[10px] ml-1">LOP: ${p.lopDays}</span>` : ''}
@@ -397,6 +387,7 @@ export function exportMonthlyPayrollCSV() {
         "Pay Date",
         "Paid Days",
         "LOP Days",
+        "PF Account No",
         "UAN",
         "Gross Earnings (INR)",
         "Total Deductions (INR)",
@@ -413,6 +404,7 @@ export function exportMonthlyPayrollCSV() {
         `"${formatDateDMY(p.payDate)}"`,
         p.paidDays ?? '',
         p.lopDays ?? 0,
+        `"${p.pfAccountNo || ''}"`,
         `"${p.uan || ''}"`,
         p.grossEarnings ?? 0,
         p.totalDeductions ?? 0,
@@ -593,6 +585,7 @@ function initNewPayslipForm() {
     setInputValue('ps-field-pay-date', nowStr);
     setInputValue('ps-field-paid-days', totalDays);
     setInputValue('ps-field-lop-days', 0);
+    setInputValue('ps-field-pf', '');
     setInputValue('ps-field-uan', '');
 
     // Generate Audit Reference Number: IES/PAY/YYYYMM/RANDOM
@@ -634,6 +627,7 @@ function populateFormWithData(data) {
     setInputValue('ps-field-pay-date', data.payDate || '');
     setInputValue('ps-field-paid-days', data.paidDays ?? 30);
     setInputValue('ps-field-lop-days', data.lopDays ?? 0);
+    setInputValue('ps-field-pf', data.pfAccountNo || '');
     setInputValue('ps-field-uan', data.uan || '');
     setInputValue('ps-field-audit-ref', data.auditRefNo || '');
 
@@ -781,25 +775,21 @@ export function onDeductionAmountChange(input) {
  * Real-time calculation of Gross, Deductions, Net Payable, and Amount in Words
  */
 export function updateLiveCalculations() {
-    try {
-        const data = collectFormData();
+    const data = collectFormData();
 
-        // Update Form Total Labels
-        const grossEl = document.getElementById('ps-form-gross-total');
-        const dedEl = document.getElementById('ps-form-ded-total');
-        const netEl = document.getElementById('ps-form-net-total');
-        const wordsEl = document.getElementById('ps-form-words-display');
+    // Update Form Total Labels
+    const grossEl = document.getElementById('ps-form-gross-total');
+    const dedEl = document.getElementById('ps-form-ded-total');
+    const netEl = document.getElementById('ps-form-net-total');
+    const wordsEl = document.getElementById('ps-form-words-display');
 
-        if (grossEl) grossEl.textContent = formatCurrency(data.grossEarnings);
-        if (dedEl) dedEl.textContent = formatCurrency(data.totalDeductions);
-        if (netEl) netEl.textContent = formatCurrency(data.netPayable);
-        if (wordsEl) wordsEl.textContent = data.netPayableWords;
+    if (grossEl) grossEl.textContent = formatCurrency(data.grossEarnings);
+    if (dedEl) dedEl.textContent = formatCurrency(data.totalDeductions);
+    if (netEl) netEl.textContent = formatCurrency(data.netPayable);
+    if (wordsEl) wordsEl.textContent = data.netPayableWords;
 
-        // Update live preview block
-        renderLivePreview(data);
-    } catch (err) {
-        console.error("Error in updateLiveCalculations:", err);
-    }
+    // Update live preview block
+    renderLivePreview(data);
 }
 
 /**
@@ -815,6 +805,7 @@ export function collectFormData() {
     const payDate = document.getElementById('ps-field-pay-date')?.value || '';
     const paidDays = Number(document.getElementById('ps-field-paid-days')?.value) || 0;
     const lopDays = Number(document.getElementById('ps-field-lop-days')?.value) || 0;
+    const pfAccountNo = document.getElementById('ps-field-pf')?.value?.trim() || '';
     const uan = document.getElementById('ps-field-uan')?.value?.trim() || '';
     const auditRefNo = document.getElementById('ps-field-audit-ref')?.value?.trim() || '';
 
@@ -860,6 +851,7 @@ export function collectFormData() {
         payDate,
         paidDays,
         lopDays,
+        pfAccountNo,
         uan,
         auditRefNo,
         earnings,
@@ -954,6 +946,7 @@ export async function cloneFromLastMonth() {
     setInputValue('ps-field-doj', last.dateOfJoining || '');
     setInputValue('ps-field-paid-days', totalDays);
     setInputValue('ps-field-lop-days', 0);
+    setInputValue('ps-field-pf', last.pfAccountNo || '');
     setInputValue('ps-field-uan', last.uan || '');
 
     // Clone Earnings & Deductions
@@ -1099,34 +1092,34 @@ export function backToPayslipDashboard() {
 export function buildPayslipPrintHTML(data) {
     const earningsRows = (data.earnings || []).map(e => `
         <tr style="border-bottom: 1px solid #f1f5f9;">
-            <td style="padding: 5px 8px; font-size: 11px; color: #1e293b; font-weight: 500;">${escapeHtml(e.label || '-')}</td>
-            <td style="padding: 5px 8px; font-size: 11px; color: #0f172a; font-weight: 700; text-align: right;">${formatCurrency(e.amount)}</td>
-            <td style="padding: 5px 8px; font-size: 11px; color: #475569; font-weight: 600; text-align: right;">${formatCurrency(e.ytd)}</td>
+            <td style="padding: 7px 10px; font-size: 12px; color: #1e293b; font-weight: 500;">${escapeHtml(e.label || '-')}</td>
+            <td style="padding: 7px 10px; font-size: 12px; color: #0f172a; font-weight: 700; text-align: right;">${formatCurrency(e.amount)}</td>
+            <td style="padding: 7px 10px; font-size: 12px; color: #475569; font-weight: 600; text-align: right;">${formatCurrency(e.ytd)}</td>
         </tr>
-    `).join('') || `<tr><td colspan="3" style="padding: 8px; text-align: center; color: #94a3b8; font-size: 11px;">No earnings</td></tr>`;
+    `).join('') || `<tr><td colspan="3" style="padding: 10px; text-align: center; color: #94a3b8; font-size: 12px;">No earnings</td></tr>`;
 
     const deductionsRows = (data.deductions || []).map(d => `
         <tr style="border-bottom: 1px solid #f1f5f9;">
-            <td style="padding: 5px 8px; font-size: 11px; color: #1e293b; font-weight: 500;">${escapeHtml(d.label || '-')}</td>
-            <td style="padding: 5px 8px; font-size: 11px; color: #0f172a; font-weight: 700; text-align: right;">${formatCurrency(d.amount)}</td>
-            <td style="padding: 5px 8px; font-size: 11px; color: #475569; font-weight: 600; text-align: right;">${formatCurrency(d.ytd)}</td>
+            <td style="padding: 7px 10px; font-size: 12px; color: #1e293b; font-weight: 500;">${escapeHtml(d.label || '-')}</td>
+            <td style="padding: 7px 10px; font-size: 12px; color: #0f172a; font-weight: 700; text-align: right;">${formatCurrency(d.amount)}</td>
+            <td style="padding: 7px 10px; font-size: 12px; color: #475569; font-weight: 600; text-align: right;">${formatCurrency(d.ytd)}</td>
         </tr>
-    `).join('') || `<tr><td colspan="3" style="padding: 8px; text-align: center; color: #94a3b8; font-size: 11px;">No deductions</td></tr>`;
+    `).join('') || `<tr><td colspan="3" style="padding: 10px; text-align: center; color: #94a3b8; font-size: 12px;">No deductions</td></tr>`;
 
     return `
-        <div class="payslip-document-wrapper" style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 760px; margin: 0 auto; background: #ffffff; padding: 16px 22px; box-sizing: border-box; color: #1e293b; page-break-inside: avoid; break-inside: avoid;">
+        <div class="payslip-document-wrapper" style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; width: 100%; max-width: 760px; margin: 0 auto; background: #ffffff; padding: 18px 22px; box-sizing: border-box; color: #1e293b; line-height: 1.35;">
             <!-- Header Section -->
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid #e2e8f0;">
                 <div style="display: flex; align-items: center; gap: 14px;">
-                    <img src="assets/new logo.png" alt="IES Logo" style="height: 46px; object-fit: contain; max-width: 150px;">
+                    <img src="assets/new logo.png" alt="IES Logo" style="height: 46px; object-fit: contain; max-width: 160px;">
                     <div>
                         <div style="font-size: 18px; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; line-height: 1.2;">Innovative Engineering Solutions</div>
                         <div style="font-size: 11px; color: #64748b; font-weight: 500; margin-top: 2px;">Chennai, Tamil Nadu, India</div>
                     </div>
                 </div>
                 <div style="text-align: right;">
-                    <div style="font-size: 10.5px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Payslip For the Month</div>
-                    <div style="font-size: 17px; font-weight: 800; color: #0f172a; margin-top: 2px;">${escapeHtml(formatMonthDisplay(data.payPeriod))}</div>
+                    <div style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Payslip For the Month</div>
+                    <div style="font-size: 18px; font-weight: 800; color: #0f172a; margin-top: 2px;">${escapeHtml(formatMonthDisplay(data.payPeriod))}</div>
                 </div>
             </div>
 
@@ -1135,41 +1128,41 @@ export function buildPayslipPrintHTML(data) {
                 <!-- Left Details Column -->
                 <div style="flex: 1;">
                     <div style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px;">Employee Summary</div>
-                    <table style="width: 100%; border-collapse: collapse; font-size: 11.5px; line-height: 1.35;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
                         <tr>
-                            <td style="padding: 2px 0; color: #64748b; width: 125px;">Employee Name</td>
-                            <td style="padding: 2px 0; font-weight: 700; color: #0f172a;">: &nbsp;${escapeHtml(data.employeeName || '-')}</td>
+                            <td style="padding: 2.5px 0; color: #64748b; width: 130px;">Employee Name</td>
+                            <td style="padding: 2.5px 0; font-weight: 700; color: #0f172a;">: &nbsp;${escapeHtml(data.employeeName || '-')}</td>
                         </tr>
                         <tr>
-                            <td style="padding: 2px 0; color: #64748b;">Designation</td>
-                            <td style="padding: 2px 0; font-weight: 600; color: #1e293b;">: &nbsp;${escapeHtml(data.designation || '-')}</td>
+                            <td style="padding: 2.5px 0; color: #64748b;">Designation</td>
+                            <td style="padding: 2.5px 0; font-weight: 600; color: #1e293b;">: &nbsp;${escapeHtml(data.designation || '-')}</td>
                         </tr>
                         <tr>
-                            <td style="padding: 2px 0; color: #64748b;">Employee ID</td>
-                            <td style="padding: 2px 0; font-weight: 600; color: #1e293b;">: &nbsp;${escapeHtml(data.employeeCode || '-')}</td>
+                            <td style="padding: 2.5px 0; color: #64748b;">Employee ID</td>
+                            <td style="padding: 2.5px 0; font-weight: 600; color: #1e293b;">: &nbsp;${escapeHtml(data.employeeCode || '-')}</td>
                         </tr>
                         <tr>
-                            <td style="padding: 2px 0; color: #64748b;">Date of Joining</td>
-                            <td style="padding: 2px 0; font-weight: 600; color: #1e293b;">: &nbsp;${escapeHtml(formatDateDMY(data.dateOfJoining))}</td>
+                            <td style="padding: 2.5px 0; color: #64748b;">Date of Joining</td>
+                            <td style="padding: 2.5px 0; font-weight: 600; color: #1e293b;">: &nbsp;${escapeHtml(formatDateDMY(data.dateOfJoining))}</td>
                         </tr>
                         <tr>
-                            <td style="padding: 2px 0; color: #64748b;">Pay Period</td>
-                            <td style="padding: 2px 0; font-weight: 600; color: #1e293b;">: &nbsp;${escapeHtml(formatMonthDisplay(data.payPeriod))}</td>
+                            <td style="padding: 2.5px 0; color: #64748b;">Pay Period</td>
+                            <td style="padding: 2.5px 0; font-weight: 600; color: #1e293b;">: &nbsp;${escapeHtml(formatMonthDisplay(data.payPeriod))}</td>
                         </tr>
                         <tr>
-                            <td style="padding: 2px 0; color: #64748b;">Pay Date</td>
-                            <td style="padding: 2px 0; font-weight: 600; color: #1e293b;">: &nbsp;${escapeHtml(formatDateDMY(data.payDate))}</td>
+                            <td style="padding: 2.5px 0; color: #64748b;">Pay Date</td>
+                            <td style="padding: 2.5px 0; font-weight: 600; color: #1e293b;">: &nbsp;${escapeHtml(formatDateDMY(data.payDate))}</td>
                         </tr>
                     </table>
                 </div>
 
                 <!-- Right Net Pay Card Box -->
-                <div style="width: 215px; border: 1px solid #d1fae5; border-radius: 8px; overflow: hidden; background: #ffffff;">
-                    <div style="background: #ecfdf5; padding: 10px 14px; border-bottom: 1px dashed #a7f3d0; text-align: left; border-left: 4px solid #10b981;">
-                        <div style="font-size: 22px; font-weight: 800; color: #047857; letter-spacing: -0.02em; line-height: 1;">${formatCurrency(data.netPayable)}</div>
-                        <div style="font-size: 9.5px; font-weight: 600; color: #059669; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 3px;">Employee Net Pay</div>
+                <div style="width: 220px; border: 1px solid #d1fae5; border-radius: 10px; overflow: hidden; background: #ffffff;">
+                    <div style="background: #ecfdf5; padding: 12px 14px; border-bottom: 1px dashed #a7f3d0; text-align: left; border-left: 4px solid #10b981;">
+                        <div style="font-size: 21px; font-weight: 800; color: #047857; letter-spacing: -0.02em; line-height: 1;">${formatCurrency(data.netPayable)}</div>
+                        <div style="font-size: 10px; font-weight: 700; color: #059669; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px;">Employee Net Pay</div>
                     </div>
-                    <div style="padding: 8px 14px; font-size: 11.5px; color: #334155;">
+                    <div style="padding: 8px 14px; font-size: 12px; color: #334155;">
                         <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
                             <span style="color: #64748b;">Paid Days</span>
                             <span style="font-weight: 700; color: #0f172a;">${data.paidDays ?? 30}</span>
@@ -1182,25 +1175,25 @@ export function buildPayslipPrintHTML(data) {
                 </div>
             </div>
 
-            <!-- UAN Bar (PF Number Removed per user request) -->
-            <div style="display: flex; justify-content: flex-end; align-items: center; padding: 5px 12px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0; margin-bottom: 10px; font-size: 10.5px;">
+            <!-- UAN Bar (PF removed, UAN on the left) -->
+            <div style="display: flex; align-items: center; padding: 6px 12px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0; margin-bottom: 12px; font-size: 12px;">
                 <div>
                     <span style="color: #64748b; font-weight: 600;">UAN:</span>
-                    <span style="font-weight: 700; color: #0f172a; margin-left: 6px; font-family: 'JetBrains Mono', monospace;">${escapeHtml(data.uan || '-')}</span>
+                    <span style="font-weight: 700; color: #0f172a; margin-left: 8px;">${escapeHtml(data.uan || '-')}</span>
                 </div>
             </div>
 
             <!-- Earnings & Deductions Tables Container -->
-            <div style="border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; margin-bottom: 10px;">
+            <div style="border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; margin-bottom: 12px;">
                 <div style="display: flex;">
                     <!-- Earnings Column -->
                     <div style="flex: 1; border-right: 1px solid #e2e8f0;">
                         <table style="width: 100%; border-collapse: collapse;">
                             <thead>
                                 <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
-                                    <th style="padding: 6px 8px; font-size: 9.5px; font-weight: 800; text-align: left; color: #475569; text-transform: uppercase; letter-spacing: 0.05em;">EARNINGS</th>
-                                    <th style="padding: 6px 8px; font-size: 9.5px; font-weight: 800; text-align: right; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; width: 85px;">AMOUNT</th>
-                                    <th style="padding: 6px 8px; font-size: 9.5px; font-weight: 800; text-align: right; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; width: 85px;">YTD</th>
+                                    <th style="padding: 7px 10px; font-size: 10px; font-weight: 800; text-align: left; color: #475569; text-transform: uppercase; letter-spacing: 0.05em;">EARNINGS</th>
+                                    <th style="padding: 7px 10px; font-size: 10px; font-weight: 800; text-align: right; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; width: 85px;">AMOUNT</th>
+                                    <th style="padding: 7px 10px; font-size: 10px; font-weight: 800; text-align: right; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; width: 85px;">YTD</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1208,8 +1201,8 @@ export function buildPayslipPrintHTML(data) {
                             </tbody>
                             <tfoot>
                                 <tr style="background: #f8fafc; border-top: 1px solid #cbd5e1;">
-                                    <td style="padding: 6px 8px; font-size: 11px; font-weight: 800; color: #0f172a;">Gross Earnings</td>
-                                    <td style="padding: 6px 8px; font-size: 11px; font-weight: 800; color: #0f172a; text-align: right;" colspan="2">${formatCurrency(data.grossEarnings)}</td>
+                                    <td style="padding: 7px 10px; font-size: 12px; font-weight: 800; color: #0f172a;">Gross Earnings</td>
+                                    <td style="padding: 7px 10px; font-size: 12px; font-weight: 800; color: #0f172a; text-align: right;" colspan="2">${formatCurrency(data.grossEarnings)}</td>
                                 </tr>
                             </tfoot>
                         </table>
@@ -1220,9 +1213,9 @@ export function buildPayslipPrintHTML(data) {
                         <table style="width: 100%; border-collapse: collapse;">
                             <thead>
                                 <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
-                                    <th style="padding: 6px 8px; font-size: 9.5px; font-weight: 800; text-align: left; color: #475569; text-transform: uppercase; letter-spacing: 0.05em;">DEDUCTIONS</th>
-                                    <th style="padding: 6px 8px; font-size: 9.5px; font-weight: 800; text-align: right; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; width: 85px;">AMOUNT</th>
-                                    <th style="padding: 6px 8px; font-size: 9.5px; font-weight: 800; text-align: right; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; width: 85px;">YTD</th>
+                                    <th style="padding: 7px 10px; font-size: 10px; font-weight: 800; text-align: left; color: #475569; text-transform: uppercase; letter-spacing: 0.05em;">DEDUCTIONS</th>
+                                    <th style="padding: 7px 10px; font-size: 10px; font-weight: 800; text-align: right; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; width: 85px;">AMOUNT</th>
+                                    <th style="padding: 7px 10px; font-size: 10px; font-weight: 800; text-align: right; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; width: 85px;">YTD</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1230,8 +1223,8 @@ export function buildPayslipPrintHTML(data) {
                             </tbody>
                             <tfoot>
                                 <tr style="background: #f8fafc; border-top: 1px solid #cbd5e1;">
-                                    <td style="padding: 6px 8px; font-size: 11px; font-weight: 800; color: #0f172a;">Total Deductions</td>
-                                    <td style="padding: 6px 8px; font-size: 11px; font-weight: 800; color: #e11d48; text-align: right;" colspan="2">${formatCurrency(data.totalDeductions)}</td>
+                                    <td style="padding: 7px 10px; font-size: 12px; font-weight: 800; color: #0f172a;">Total Deductions</td>
+                                    <td style="padding: 7px 10px; font-size: 12px; font-weight: 800; color: #e11d48; text-align: right;" colspan="2">${formatCurrency(data.totalDeductions)}</td>
                                 </tr>
                             </tfoot>
                         </table>
@@ -1240,23 +1233,23 @@ export function buildPayslipPrintHTML(data) {
             </div>
 
             <!-- Total Net Payable Banner -->
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 14px; background: #ffffff; border: 1px solid #d1fae5; border-radius: 6px; margin-bottom: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 9px 14px; background: #ffffff; border: 1px solid #d1fae5; border-radius: 6px; margin-bottom: 10px;">
                 <div>
-                    <div style="font-size: 11.5px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.04em;">TOTAL NET PAYABLE</div>
-                    <div style="font-size: 9.5px; color: #64748b;">Gross Earnings - Total Deductions</div>
+                    <div style="font-size: 12px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.04em;">TOTAL NET PAYABLE</div>
+                    <div style="font-size: 10px; color: #64748b;">Gross Earnings - Total Deductions</div>
                 </div>
-                <div style="background: #ecfdf5; padding: 4px 12px; border-radius: 6px; font-size: 15px; font-weight: 800; color: #047857;">
+                <div style="background: #ecfdf5; padding: 4px 12px; border-radius: 6px; font-size: 16px; font-weight: 800; color: #047857;">
                     ${formatCurrency(data.netPayable)}
                 </div>
             </div>
 
             <!-- Amount in Words -->
-            <div style="text-align: right; font-size: 10.5px; color: #475569; margin-bottom: 10px; padding-right: 2px;">
+            <div style="text-align: right; font-size: 11px; color: #475569; margin-bottom: 12px; padding-right: 2px;">
                 <span style="color: #64748b;">Amount In Words :</span> <strong style="color: #0f172a;">${escapeHtml(data.netPayableWords || '')}</strong>
             </div>
 
             <!-- Footer Line -->
-            <div style="border-top: 1px solid #e2e8f0; padding-top: 8px; text-align: center; font-size: 9.5px; color: #94a3b8; font-style: italic;">
+            <div style="border-top: 1px solid #e2e8f0; padding-top: 10px; text-align: center; font-size: 10px; color: #94a3b8; font-style: italic;">
                 -- This document has been automatically generated by IES Payroll; therefore, a signature is not required. --
             </div>
         </div>
@@ -1269,25 +1262,15 @@ export function buildPayslipPrintHTML(data) {
 function renderLivePreview(data) {
     const previewContainer = document.getElementById('ps-live-preview-content');
     if (!previewContainer) return;
-    try {
-        previewContainer.innerHTML = buildPayslipPrintHTML(data);
-    } catch (err) {
-        console.error("Error in renderLivePreview:", err);
-        previewContainer.innerHTML = `<div class="p-4 text-xs text-rose-500 font-semibold">Error rendering preview: ${escapeHtml(err.message)}</div>`;
-    }
+    previewContainer.innerHTML = buildPayslipPrintHTML(data);
 }
 
 /**
  * Print current form payslip
  */
 export function printCurrentPayslip() {
-    try {
-        const data = collectFormData();
-        triggerPrintDialog(data);
-    } catch (err) {
-        console.error("Print error:", err);
-        alert("Could not generate print view: " + err.message);
-    }
+    const data = collectFormData();
+    triggerPrintDialog(data);
 }
 
 /**
@@ -1303,32 +1286,89 @@ export async function viewPrintPayslip(payslipId) {
 }
 
 /**
- * Trigger browser print with exact styles
+ * Trigger browser print with exact styles in Portrait mode via clean isolated iframe
  */
 function triggerPrintDialog(data) {
-    const printArea = document.getElementById('payslip-print-view');
-    if (!printArea) {
-        alert("Print view container not found in page.");
-        return;
+    let iframe = document.getElementById('payslip-print-iframe');
+    if (!iframe) {
+        iframe = document.createElement('iframe');
+        iframe.id = 'payslip-print-iframe';
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.border = '0';
+        iframe.style.visibility = 'hidden';
+        document.body.appendChild(iframe);
     }
 
-    try {
-        printArea.innerHTML = buildPayslipPrintHTML(data);
-        printArea.classList.remove('hidden');
-        document.body.classList.add('printing-payslip');
+    const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Payslip - ${escapeHtml(data.employeeName || 'Staff')}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        @page {
+            size: A4 portrait !important;
+            margin: 6mm 8mm !important;
+        }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+        html, body {
+            width: 100% !important;
+            height: auto !important;
+            background: #ffffff !important;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+            color: #1e293b !important;
+        }
+        .payslip-document-wrapper {
+            width: 100% !important;
+            max-width: 100% !important;
+            padding: 4px 8px !important;
+            margin: 0 !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+        }
+    </style>
+</head>
+<body>
+    ${buildPayslipPrintHTML(data)}
+</body>
+</html>`;
 
+    // Also populate payslip-print-view for fallback
+    const printArea = document.getElementById('payslip-print-view');
+    if (printArea) {
+        printArea.innerHTML = buildPayslipPrintHTML(data);
+    }
+
+    const doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write(htmlContent);
+    doc.close();
+
+    const doPrint = () => {
         setTimeout(() => {
-            window.print();
-            setTimeout(() => {
-                printArea.classList.add('hidden');
-                document.body.classList.remove('printing-payslip');
-            }, 1000);
-        }, 60);
-    } catch (err) {
-        console.error("triggerPrintDialog error:", err);
-        alert("Error printing payslip: " + err.message);
-        printArea.classList.add('hidden');
-        document.body.classList.remove('printing-payslip');
+            iframe.contentWindow.focus();
+            iframe.contentWindow.print();
+        }, 200);
+    };
+
+    const img = doc.querySelector('img');
+    if (img && !img.complete) {
+        img.onload = doPrint;
+        img.onerror = doPrint;
+    } else {
+        doPrint();
     }
 }
 
@@ -1362,7 +1402,7 @@ function downloadPayslipDataAsPDF(data) {
 
     if (window.html2pdf) {
         const opt = {
-            margin: [8, 8, 8, 8],
+            margin: [5, 5, 5, 5],
             filename: filename,
             image: { type: 'jpeg', quality: 0.98 },
             html2canvas: { scale: 2, useCORS: true, logging: false },
@@ -1374,12 +1414,10 @@ function downloadPayslipDataAsPDF(data) {
         }).catch(err => {
             console.error("html2pdf error:", err);
             printArea.classList.add('hidden');
-            window.print();
+            triggerPrintDialog(data);
         });
     } else {
-        // Fallback to print
-        window.print();
-        setTimeout(() => printArea.classList.add('hidden'), 1000);
+        triggerPrintDialog(data);
     }
 }
 
