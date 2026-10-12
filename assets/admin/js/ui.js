@@ -51,7 +51,9 @@ export const switchView = (viewName) => {
             'daily_roster': 'Daily Roster',
             'daily_summary_report': 'Daily Summary Report',
             'costing_report': 'Costing Report',
-            'costing_detail': 'Costing Report Detail'
+            'costing_detail': 'Costing Report Detail',
+            'payslip': 'Payslip Generator',
+            'payslip_detail': 'Generate Payslip'
         };
 
         const pageTitle = document.getElementById('page-title');
@@ -61,6 +63,11 @@ export const switchView = (viewName) => {
         updateActiveLink(viewName);
 
         // Trigger View Renders
+        if (viewName === 'payslip') {
+            if (window.adminApp?.renderPayslipDashboard) {
+                window.adminApp.renderPayslipDashboard();
+            }
+        }
         if (viewName === 'costing_report') {
             if (window.adminApp?.renderCostingReport) {
                 window.adminApp.renderCostingReport();

@@ -922,3 +922,157 @@ export const subscribeToAllCostingExpenses = (callback) => {
     });
 };
 
+/* ==========================================================================
+   PAYSLIP MODULE COLLECTIONS & FUNCTIONS
+   ========================================================================== */
+const PAYSLIPS_COLLECTION = "payslips";
+const PAYSLIP_FORMATS_COLLECTION = "payslip_formats";
+
+export const addPayslip = async (data) => {
+    try {
+        const docRef = await addDoc(collection(db, PAYSLIPS_COLLECTION), {
+            ...data,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+        });
+        return { id: docRef.id, error: null };
+    } catch (error) {
+        console.error("Error adding payslip:", error);
+        return { id: null, error: error.message };
+    }
+};
+
+export const updatePayslip = async (id, data) => {
+    try {
+        const docRef = doc(db, PAYSLIPS_COLLECTION, id);
+        await updateDoc(docRef, {
+            ...data,
+            updatedAt: serverTimestamp()
+        });
+        return { id, error: null };
+    } catch (error) {
+        console.error("Error updating payslip:", error);
+        return { id: null, error: error.message };
+    }
+};
+
+export const deletePayslip = async (id) => {
+    try {
+        await deleteDoc(doc(db, PAYSLIPS_COLLECTION, id));
+        return { success: true, error: null };
+    } catch (error) {
+        console.error("Error deleting payslip:", error);
+        return { success: false, error: error.message };
+    }
+};
+
+export const getPayslip = async (id) => {
+    try {
+        const docSnap = await getDoc(doc(db, PAYSLIPS_COLLECTION, id));
+        if (docSnap.exists()) {
+            return { id: docSnap.id, ...docSnap.data() };
+        }
+        return null;
+    } catch (error) {
+        console.error("Error fetching payslip:", error);
+        return null;
+    }
+};
+
+export const getPayslipsByMonth = async (month) => {
+    try {
+        const q = query(
+            collection(db, PAYSLIPS_COLLECTION),
+            where("payPeriod", "==", month)
+        );
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+        console.error("Error fetching payslips by month:", error);
+        return [];
+    }
+};
+
+export const subscribeToPayslipsByMonth = (month, callback) => {
+    const q = query(
+        collection(db, PAYSLIPS_COLLECTION),
+        where("payPeriod", "==", month)
+    );
+    return onSnapshot(q, (snapshot) => {
+        const list = [];
+        snapshot.forEach(doc => list.push({ id: doc.id, ...doc.data() }));
+        // Sort alphabetically by employee name
+        list.sort((a, b) => (a.employeeName || '').localeCompare(b.employeeName || ''));
+        callback(list);
+    }, (error) => {
+        console.error("Error subscribing to payslips by month:", error);
+        callback([]);
+    });
+};
+
+export const getEmployeePayslipsInFY = async (employeeId, financialYear) => {
+    try {
+        const q = query(
+            collection(db, PAYSLIPS_COLLECTION),
+            where("employeeId", "==", employeeId),
+            where("financialYear", "==", financialYear)
+        );
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+        console.error("Error fetching employee payslips in FY:", error);
+        return [];
+    }
+};
+
+export const getLastPayslipForEmployee = async (employeeId) => {
+    try {
+        const q = query(
+            collection(db, PAYSLIPS_COLLECTION),
+            where("employeeId", "==", employeeId)
+        );
+        const snapshot = await getDocs(q);
+        if (snapshot.empty) return null;
+        const payslips = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        payslips.sort((a, b) => (b.payPeriod || '').localeCompare(a.payPeriod || ''));
+        return payslips[0];
+    } catch (error) {
+        console.error("Error fetching last payslip for employee:", error);
+        return null;
+    }
+};
+
+export const savePayslipFormat = async (formatData) => {
+    try {
+        const docRef = await addDoc(collection(db, PAYSLIP_FORMATS_COLLECTION), {
+            ...formatData,
+            createdAt: serverTimestamp()
+        });
+        return { id: docRef.id, error: null };
+    } catch (error) {
+        console.error("Error saving payslip format:", error);
+        return { id: null, error: error.message };
+    }
+};
+
+export const getPayslipFormats = async () => {
+    try {
+        const snapshot = await getDocs(collection(db, PAYSLIP_FORMATS_COLLECTION));
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+        console.error("Error fetching payslip formats:", error);
+        return [];
+    }
+};
+
+export const deletePayslipFormat = async (id) => {
+    try {
+        await deleteDoc(doc(db, PAYSLIP_FORMATS_COLLECTION, id));
+        return { success: true, error: null };
+    } catch (error) {
+        console.error("Error deleting payslip format:", error);
+        return { success: false, error: error.message };
+    }
+};
+
+

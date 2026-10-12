@@ -24,9 +24,10 @@
     <!-- D3.js for Charts -->
     <script src="https://d3js.org/d3.v7.min.js"></script>
 
-    <!-- PDF Export Library -->
+    <!-- PDF Export Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js" type="module"></script>
 
@@ -130,7 +131,9 @@
 
         /* Costing Sheet Views - Full Scrolling Fix (only when active) */
         #view-costing_report:not(.hidden),
-        #view-costing_detail:not(.hidden) {
+        #view-costing_detail:not(.hidden),
+        #view-payslip:not(.hidden),
+        #view-payslip_detail:not(.hidden) {
             display: block !important;
             height: auto !important;
             min-height: 100% !important;
@@ -141,8 +144,38 @@
         }
 
         #view-costing_report.hidden,
-        #view-costing_detail.hidden {
+        #view-costing_detail.hidden,
+        #view-payslip.hidden,
+        #view-payslip_detail.hidden {
             display: none !important;
+        }
+
+        /* Dedicated Print Stylesheet */
+        @media print {
+            body {
+                background: #ffffff !important;
+            }
+            body * {
+                visibility: hidden !important;
+            }
+            #payslip-print-view,
+            #payslip-print-view * {
+                visibility: visible !important;
+            }
+            #payslip-print-view {
+                position: absolute !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                display: block !important;
+                background: #ffffff !important;
+            }
+            @page {
+                size: A4 portrait;
+                margin: 8mm;
+            }
         }
 
         #main-content {
@@ -711,6 +744,19 @@
                                         d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                 </svg>
                                 Daily Summary Report
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#" class="nav-link" data-view="payslip">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                                </svg>
+                                <span>Payslip Generator</span>
+                                <span style="margin-left: auto; font-size: 0.65rem; background: rgba(239, 68, 68, 0.12); color: #dc2626; padding: 2px 7px; border-radius: 999px; display: inline-flex; align-items: center; gap: 3px; font-weight: 700;">
+                                    <svg style="width: 10px; height: 10px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                                    PIN
+                                </span>
                             </a>
                         </li>
                     </ul>
@@ -3354,6 +3400,368 @@
 
                 </section>
 
+                <!-- ============================================
+                     VIEW: Payslip Generator Dashboard
+                     ============================================ -->
+                <section id="view-payslip" class="view-section hidden">
+                    <!-- Dashboard Header -->
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white shadow-md shadow-indigo-100">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h2 class="text-xl font-extrabold text-slate-800 tracking-tight">Payslip Generator</h2>
+                                <p class="text-xs text-slate-500 font-medium">Generate, manage, and download monthly employee salary slips with YTD</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-3">
+                            <button onclick="window.adminApp.lockPayroll()"
+                                class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors"
+                                title="Lock Session">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                                <span>Lock Session</span>
+                            </button>
+                            <button onclick="window.adminApp.openNewPayslipForm()"
+                                class="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm hover:shadow transition-all">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                                <span>+ Generate Payslip</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- KPI Metric Cards -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                        <!-- Headcount -->
+                        <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm">
+                            <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Staff Paid</div>
+                            <div id="ps-metric-headcount" class="text-2xl font-black text-slate-800 font-mono">0</div>
+                            <div class="text-[11px] text-slate-400 mt-1">Generated payslips this month</div>
+                        </div>
+                        <!-- Gross -->
+                        <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm">
+                            <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Gross Earnings</div>
+                            <div id="ps-metric-gross" class="text-2xl font-black text-slate-800 font-mono">₹0.00</div>
+                            <div class="text-[11px] text-slate-400 mt-1">Total company gross salary</div>
+                        </div>
+                        <!-- Deductions -->
+                        <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm">
+                            <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Deductions</div>
+                            <div id="ps-metric-deductions" class="text-2xl font-black text-rose-600 font-mono">₹0.00</div>
+                            <div class="text-[11px] text-slate-400 mt-1">EPF, Tax, and other deductions</div>
+                        </div>
+                        <!-- Net Disbursed -->
+                        <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm bg-gradient-to-br from-white to-emerald-50/30">
+                            <div class="text-[11px] font-bold text-emerald-600 uppercase tracking-wider mb-1">Net Disbursed</div>
+                            <div id="ps-metric-net" class="text-2xl font-black text-emerald-700 font-mono">₹0.00</div>
+                            <div class="text-[11px] text-emerald-600/70 mt-1">Net payable to employees</div>
+                        </div>
+                    </div>
+
+                    <!-- Toolbar & Filters -->
+                    <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm mb-6 flex flex-col md:flex-row items-center justify-between gap-4">
+                        <div class="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                            <div class="flex items-center gap-2">
+                                <label class="text-xs font-bold text-slate-600">Month:</label>
+                                <input type="month" id="payslip-month-filter"
+                                    onchange="window.adminApp.setPayslipMonth(this.value)"
+                                    class="form-input text-xs py-1.5 px-3 rounded-lg border border-slate-300 font-semibold text-slate-700">
+                            </div>
+
+                            <div class="relative flex-1 md:w-64">
+                                <input type="text" placeholder="Search employee or ID..."
+                                    oninput="window.adminApp.filterPayslips(this.value)"
+                                    class="form-input text-xs w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-300">
+                                <svg class="w-4 h-4 text-slate-400 absolute left-2.5 top-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2 w-full md:w-auto justify-end">
+                            <button onclick="window.adminApp.exportMonthlyPayrollCSV()"
+                                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors">
+                                <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                <span>Export Monthly CSV</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Payslips Table Card -->
+                    <div class="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                        <th class="px-4 py-3 w-10">#</th>
+                                        <th class="px-4 py-3">Employee Details</th>
+                                        <th class="px-4 py-3">Designation</th>
+                                        <th class="px-4 py-3">Pay Period</th>
+                                        <th class="px-4 py-3 text-center">Days</th>
+                                        <th class="px-4 py-3 text-right">Gross Earnings</th>
+                                        <th class="px-4 py-3 text-right">Deductions</th>
+                                        <th class="px-4 py-3 text-right">Net Payable</th>
+                                        <th class="px-4 py-3 text-right w-36">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="payslip-table-body">
+                                    <!-- Populated by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ============================================
+                     VIEW: Payslip Generator Detail / Form
+                     ============================================ -->
+                <section id="view-payslip_detail" class="view-section hidden">
+                    <!-- Top Action Bar -->
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-200">
+                        <div class="flex items-center gap-3">
+                            <button onclick="window.adminApp.backToPayslipDashboard()"
+                                class="p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors" title="Back">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+                            </button>
+                            <div>
+                                <h2 id="ps-form-title" class="text-xl font-extrabold text-slate-800 tracking-tight">Generate Payslip</h2>
+                                <p class="text-xs text-slate-500">Configure salary components, dynamic fields, and YTD figures</p>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-2">
+                            <button type="button" onclick="window.adminApp.cloneFromLastMonth()"
+                                class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-colors"
+                                title="Clone from employee's last saved payslip">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"/></svg>
+                                <span>Clone Last Month</span>
+                            </button>
+                            <button type="button" onclick="window.adminApp.printCurrentPayslip()"
+                                class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg transition-colors">
+                                <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                                <span>Print</span>
+                            </button>
+                            <button type="button" onclick="window.adminApp.downloadCurrentPayslipPDF()"
+                                class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                <span>Save PDF</span>
+                            </button>
+                            <button type="button" onclick="window.adminApp.savePayslip()"
+                                class="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm hover:shadow transition-all">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                <span>Save Payslip</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Split View: Form on Left (60%), Live Preview on Right (40%) -->
+                    <div class="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+                        <!-- LEFT COLUMN: Form Inputs -->
+                        <div class="xl:col-span-7 space-y-6">
+                            <!-- Template Controls Bar -->
+                            <div class="bg-indigo-50/60 p-3.5 rounded-xl border border-indigo-100 flex flex-wrap items-center justify-between gap-3">
+                                <div class="flex items-center gap-2 text-xs text-indigo-900 font-semibold">
+                                    <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/></svg>
+                                    <span>Format Presets:</span>
+                                    <select id="ps-format-template-select" onchange="window.adminApp.applySelectedFormat(this.value)"
+                                        class="form-input text-xs py-1 px-2.5 rounded-lg border border-indigo-200 bg-white">
+                                        <option value="">-- Choose Format Template --</option>
+                                    </select>
+                                </div>
+                                <button type="button" onclick="window.adminApp.saveCurrentFormatAsTemplate()"
+                                    class="text-xs font-semibold text-indigo-700 hover:text-indigo-900 hover:underline inline-flex items-center gap-1">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
+                                    Save Current Structure as Preset
+                                </button>
+                            </div>
+
+                            <!-- Card 1: Employee & Payroll Metadata -->
+                            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                                <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                    <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
+                                    Employee &amp; Period Information
+                                </h3>
+
+                                <input type="hidden" id="ps-form-id">
+                                <input type="hidden" id="ps-field-audit-ref">
+
+                                <!-- Quick Pre-fill Dropdown -->
+                                <div class="mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200/80">
+                                    <label class="block text-xs font-bold text-slate-600 mb-1">Select Existing Team Member (Auto-fill):</label>
+                                    <select id="ps-form-employee-select" onchange="window.adminApp.onPayslipEmployeeSelected(this.value)"
+                                        class="form-input text-xs w-full py-2 px-3 border border-slate-300 rounded-lg bg-white">
+                                        <option value="">-- Select Team Member --</option>
+                                    </select>
+                                </div>
+
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-600 mb-1">Employee Name *</label>
+                                        <input type="text" id="ps-field-employee-name" required
+                                            oninput="window.adminApp.updateLiveCalculations()"
+                                            class="form-input text-xs w-full py-2 px-3 border border-slate-300 rounded-lg" placeholder="e.g. Gaurav">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-600 mb-1">Designation</label>
+                                        <input type="text" id="ps-field-designation"
+                                            oninput="window.adminApp.updateLiveCalculations()"
+                                            class="form-input text-xs w-full py-2 px-3 border border-slate-300 rounded-lg" placeholder="Associate Editor">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-600 mb-1">Employee ID / Code</label>
+                                        <input type="text" id="ps-field-employee-code"
+                                            oninput="window.adminApp.updateLiveCalculations()"
+                                            class="form-input text-xs w-full py-2 px-3 border border-slate-300 rounded-lg" placeholder="43521">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-600 mb-1">Date of Joining</label>
+                                        <input type="date" id="ps-field-doj"
+                                            oninput="window.adminApp.updateLiveCalculations()"
+                                            class="form-input text-xs w-full py-2 px-3 border border-slate-300 rounded-lg">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-600 mb-1">Pay Period (Month) *</label>
+                                        <input type="month" id="ps-field-pay-period" required
+                                            onchange="window.adminApp.triggerYTDRecalculation()"
+                                            class="form-input text-xs w-full py-2 px-3 border border-slate-300 rounded-lg font-semibold">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-600 mb-1">Pay Date</label>
+                                        <input type="date" id="ps-field-pay-date"
+                                            oninput="window.adminApp.updateLiveCalculations()"
+                                            class="form-input text-xs w-full py-2 px-3 border border-slate-300 rounded-lg">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-600 mb-1">Paid Days</label>
+                                        <input type="number" id="ps-field-paid-days" min="0" max="31"
+                                            oninput="window.adminApp.updateLiveCalculations()"
+                                            class="form-input text-xs w-full py-2 px-3 border border-slate-300 rounded-lg" value="30">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-600 mb-1">LOP Days (Loss of Pay)</label>
+                                        <input type="number" id="ps-field-lop-days" min="0" max="31"
+                                            oninput="window.adminApp.updateLiveCalculations()"
+                                            class="form-input text-xs w-full py-2 px-3 border border-slate-300 rounded-lg" value="0">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-600 mb-1">PF Account Number</label>
+                                        <input type="text" id="ps-field-pf"
+                                            oninput="window.adminApp.updateLiveCalculations()"
+                                            class="form-input text-xs w-full py-2 px-3 border border-slate-300 rounded-lg" placeholder="AA/AAA/9999999/99G/9899999">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-600 mb-1">UAN</label>
+                                        <input type="text" id="ps-field-uan"
+                                            oninput="window.adminApp.updateLiveCalculations()"
+                                            class="form-input text-xs w-full py-2 px-3 border border-slate-300 rounded-lg" placeholder="111111111111">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Card 2: Dynamic Earnings -->
+                            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                                        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                        Earnings Breakdown (Editable Rows &amp; YTD)
+                                    </h3>
+                                    <button type="button" onclick="window.adminApp.addEarningRow()"
+                                        class="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg transition-colors">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                                        Add Earning Row
+                                    </button>
+                                </div>
+
+                                <!-- Column Headers -->
+                                <div class="flex items-center gap-2 px-2 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                                    <div class="flex-1">Earning Label</div>
+                                    <div class="w-28 text-right">Amount (₹)</div>
+                                    <div class="w-28 text-right">YTD (₹)</div>
+                                    <div class="w-6"></div>
+                                </div>
+
+                                <!-- Dynamic Rows Container -->
+                                <div id="ps-earnings-rows-container">
+                                    <!-- Populated by JS -->
+                                </div>
+
+                                <!-- Gross Total Summary -->
+                                <div class="flex items-center justify-between pt-3 mt-2 border-t border-slate-200">
+                                    <span class="text-xs font-bold text-slate-700">Gross Earnings:</span>
+                                    <span id="ps-form-gross-total" class="text-sm font-extrabold text-slate-900 font-mono">₹0.00</span>
+                                </div>
+                            </div>
+
+                            <!-- Card 3: Dynamic Deductions -->
+                            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                                        <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+                                        Deductions Breakdown (Editable Rows &amp; YTD)
+                                    </h3>
+                                    <button type="button" onclick="window.adminApp.addDeductionRow()"
+                                        class="inline-flex items-center gap-1 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2.5 py-1 rounded-lg transition-colors">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                                        Add Deduction Row
+                                    </button>
+                                </div>
+
+                                <!-- Column Headers -->
+                                <div class="flex items-center gap-2 px-2 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                                    <div class="flex-1">Deduction Label</div>
+                                    <div class="w-28 text-right">Amount (₹)</div>
+                                    <div class="w-28 text-right">YTD (₹)</div>
+                                    <div class="w-6"></div>
+                                </div>
+
+                                <!-- Dynamic Rows Container -->
+                                <div id="ps-deductions-rows-container">
+                                    <!-- Populated by JS -->
+                                </div>
+
+                                <!-- Total Deductions Summary -->
+                                <div class="flex items-center justify-between pt-3 mt-2 border-t border-slate-200">
+                                    <span class="text-xs font-bold text-slate-700">Total Deductions:</span>
+                                    <span id="ps-form-ded-total" class="text-sm font-extrabold text-rose-600 font-mono">₹0.00</span>
+                                </div>
+                            </div>
+
+                            <!-- Card 4: Net Pay & Words Preview -->
+                            <div class="bg-gradient-to-br from-emerald-500 to-emerald-700 p-5 rounded-xl text-white shadow-md shadow-emerald-100">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <div class="text-xs font-bold uppercase tracking-wider text-emerald-100">Total Net Payable</div>
+                                        <div class="text-[11px] text-emerald-200">Gross Earnings - Total Deductions</div>
+                                    </div>
+                                    <div id="ps-form-net-total" class="text-3xl font-black font-mono">₹0.00</div>
+                                </div>
+                                <div class="mt-4 pt-3 border-t border-emerald-400/40 text-xs text-emerald-50">
+                                    <span class="font-semibold text-emerald-200">Amount In Words:</span>
+                                    <span id="ps-form-words-display" class="font-bold ml-1">Indian Rupee Zero Only</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- RIGHT COLUMN: Sticky Live Preview -->
+                        <div class="xl:col-span-5 sticky top-6">
+                            <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                                <div class="p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                                    <div class="flex items-center gap-2">
+                                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                                        <span class="text-xs font-bold text-slate-700 uppercase tracking-wider">Live Document Preview</span>
+                                    </div>
+                                    <span class="text-[11px] text-slate-400 font-medium">Standard A4 Layout</span>
+                                </div>
+                                <div id="ps-live-preview-content" class="p-4 max-h-[85vh] overflow-y-auto bg-slate-100/50">
+                                    <!-- Rendered live by JS -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
             </main>
         </div>
     </div>
@@ -4619,9 +5027,54 @@
         </div>
     </div>
 
+    <!-- ============================================
+         MODAL: Payroll Security PIN
+         ============================================ -->
+    <div id="modal-payroll-password" class="modal hidden" style="z-index: 10001;">
+        <div class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="window.adminApp.closePayrollPasswordModal()"></div>
+        <div class="modal-content relative bg-white rounded-2xl shadow-2xl border border-slate-100 max-w-sm w-full mx-auto p-6 z-10" style="margin-top: 15vh;">
+            <div class="text-center mb-5">
+                <div class="w-14 h-14 mx-auto mb-3 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-sm">
+                    <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                </div>
+                <h3 class="text-lg font-extrabold text-slate-800">Payroll Security Check</h3>
+                <p class="text-xs text-slate-500 mt-1">Enter your authorization password to access employee salary records</p>
+            </div>
+
+            <form onsubmit="event.preventDefault(); window.adminApp.submitPayrollPassword();">
+                <div class="mb-4">
+                    <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Authorization Password</label>
+                    <input type="password" id="payroll-password-input" required
+                        placeholder="••••••••••••"
+                        class="form-input w-full text-center tracking-widest text-base font-bold py-2.5 px-3 border border-slate-300 rounded-xl focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100">
+                    <p id="payroll-password-error" class="text-xs text-rose-500 font-semibold mt-1.5 text-center hidden">
+                        Incorrect Password. Please try again.
+                    </p>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="window.adminApp.closePayrollPasswordModal()"
+                        class="btn btn-secondary flex-1 py-2.5 text-xs font-semibold rounded-xl">
+                        Cancel
+                    </button>
+                    <button type="submit"
+                        class="btn btn-primary flex-1 py-2.5 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm">
+                        Unlock Payroll
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Hidden Print View Container (Rendered during Print & PDF Download) -->
+    <div id="payslip-print-view" class="hidden"></div>
+
     <!-- Application Script -->
 
-    <script type="module" src="assets/admin/js/app.js?v=24"></script>
+    <script type="module" src="assets/admin/js/app.js?v=25"></script>
 
     <!-- Mobile Sidebar Toggle Script -->
     <script>

@@ -9,6 +9,7 @@ import * as Workflow from './workflow.js';
 import * as Reporting from './reporting.js';
 import * as Tracker from './progress_tracker.js';
 import * as Costing from './costing.js';
+import * as Payslip from './payslip.js';
 
 // App State
 let currentMembers = [];
@@ -220,7 +221,44 @@ window.adminApp = {
         if (viewName === 'costing_report') {
             Costing.renderCostingOrderList();
         }
+
+        if (viewName === 'payslip') {
+            if (!Payslip.isPayrollUnlocked()) {
+                Payslip.openPayrollPasswordModal();
+                return;
+            }
+            Payslip.renderPayslipDashboard(currentMembers);
+        }
     },
+
+    // Payslip Module Methods
+    renderPayslipDashboard: () => Payslip.renderPayslipDashboard(currentMembers),
+    openNewPayslipForm: () => Payslip.openPayslipForm(),
+    openEditPayslip: (id) => Payslip.openPayslipForm(id),
+    savePayslip: () => Payslip.savePayslip(),
+    deletePayslipConfirm: (id) => Payslip.deletePayslipConfirm(id),
+    backToPayslipDashboard: () => Payslip.backToPayslipDashboard(),
+    setPayslipMonth: (month) => Payslip.setPayslipMonth(month),
+    filterPayslips: (query) => Payslip.filterPayslips(query),
+    exportMonthlyPayrollCSV: () => Payslip.exportMonthlyPayrollCSV(),
+    openPayrollPasswordModal: () => Payslip.openPayrollPasswordModal(),
+    closePayrollPasswordModal: () => Payslip.closePayrollPasswordModal(),
+    submitPayrollPassword: () => Payslip.submitPayrollPassword(),
+    lockPayroll: () => Payslip.lockPayroll(),
+    onPayslipEmployeeSelected: (id) => Payslip.onEmployeeSelected(id),
+    addEarningRow: () => Payslip.addEarningRow(),
+    addDeductionRow: () => Payslip.addDeductionRow(),
+    onEarningAmountChange: (el) => Payslip.onEarningAmountChange(el),
+    onDeductionAmountChange: (el) => Payslip.onDeductionAmountChange(el),
+    updateLiveCalculations: () => Payslip.updateLiveCalculations(),
+    triggerYTDRecalculation: () => Payslip.triggerYTDRecalculation(),
+    cloneFromLastMonth: () => Payslip.cloneFromLastMonth(),
+    applySelectedFormat: (id) => Payslip.applySelectedFormat(id),
+    saveCurrentFormatAsTemplate: () => Payslip.saveCurrentFormatAsTemplate(),
+    viewPrintPayslip: (id) => Payslip.viewPrintPayslip(id),
+    printCurrentPayslip: () => Payslip.printCurrentPayslip(),
+    downloadSinglePayslipPDF: (id) => Payslip.downloadSinglePayslipPDF(id),
+    downloadCurrentPayslipPDF: () => Payslip.downloadCurrentPayslipPDF(),
 
     // Costing Report Methods
     renderCostingReport: () => Costing.renderCostingOrderList(),
