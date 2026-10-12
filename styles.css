@@ -325,19 +325,19 @@ h6 {
 }
 
 .logo-img {
-    height: 105px;
+    height: 52px;
     width: auto;
     object-fit: contain;
     transition: height var(--transition-base);
 }
 
 .navbar.scrolled .logo-img {
-    height: 85px;
+    height: 46px;
 }
 
 @media (max-width: 768px) {
     .logo-img {
-        height: 75px;
+        height: 42px;
     }
 }
 
@@ -1737,11 +1737,11 @@ textarea {
 }
 
 .footer-brand {
-    max-width: 340px;
+    max-width: 320px;
 }
 
 .footer-logo {
-    height: 110px;
+    height: 65px;
     width: auto;
     object-fit: contain;
     margin-bottom: var(--space-4);
