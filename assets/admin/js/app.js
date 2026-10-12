@@ -195,6 +195,14 @@ function refreshDashboard() {
 window.adminApp = {
     currentEditingProjectId: null,
     switchView: (viewName) => {
+        // Payroll Security Gate: Intercept BEFORE switching view
+        if (viewName === 'payslip' || viewName === 'payslip_detail') {
+            if (!Payslip.isPayrollUnlocked()) {
+                Payslip.openPayrollPasswordModal();
+                return;
+            }
+        }
+
         UI.switchView(viewName);
         if (viewName === 'inventory_management') {
             window.adminApp.initInventory();
@@ -223,10 +231,6 @@ window.adminApp = {
         }
 
         if (viewName === 'payslip') {
-            if (!Payslip.isPayrollUnlocked()) {
-                Payslip.openPayrollPasswordModal();
-                return;
-            }
             Payslip.renderPayslipDashboard(currentMembers);
         }
     },

@@ -166,9 +166,15 @@ export function getDaysInMonth(payPeriod) {
 /**
  * Initialize / Render the Payslip Dashboard View
  */
-export function renderPayslipDashboard(members = []) {
+export async function renderPayslipDashboard(members = []) {
     if (members && members.length) {
         currentMembersList = members;
+    } else if (!currentMembersList.length) {
+        try {
+            currentMembersList = await DB.getMembers();
+        } catch (e) {
+            console.error("Error fetching members:", e);
+        }
     }
 
     const container = document.getElementById('view-payslip');
@@ -177,6 +183,11 @@ export function renderPayslipDashboard(members = []) {
     // Check Password Gate
     if (!isPayrollUnlocked()) {
         openPayrollPasswordModal();
+        if (window.adminApp?.switchView) {
+            window.adminApp.switchView('overview');
+        } else {
+            UI.switchView('overview');
+        }
         return;
     }
 
@@ -389,10 +400,14 @@ export function openPayrollPasswordModal() {
     const modal = document.getElementById('modal-payroll-password');
     if (modal) {
         modal.classList.remove('hidden');
+        modal.classList.add('active');
+        modal.style.display = 'flex';
+        modal.style.opacity = '1';
+        modal.style.visibility = 'visible';
         const input = document.getElementById('payroll-password-input');
         if (input) {
             input.value = '';
-            input.focus();
+            setTimeout(() => input.focus(), 60);
         }
         const err = document.getElementById('payroll-password-error');
         if (err) err.classList.add('hidden');
@@ -401,7 +416,15 @@ export function openPayrollPasswordModal() {
 
 export function closePayrollPasswordModal() {
     const modal = document.getElementById('modal-payroll-password');
-    if (modal) modal.classList.add('hidden');
+    if (modal) {
+        modal.classList.remove('active');
+        modal.style.opacity = '0';
+        modal.style.visibility = 'hidden';
+        setTimeout(() => {
+            modal.classList.add('hidden');
+            modal.style.display = 'none';
+        }, 200);
+    }
 }
 
 export function submitPayrollPassword() {
@@ -450,7 +473,7 @@ export async function openPayslipForm(payslipId = null) {
     loadAvailableFormats();
 
     // Populate employee dropdown
-    populateEmployeeDropdown();
+    await populateEmployeeDropdown();
 
     if (payslipId) {
         // Edit mode
@@ -469,9 +492,17 @@ export async function openPayslipForm(payslipId = null) {
 /**
  * Populate member dropdown in the form
  */
-function populateEmployeeDropdown() {
+async function populateEmployeeDropdown() {
     const select = document.getElementById('ps-form-employee-select');
     if (!select) return;
+
+    if (!currentMembersList.length) {
+        try {
+            currentMembersList = await DB.getMembers();
+        } catch (e) {
+            console.error("Error fetching members:", e);
+        }
+    }
 
     select.innerHTML = '<option value="">-- Select Team Member --</option>';
     currentMembersList.forEach(m => {
