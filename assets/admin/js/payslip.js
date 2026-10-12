@@ -151,6 +151,40 @@ export function formatMonthDisplay(payPeriod) {
 }
 
 /**
+ * Format Date as DD-MM-YYYY (date-month-year)
+ */
+export function formatDateDMY(dateStr) {
+    if (!dateStr) return '-';
+    const str = String(dateStr).trim();
+    if (!str) return '-';
+    // If already DD-MM-YYYY
+    if (/^\d{2}-\d{2}-\d{4}$/.test(str)) return str;
+    // If YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+        const [y, m, d] = str.split('-');
+        return `${d}-${m}-${y}`;
+    }
+    // If ISO with T
+    if (str.includes('T')) {
+        const datePart = str.split('T')[0];
+        if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+            const [y, m, d] = datePart.split('-');
+            return `${d}-${m}-${y}`;
+        }
+    }
+    try {
+        const d = new Date(str);
+        if (isNaN(d.getTime())) return str;
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const year = d.getFullYear();
+        return `${day}-${month}-${year}`;
+    } catch {
+        return str;
+    }
+}
+
+/**
  * Calculate total days in a month string "YYYY-MM"
  */
 export function getDaysInMonth(payPeriod) {
@@ -308,7 +342,10 @@ function renderPayslipsTable(payslips) {
                     <div class="text-xs text-slate-400">ID: ${p.employeeCode || '-'} · Ref: ${p.auditRefNo || '-'}</div>
                 </td>
                 <td class="px-4 py-3 text-xs text-slate-600">${p.designation || '-'}</td>
-                <td class="px-4 py-3 text-xs text-slate-600 font-medium">${formatMonthDisplay(p.payPeriod)}</td>
+                <td class="px-4 py-3 text-xs text-slate-600 font-medium">
+                    <div class="font-semibold text-slate-700">${formatMonthDisplay(p.payPeriod)}</div>
+                    ${p.payDate ? `<div class="text-[11px] text-slate-400 mt-0.5">Pay Date: ${formatDateDMY(p.payDate)}</div>` : ''}
+                </td>
                 <td class="px-4 py-3 text-xs text-center text-slate-700 font-medium">
                     <span class="inline-block px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-semibold">${p.paidDays ?? '-'}</span>
                     ${p.lopDays ? `<span class="inline-block px-1.5 py-0.5 rounded bg-red-50 text-red-600 text-[10px] ml-1">LOP: ${p.lopDays}</span>` : ''}
@@ -371,9 +408,9 @@ export function exportMonthlyPayrollCSV() {
         `"${p.employeeName || ''}"`,
         `"${p.employeeCode || ''}"`,
         `"${p.designation || ''}"`,
-        `"${p.dateOfJoining || ''}"`,
+        `"${formatDateDMY(p.dateOfJoining)}"`,
         `"${formatMonthDisplay(p.payPeriod)}"`,
-        `"${p.payDate || ''}"`,
+        `"${formatDateDMY(p.payDate)}"`,
         p.paidDays ?? '',
         p.lopDays ?? 0,
         `"${p.uan || ''}"`,
@@ -744,21 +781,25 @@ export function onDeductionAmountChange(input) {
  * Real-time calculation of Gross, Deductions, Net Payable, and Amount in Words
  */
 export function updateLiveCalculations() {
-    const data = collectFormData();
+    try {
+        const data = collectFormData();
 
-    // Update Form Total Labels
-    const grossEl = document.getElementById('ps-form-gross-total');
-    const dedEl = document.getElementById('ps-form-ded-total');
-    const netEl = document.getElementById('ps-form-net-total');
-    const wordsEl = document.getElementById('ps-form-words-display');
+        // Update Form Total Labels
+        const grossEl = document.getElementById('ps-form-gross-total');
+        const dedEl = document.getElementById('ps-form-ded-total');
+        const netEl = document.getElementById('ps-form-net-total');
+        const wordsEl = document.getElementById('ps-form-words-display');
 
-    if (grossEl) grossEl.textContent = formatCurrency(data.grossEarnings);
-    if (dedEl) dedEl.textContent = formatCurrency(data.totalDeductions);
-    if (netEl) netEl.textContent = formatCurrency(data.netPayable);
-    if (wordsEl) wordsEl.textContent = data.netPayableWords;
+        if (grossEl) grossEl.textContent = formatCurrency(data.grossEarnings);
+        if (dedEl) dedEl.textContent = formatCurrency(data.totalDeductions);
+        if (netEl) netEl.textContent = formatCurrency(data.netPayable);
+        if (wordsEl) wordsEl.textContent = data.netPayableWords;
 
-    // Update live preview block
-    renderLivePreview(data);
+        // Update live preview block
+        renderLivePreview(data);
+    } catch (err) {
+        console.error("Error in updateLiveCalculations:", err);
+    }
 }
 
 /**
@@ -819,7 +860,6 @@ export function collectFormData() {
         payDate,
         paidDays,
         lopDays,
-        pfAccountNo,
         uan,
         auditRefNo,
         earnings,
@@ -1110,7 +1150,7 @@ export function buildPayslipPrintHTML(data) {
                         </tr>
                         <tr>
                             <td style="padding: 2px 0; color: #64748b;">Date of Joining</td>
-                            <td style="padding: 2px 0; font-weight: 600; color: #1e293b;">: &nbsp;${escapeHtml(data.dateOfJoining || '-')}</td>
+                            <td style="padding: 2px 0; font-weight: 600; color: #1e293b;">: &nbsp;${escapeHtml(formatDateDMY(data.dateOfJoining))}</td>
                         </tr>
                         <tr>
                             <td style="padding: 2px 0; color: #64748b;">Pay Period</td>
@@ -1118,7 +1158,7 @@ export function buildPayslipPrintHTML(data) {
                         </tr>
                         <tr>
                             <td style="padding: 2px 0; color: #64748b;">Pay Date</td>
-                            <td style="padding: 2px 0; font-weight: 600; color: #1e293b;">: &nbsp;${escapeHtml(data.payDate || '-')}</td>
+                            <td style="padding: 2px 0; font-weight: 600; color: #1e293b;">: &nbsp;${escapeHtml(formatDateDMY(data.payDate))}</td>
                         </tr>
                     </table>
                 </div>
@@ -1229,15 +1269,25 @@ export function buildPayslipPrintHTML(data) {
 function renderLivePreview(data) {
     const previewContainer = document.getElementById('ps-live-preview-content');
     if (!previewContainer) return;
-    previewContainer.innerHTML = buildPayslipPrintHTML(data);
+    try {
+        previewContainer.innerHTML = buildPayslipPrintHTML(data);
+    } catch (err) {
+        console.error("Error in renderLivePreview:", err);
+        previewContainer.innerHTML = `<div class="p-4 text-xs text-rose-500 font-semibold">Error rendering preview: ${escapeHtml(err.message)}</div>`;
+    }
 }
 
 /**
  * Print current form payslip
  */
 export function printCurrentPayslip() {
-    const data = collectFormData();
-    triggerPrintDialog(data);
+    try {
+        const data = collectFormData();
+        triggerPrintDialog(data);
+    } catch (err) {
+        console.error("Print error:", err);
+        alert("Could not generate print view: " + err.message);
+    }
 }
 
 /**
@@ -1257,16 +1307,29 @@ export async function viewPrintPayslip(payslipId) {
  */
 function triggerPrintDialog(data) {
     const printArea = document.getElementById('payslip-print-view');
-    if (!printArea) return;
+    if (!printArea) {
+        alert("Print view container not found in page.");
+        return;
+    }
 
-    printArea.innerHTML = buildPayslipPrintHTML(data);
-    printArea.classList.remove('hidden');
+    try {
+        printArea.innerHTML = buildPayslipPrintHTML(data);
+        printArea.classList.remove('hidden');
+        document.body.classList.add('printing-payslip');
 
-    window.print();
-
-    setTimeout(() => {
+        setTimeout(() => {
+            window.print();
+            setTimeout(() => {
+                printArea.classList.add('hidden');
+                document.body.classList.remove('printing-payslip');
+            }, 1000);
+        }, 60);
+    } catch (err) {
+        console.error("triggerPrintDialog error:", err);
+        alert("Error printing payslip: " + err.message);
         printArea.classList.add('hidden');
-    }, 1000);
+        document.body.classList.remove('printing-payslip');
+    }
 }
 
 /**

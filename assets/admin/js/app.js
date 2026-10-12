@@ -9,7 +9,7 @@ import * as Workflow from './workflow.js';
 import * as Reporting from './reporting.js';
 import * as Tracker from './progress_tracker.js';
 import * as Costing from './costing.js';
-import * as Payslip from './payslip.js';
+import * as Payslip from './payslip.js?v=28';
 
 // App State
 let currentMembers = [];
