@@ -325,8 +325,20 @@ h6 {
 }
 
 .logo-img {
-    height: 70px;
+    height: 105px;
     width: auto;
+    object-fit: contain;
+    transition: height var(--transition-base);
+}
+
+.navbar.scrolled .logo-img {
+    height: 85px;
+}
+
+@media (max-width: 768px) {
+    .logo-img {
+        height: 75px;
+    }
 }
 
 .logo-text {
@@ -1725,12 +1737,13 @@ textarea {
 }
 
 .footer-brand {
-    max-width: 280px;
+    max-width: 340px;
 }
 
 .footer-logo {
-    height: 80px;
+    height: 110px;
     width: auto;
+    object-fit: contain;
     margin-bottom: var(--space-4);
 }
 
