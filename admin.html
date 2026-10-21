@@ -530,7 +530,42 @@
            ============================================ */
         .sidebar-unit-section {
             padding: 8px 12px;
-            margin-bottom: 4px;
+            margin-bottom: 6px;
+        }
+
+        .sidebar-collapsed #sidebar .sidebar-unit-section {
+            padding: 6px 4px;
+        }
+        .sidebar-collapsed #sidebar .sidebar-unit-section .sidebar-unit-inner {
+            padding: 8px 4px !important;
+            justify-content: center !important;
+        }
+        .sidebar-collapsed #sidebar .sidebar-unit-section .sidebar-unit-hide-collapsed {
+            display: none !important;
+        }
+
+        #modal-unit-selector.modal {
+            position: fixed !important;
+            inset: 0 !important;
+            z-index: 10005 !important;
+            display: none !important;
+            align-items: center !important;
+            justify-content: center !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+            transition: opacity 0.2s ease, visibility 0.2s ease !important;
+        }
+
+        #modal-unit-selector.modal.active:not(.hidden) {
+            display: flex !important;
+            opacity: 1 !important;
+            visibility: visible !important;
+        }
+
+        #modal-unit-selector.modal.hidden {
+            display: none !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
         }
 
         .unit-select-card {
@@ -566,21 +601,21 @@
             box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
         }
 
-        .unit-badge-pill {
+        .header-unit-selector-wrap {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
-            padding: 4px 10px;
+            gap: 8px;
+            background: #ffffff;
+            border: 1.5px solid #cbd5e1;
+            padding: 5px 14px;
             border-radius: 9999px;
-            font-size: 11px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all 0.15s ease;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+            transition: all 0.2s ease;
         }
 
-        .unit-badge-pill:hover {
-            transform: translateY(-1px);
-            filter: brightness(0.96);
+        .header-unit-selector-wrap:hover {
+            border-color: #64748b;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
     </style>
 </head>
@@ -655,22 +690,20 @@
             </div>
 
             <!-- Active Unit Switcher Widget -->
-            <div class="sidebar-unit-section">
-                <button type="button" id="sidebar-unit-btn" class="w-full flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 transition-all text-left shadow-inner group" onclick="window.adminApp.openUnitModal()" title="Switch Manufacturing Facility">
-                    <div class="flex items-center gap-2.5 min-w-0">
-                        <span id="sidebar-unit-indicator" class="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0 shadow-[0_0_8px_rgba(52,211,153,0.6)]"></span>
-                        <div class="min-w-0 leading-tight">
-                            <div class="text-[9px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                                <span>ACTIVE FACILITY</span>
-                                <span id="sidebar-unit-code" class="px-1 py-0.2 rounded text-[8px] font-extrabold bg-emerald-950 text-emerald-300 border border-emerald-700/50">U1</span>
-                            </div>
-                            <div id="sidebar-unit-name" class="text-xs font-bold text-slate-100 truncate mt-0.5">UNIT 1 — Echangadu</div>
-                        </div>
+            <div class="sidebar-unit-section" style="padding: 10px 14px; margin-bottom: 8px;">
+                <div class="sidebar-unit-inner" style="background: rgba(255, 255, 255, 0.09); border: 1.5px solid rgba(255, 255, 255, 0.22); border-radius: 12px; padding: 10px 12px; transition: all 0.2s;">
+                    <div class="sidebar-unit-hide-collapsed" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                        <span style="font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #94a3b8;">ACTIVE FACILITY</span>
+                        <span id="sidebar-unit-code" style="font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 5px; background: #064e3b; color: #6ee7b7; border: 1px solid #059669;">U1</span>
                     </div>
-                    <svg class="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-200 shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
-                    </svg>
-                </button>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span id="sidebar-unit-indicator" style="width: 10px; height: 10px; border-radius: 50%; background: #10b981; box-shadow: 0 0 8px #10b981; flex-shrink: 0;"></span>
+                        <select id="sidebar-unit-select" class="sidebar-unit-hide-collapsed" onchange="window.adminApp.selectUnit(this.value)" style="width: 100%; background: transparent; border: none; color: #ffffff; font-size: 13px; font-weight: 700; cursor: pointer; outline: none; padding: 0;">
+                            <option value="unit1" style="background: #0f172a; color: #ffffff;">UNIT 1 — Echangadu</option>
+                            <option value="unit2" style="background: #0f172a; color: #ffffff;">UNIT 2 — Thirumudivakkam</option>
+                        </select>
+                    </div>
+                </div>
             </div>
 
             <nav class="sidebar-nav">
@@ -873,11 +906,13 @@
                                 <h2 class="text-2xl font-bold text-slate-800">Executive Overview</h2>
                                 <p class="text-sm text-slate-500">Real-time production & revenue insights</p>
                             </div>
-                            <button type="button" onclick="window.adminApp.openUnitModal()" id="header-unit-btn" class="unit-badge-pill bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 ml-2 shadow-xs" title="Click to switch unit">
-                                <span id="header-unit-dot" class="w-2 h-2 rounded-full bg-emerald-500"></span>
-                                <span id="header-unit-text">Unit 1 (Echangadu)</span>
-                                <svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                            </button>
+                            <div class="header-unit-selector-wrap ml-2" title="Select Manufacturing Facility">
+                                <span id="header-unit-dot" style="width: 9px; height: 9px; border-radius: 50%; background-color: #10b981; display: inline-block; flex-shrink: 0;"></span>
+                                <select id="header-unit-select" onchange="window.adminApp.selectUnit(this.value)" style="background: transparent; border: none; font-size: 12px; font-weight: 700; color: #1e293b; cursor: pointer; outline: none; padding-right: 4px;">
+                                    <option value="unit1">UNIT 1 — Echangadu</option>
+                                    <option value="unit2">UNIT 2 — Thirumudivakkam</option>
+                                </select>
+                            </div>
                         </div>
                         <div class="dashboard-filter-bar flex items-center gap-4 p-1.5 rounded-full ml-auto">
                             <div class="flex items-center gap-2 pl-3">
@@ -5227,7 +5262,7 @@
 
     <!-- Application Script -->
 
-    <script type="module" src="assets/admin/js/app.js?v=31"></script>
+    <script type="module" src="assets/admin/js/app.js?v=32"></script>
 
     <!-- Mobile Sidebar Toggle Script -->
     <script>

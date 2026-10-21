@@ -200,26 +200,32 @@ function updateUnitUI() {
     // 1. Sidebar Widget
     const sidebarUnitIndicator = document.getElementById('sidebar-unit-indicator');
     const sidebarUnitCode = document.getElementById('sidebar-unit-code');
-    const sidebarUnitName = document.getElementById('sidebar-unit-name');
+    const sidebarUnitSelect = document.getElementById('sidebar-unit-select');
     if (sidebarUnitIndicator) {
         sidebarUnitIndicator.style.backgroundColor = config.color;
-        sidebarUnitIndicator.style.boxShadow = `0 0 8px ${config.color}99`;
+        sidebarUnitIndicator.style.boxShadow = `0 0 8px ${config.color}`;
     }
     if (sidebarUnitCode) {
         sidebarUnitCode.textContent = config.code;
-        sidebarUnitCode.style.backgroundColor = config.badgeBg;
-        sidebarUnitCode.style.color = config.badgeText;
-        sidebarUnitCode.style.borderColor = config.badgeBorder;
+        if (activeUnit === 'unit2') {
+            sidebarUnitCode.style.backgroundColor = '#312e81';
+            sidebarUnitCode.style.color = '#a5b4fc';
+            sidebarUnitCode.style.borderColor = '#6366f1';
+        } else {
+            sidebarUnitCode.style.backgroundColor = '#064e3b';
+            sidebarUnitCode.style.color = '#6ee7b7';
+            sidebarUnitCode.style.borderColor = '#059669';
+        }
     }
-    if (sidebarUnitName) {
-        sidebarUnitName.textContent = config.name;
+    if (sidebarUnitSelect) {
+        sidebarUnitSelect.value = activeUnit;
     }
 
-    // 2. Header Badge
+    // 2. Header Dropdown & Dot
     const headerUnitDot = document.getElementById('header-unit-dot');
-    const headerUnitText = document.getElementById('header-unit-text');
+    const headerUnitSelect = document.getElementById('header-unit-select');
     if (headerUnitDot) headerUnitDot.style.backgroundColor = config.color;
-    if (headerUnitText) headerUnitText.textContent = config.shortName;
+    if (headerUnitSelect) headerUnitSelect.value = activeUnit;
 
     // 3. Modal Card Selection
     document.querySelectorAll('.unit-select-card').forEach(card => {
@@ -385,12 +391,16 @@ window.adminApp = {
         const modal = document.getElementById('modal-unit-selector');
         if (modal) {
             modal.classList.remove('hidden');
+            modal.classList.add('active');
             updateUnitUI();
         }
     },
     closeUnitModal: () => {
         const modal = document.getElementById('modal-unit-selector');
-        if (modal) modal.classList.add('hidden');
+        if (modal) {
+            modal.classList.add('hidden');
+            modal.classList.remove('active');
+        }
     },
     selectUnit: (unitId) => switchActiveUnit(unitId),
     switchActiveUnit: (unitId) => switchActiveUnit(unitId),
