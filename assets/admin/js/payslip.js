@@ -1,5 +1,6 @@
 import * as DB from './db.js';
 import * as UI from './ui.js';
+import { getActiveUnitConfig } from './units.js';
 
 /* ==========================================================================
    IES PAYSLIP GENERATOR MODULE
@@ -1272,7 +1273,7 @@ export function buildPayslipPrintHTML(data) {
                     <img src="assets/new logo.png" alt="IES Logo" style="height: 46px; object-fit: contain; max-width: 160px;">
                     <div>
                         <div style="font-size: 18px; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; line-height: 1.2;">Innovative Engineering Solutions</div>
-                        <div style="font-size: 11px; color: #64748b; font-weight: 500; margin-top: 2px;">Chennai, Tamil Nadu, India</div>
+                        <div style="font-size: 11px; color: #64748b; font-weight: 500; margin-top: 2px;">${escapeHtml(getActiveUnitConfig().address)}</div>
                     </div>
                 </div>
                 <div style="text-align: right;">

@@ -524,6 +524,64 @@
             color: #6366f1;
             font-weight: 500;
         }
+
+        /* ============================================
+           IES MULTI-UNIT FACILITY STYLES
+           ============================================ */
+        .sidebar-unit-section {
+            padding: 8px 12px;
+            margin-bottom: 4px;
+        }
+
+        .unit-select-card {
+            border: 2px solid #e2e8f0;
+            background: #ffffff;
+            border-radius: 14px;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .unit-select-card:hover {
+            border-color: #94a3b8;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px -5px rgba(15, 23, 42, 0.08);
+        }
+
+        .unit-select-card.active {
+            border-color: #6366f1;
+            background: #f8fafc;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+        }
+
+        .unit-select-card.active#unit-option-unit1 {
+            border-color: #10b981;
+            background: #ecfdf5;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+        }
+
+        .unit-select-card.active#unit-option-unit2 {
+            border-color: #6366f1;
+            background: #eef2ff;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+        }
+
+        .unit-badge-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 9999px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .unit-badge-pill:hover {
+            transform: translateY(-1px);
+            filter: brightness(0.96);
+        }
     </style>
 </head>
 
@@ -592,6 +650,25 @@
                     title="Toggle Sidebar">
                     <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Active Unit Switcher Widget -->
+            <div class="sidebar-unit-section">
+                <button type="button" id="sidebar-unit-btn" class="w-full flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 transition-all text-left shadow-inner group" onclick="window.adminApp.openUnitModal()" title="Switch Manufacturing Facility">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                        <span id="sidebar-unit-indicator" class="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0 shadow-[0_0_8px_rgba(52,211,153,0.6)]"></span>
+                        <div class="min-w-0 leading-tight">
+                            <div class="text-[9px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                                <span>ACTIVE FACILITY</span>
+                                <span id="sidebar-unit-code" class="px-1 py-0.2 rounded text-[8px] font-extrabold bg-emerald-950 text-emerald-300 border border-emerald-700/50">U1</span>
+                            </div>
+                            <div id="sidebar-unit-name" class="text-xs font-bold text-slate-100 truncate mt-0.5">UNIT 1 — Echangadu</div>
+                        </div>
+                    </div>
+                    <svg class="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-200 shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
                     </svg>
                 </button>
             </div>
@@ -791,9 +868,16 @@
                      ============================================ -->
                 <div id="view-overview" class="view-section">
                     <div class="dashboard-header-row mb-6">
-                        <div class="dashboard-title">
-                            <h2 class="text-2xl font-bold text-slate-800">Executive Overview</h2>
-                            <p class="text-sm text-slate-500">Real-time production & revenue insights</p>
+                        <div class="dashboard-title flex items-center gap-3">
+                            <div>
+                                <h2 class="text-2xl font-bold text-slate-800">Executive Overview</h2>
+                                <p class="text-sm text-slate-500">Real-time production & revenue insights</p>
+                            </div>
+                            <button type="button" onclick="window.adminApp.openUnitModal()" id="header-unit-btn" class="unit-badge-pill bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 ml-2 shadow-xs" title="Click to switch unit">
+                                <span id="header-unit-dot" class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                <span id="header-unit-text">Unit 1 (Echangadu)</span>
+                                <svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </button>
                         </div>
                         <div class="dashboard-filter-bar flex items-center gap-4 p-1.5 rounded-full ml-auto">
                             <div class="flex items-center gap-2 pl-3">
@@ -5079,12 +5163,71 @@
         </div>
     </div>
 
+    <!-- ============================================
+         MODAL: Manufacturing Unit Selector
+         ============================================ -->
+    <div id="modal-unit-selector" class="modal hidden" style="z-index: 10005;">
+        <div class="modal-backdrop" onclick="window.adminApp.closeUnitModal()"></div>
+        <div class="modal-content" style="max-width: 580px; margin: auto; padding: 2rem; border-radius: 1.25rem; background: #ffffff; box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25);">
+            <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+                <div>
+                    <span class="text-[11px] font-extrabold uppercase tracking-widest text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-100">Facility Switcher</span>
+                    <h3 class="text-xl font-extrabold text-slate-800 mt-2">Select Manufacturing Unit</h3>
+                    <p class="text-xs text-slate-500 mt-0.5">Switch active production facility workspace</p>
+                </div>
+                <button type="button" onclick="window.adminApp.closeUnitModal()" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 my-4">
+                <!-- UNIT 1 CARD -->
+                <div id="unit-option-unit1" class="unit-select-card cursor-pointer p-4 rounded-xl border-2 transition-all" onclick="window.adminApp.selectUnit('unit1')">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="px-2 py-0.5 rounded text-[11px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">Unit 1</span>
+                        <span id="unit-check-unit1" class="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold hidden">✓</span>
+                    </div>
+                    <h4 class="font-bold text-slate-800 text-sm">UNIT 1 — Echangadu</h4>
+                    <p class="text-[11px] text-slate-500 mt-0.5 font-medium">Main Works & SPMs</p>
+                    <div class="text-[10px] text-slate-400 mt-3 pt-2.5 border-t border-slate-100 leading-relaxed">
+                        📍 Plot 19, Self Help Ind. Estate, Echangadu, Chennai - 600117
+                    </div>
+                </div>
+
+                <!-- UNIT 2 CARD -->
+                <div id="unit-option-unit2" class="unit-select-card cursor-pointer p-4 rounded-xl border-2 transition-all" onclick="window.adminApp.selectUnit('unit2')">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="px-2 py-0.5 rounded text-[11px] font-black uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200">Unit 2</span>
+                        <span id="unit-check-unit2" class="w-5 h-5 rounded-full bg-indigo-500 text-white flex items-center justify-center text-xs font-bold hidden">✓</span>
+                    </div>
+                    <h4 class="font-bold text-slate-800 text-sm">UNIT 2 — Thirumudivakkam</h4>
+                    <p class="text-[11px] text-slate-500 mt-0.5 font-medium">Precision Works & New Facility</p>
+                    <div class="text-[10px] text-slate-400 mt-3 pt-2.5 border-t border-slate-100 leading-relaxed">
+                        📍 Thirumudivakkam Industrial Estate, Chennai - 600044
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                <span class="text-[11px] text-slate-400 flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
+                    Isolated data environments (Zero cross-talk)
+                </span>
+                <button type="button" onclick="window.adminApp.closeUnitModal()" class="btn btn-secondary px-4 py-2 text-xs font-semibold rounded-lg">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Hidden Print View Container (Rendered during Print & PDF Download) -->
     <div id="payslip-print-view" class="hidden"></div>
 
     <!-- Application Script -->
 
-    <script type="module" src="assets/admin/js/app.js?v=30"></script>
+    <script type="module" src="assets/admin/js/app.js?v=31"></script>
 
     <!-- Mobile Sidebar Toggle Script -->
     <script>

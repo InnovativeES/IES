@@ -10,11 +10,14 @@ import * as Reporting from './reporting.js';
 import * as Tracker from './progress_tracker.js';
 import * as Costing from './costing.js';
 import * as Payslip from './payslip.js?v=30';
+import * as Units from './units.js';
 
 // App State
 let currentMembers = [];
 let currentProjects = [];
 let currentOrders = [];
+let memberUnsubscribe = null;
+let projectUnsubscribe = null;
 let isTrashView = false;
 let isProjectTrashView = false;
 let projectViewMode = localStorage.getItem('projectViewMode') || 'grid';
@@ -189,10 +192,210 @@ function refreshDashboard() {
     UI.renderDashboardRecentActivity(stats.filteredOrders);
 }
 
+// Multi-Unit Facility Management
+function updateUnitUI() {
+    const activeUnit = Units.getActiveUnit();
+    const config = Units.getActiveUnitConfig();
 
+    // 1. Sidebar Widget
+    const sidebarUnitIndicator = document.getElementById('sidebar-unit-indicator');
+    const sidebarUnitCode = document.getElementById('sidebar-unit-code');
+    const sidebarUnitName = document.getElementById('sidebar-unit-name');
+    if (sidebarUnitIndicator) {
+        sidebarUnitIndicator.style.backgroundColor = config.color;
+        sidebarUnitIndicator.style.boxShadow = `0 0 8px ${config.color}99`;
+    }
+    if (sidebarUnitCode) {
+        sidebarUnitCode.textContent = config.code;
+        sidebarUnitCode.style.backgroundColor = config.badgeBg;
+        sidebarUnitCode.style.color = config.badgeText;
+        sidebarUnitCode.style.borderColor = config.badgeBorder;
+    }
+    if (sidebarUnitName) {
+        sidebarUnitName.textContent = config.name;
+    }
+
+    // 2. Header Badge
+    const headerUnitDot = document.getElementById('header-unit-dot');
+    const headerUnitText = document.getElementById('header-unit-text');
+    if (headerUnitDot) headerUnitDot.style.backgroundColor = config.color;
+    if (headerUnitText) headerUnitText.textContent = config.shortName;
+
+    // 3. Modal Card Selection
+    document.querySelectorAll('.unit-select-card').forEach(card => {
+        card.classList.remove('active');
+        card.style.borderColor = '#e2e8f0';
+        card.style.background = '#ffffff';
+    });
+    const activeCard = document.getElementById(`unit-option-${activeUnit}`);
+    if (activeCard) {
+        activeCard.classList.add('active');
+        activeCard.style.borderColor = config.color;
+        activeCard.style.background = config.badgeBg;
+    }
+    const check1 = document.getElementById('unit-check-unit1');
+    const check2 = document.getElementById('unit-check-unit2');
+    if (check1) check1.classList.toggle('hidden', activeUnit !== 'unit1');
+    if (check2) check2.classList.toggle('hidden', activeUnit !== 'unit2');
+}
+
+function stopUnitSubscriptions() {
+    if (memberUnsubscribe) { memberUnsubscribe(); memberUnsubscribe = null; }
+    if (window.unsubscribeMembers) { window.unsubscribeMembers(); window.unsubscribeMembers = null; }
+    if (projectUnsubscribe) { projectUnsubscribe(); projectUnsubscribe = null; }
+    if (window.unsubscribeProjects) { window.unsubscribeProjects(); window.unsubscribeProjects = null; }
+    if (window.unsubscribeOrders) { window.unsubscribeOrders(); window.unsubscribeOrders = null; }
+    if (inventoryUnsubscribe) { inventoryUnsubscribe(); inventoryUnsubscribe = null; }
+    if (transactionUnsubscribe) { transactionUnsubscribe(); transactionUnsubscribe = null; }
+}
+
+function startUnitSubscriptions() {
+    // 1. Members
+    if (memberUnsubscribe) memberUnsubscribe();
+    memberUnsubscribe = DB.subscribeToMembers((members) => {
+        currentMembers = members || [];
+        const memberView = document.getElementById('subview-members');
+        if (memberView && !memberView.classList.contains('hidden')) {
+            UI.renderMemberList(currentMembers);
+        }
+        refreshDashboard();
+    });
+    window.unsubscribeMembers = memberUnsubscribe;
+
+    // 2. Projects
+    if (projectUnsubscribe) projectUnsubscribe();
+    projectUnsubscribe = DB.subscribeToProjects((projects) => {
+        currentProjects = projects || [];
+        const customerFilter = document.getElementById('project-customer-filter');
+        if (customerFilter) {
+            const customers = [...new Set(currentProjects.map(p => p.customerName).filter(c => c))];
+            const currentVal = customerFilter.value;
+            customerFilter.innerHTML = '<option value="all">All Customers</option>' +
+                customers.map(c => `<option value="${c}">${c}</option>`).join('');
+            customerFilter.value = currentVal;
+        }
+
+        const view = document.getElementById('view-project_management');
+        if (view && !view.classList.contains('hidden')) {
+            window.adminApp.filterProjects();
+        }
+        window.adminApp.updateProjectStats();
+    });
+    window.unsubscribeProjects = projectUnsubscribe;
+
+    // 3. Orders
+    if (window.unsubscribeOrders) window.unsubscribeOrders();
+    window.unsubscribeOrders = DB.subscribeToOrders((orders) => {
+        currentOrders = orders || [];
+
+        currentOrders.forEach(o => {
+            if (o.status === 'In Progress' && o.id) {
+                DB.updateOrder(o.id, { status: 'Pending' });
+                o.status = 'Pending';
+            }
+        });
+
+        const monitoringView = document.getElementById('view-monitoring');
+        if (monitoringView && !monitoringView.classList.contains('hidden')) {
+            Monitoring.renderTable(currentOrders);
+        }
+
+        const dcRegisterView = document.getElementById('view-dc_register');
+        if (dcRegisterView && !dcRegisterView.classList.contains('hidden')) {
+            DCRegister.renderDCTable(currentOrders);
+        }
+
+        const trackerView = document.getElementById('view-progress_tracker');
+        if (trackerView && !trackerView.classList.contains('hidden')) {
+            Tracker.renderTracker();
+        }
+
+        const pendingView = document.getElementById('view-pending_assignment');
+        if (pendingView && !pendingView.classList.contains('hidden')) {
+            window.adminApp.renderPendingAssignment();
+        }
+
+        const deliveryView = document.getElementById('view-delivery_report');
+        if (deliveryView && !deliveryView.classList.contains('hidden')) {
+            const weekPicker = document.getElementById('delivery-week-picker');
+            if (weekPicker && weekPicker.value) {
+                Monitoring.renderDeliveryReport(weekPicker.value);
+            }
+        }
+
+        const costingView = document.getElementById('view-costing_report');
+        if (costingView && !costingView.classList.contains('hidden')) {
+            Costing.renderCostingOrderList();
+        }
+
+        const costingDetailView = document.getElementById('view-costing_detail');
+        if (costingDetailView && !costingDetailView.classList.contains('hidden')) {
+            Costing.renderCostingDetailContent();
+        }
+
+        refreshDashboard();
+    }, isTrashView);
+}
+
+function switchActiveUnit(unitId) {
+    if (!Units.UNITS[unitId]) return;
+    const currentUnit = Units.getActiveUnit();
+    if (currentUnit === unitId) {
+        window.adminApp.closeUnitModal();
+        return;
+    }
+
+    stopUnitSubscriptions();
+
+    currentMembers = [];
+    currentProjects = [];
+    currentOrders = [];
+    currentInventory = [];
+    currentTransactions = [];
+
+    Units.setActiveUnit(unitId);
+    updateUnitUI();
+    window.adminApp.closeUnitModal();
+
+    startUnitSubscriptions();
+
+    const activeView = UI.getActiveView();
+    if (activeView === 'monitoring') {
+        Monitoring.renderTable(currentOrders);
+    } else if (activeView === 'dc_register') {
+        DCRegister.renderDCTable(currentOrders);
+    } else if (activeView === 'project_management') {
+        window.adminApp.filterProjects();
+        window.adminApp.updateProjectStats();
+    } else if (activeView === 'team_org') {
+        UI.renderMemberList(currentMembers);
+    } else if (activeView === 'inventory_management') {
+        window.adminApp.initInventory();
+    } else if (activeView === 'payslip') {
+        Payslip.renderPayslipDashboard(currentMembers);
+    }
+
+    refreshDashboard();
+}
 
 // Global App Object
 window.adminApp = {
+    // Multi-Unit Facility Management
+    openUnitModal: () => {
+        const modal = document.getElementById('modal-unit-selector');
+        if (modal) {
+            modal.classList.remove('hidden');
+            updateUnitUI();
+        }
+    },
+    closeUnitModal: () => {
+        const modal = document.getElementById('modal-unit-selector');
+        if (modal) modal.classList.add('hidden');
+    },
+    selectUnit: (unitId) => switchActiveUnit(unitId),
+    switchActiveUnit: (unitId) => switchActiveUnit(unitId),
+    getActiveUnit: () => Units.getActiveUnit(),
+    getActiveUnitConfig: () => Units.getActiveUnitConfig(),
     currentEditingProjectId: null,
     switchView: (viewName) => {
         // Payroll Security Gate: Intercept BEFORE switching view
@@ -4421,92 +4624,9 @@ document.addEventListener('DOMContentLoaded', () => {
         dashMonthFilter.addEventListener('change', refreshDashboard);
     }
 
-    // Load Members
-    DB.subscribeToMembers((members) => {
-        currentMembers = members;
-        const memberView = document.getElementById('subview-members');
-        if (memberView && !memberView.classList.contains('hidden')) {
-            UI.renderMemberList(members);
-        }
-        refreshDashboard();
-    });
-
-    // Load Projects for Kanban / Modern View
-    DB.subscribeToProjects((projects) => {
-        currentProjects = projects;
-        const view = document.getElementById('view-project_management');
-        if (view && !view.classList.contains('hidden')) {
-            window.adminApp.filterProjects();
-        }
-        window.adminApp.updateProjectStats();
-    });
-
-    // Load Orders
-    window.unsubscribeOrders = DB.subscribeToOrders((orders) => {
-        // Mock Data Injection if empty (for Demo/Dev)
-        if (!orders || orders.length < 5) {
-            console.log("Injecting Mock Orders for Demo...");
-            const mockOrders = Array.from({ length: 15 }).map((_, i) => ({
-                id: `mock - ${i} `,
-                internalOrderNo: `2026-02 - ${500 + i} `,
-                customer: ['Baliga', 'Bray Controls', 'Flowserve', 'L&T'][Math.floor(Math.random() * 4)],
-                description: `Machining of ${['Valve Body', 'Flange', 'Shaft', 'Housing'][Math.floor(Math.random() * 4)]} `,
-                date: new Date(Date.now() - Math.floor(Math.random() * 86400000 * 3)).toISOString().split('T')[0], // Last 3 days
-                delDate: new Date(Date.now() + Math.floor(Math.random() * 86400000 * 10)).toISOString().split('T')[0],
-                status: 'Pending',
-                createdAt: { seconds: Date.now() / 1000 - (i * 3600) } // Staggered times
-            }));
-            currentOrders = [...orders, ...mockOrders];
-        } else {
-            currentOrders = orders;
-        }
-
-        // One-time migration: convert any "In Progress" orders to "Pending"
-        currentOrders.forEach(o => {
-            if (o.status === 'In Progress' && o.id) {
-                DB.updateOrder(o.id, { status: 'Pending' });
-                o.status = 'Pending';
-            }
-        });
-
-        if (monitoringView && !monitoringView.classList.contains('hidden')) {
-            Monitoring.renderTable(currentOrders);
-        }
-
-        const dcRegisterView = document.getElementById('view-dc_register');
-        if (dcRegisterView && !dcRegisterView.classList.contains('hidden')) {
-            DCRegister.renderDCTable(currentOrders);
-        }
-
-        const trackerView = document.getElementById('view-progress_tracker');
-        if (trackerView && !trackerView.classList.contains('hidden')) {
-            Tracker.renderTracker();
-        }
-
-        // --- ADDED: Live Update for Pending Assignment ---
-        const pendingView = document.getElementById('view-pending_assignment');
-        if (pendingView && !pendingView.classList.contains('hidden')) {
-            window.adminApp.renderPendingAssignment();
-        }
-
-        if (deliveryView && !deliveryView.classList.contains('hidden')) {
-            const weekPicker = document.getElementById('delivery-week-picker');
-            if (weekPicker && weekPicker.value) {
-                Monitoring.renderDeliveryReport(weekPicker.value);
-            }
-        }
-
-        const costingView = document.getElementById('view-costing_report');
-        if (costingView && !costingView.classList.contains('hidden')) {
-            Costing.renderCostingOrderList();
-        }
-
-        const costingDetailView = document.getElementById('view-costing_detail');
-        if (costingDetailView && !costingDetailView.classList.contains('hidden')) {
-            Costing.renderCostingDetailContent();
-        }
-        refreshDashboard();
-    }, false);
+    // Initialize Multi-Unit UI & Live Subscriptions
+    updateUnitUI();
+    startUnitSubscriptions();
 
     // Filter Listeners: Internal Orders
     const monthFromInput = document.getElementById('order-month-from');
@@ -4770,43 +4890,16 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (emailSpan) emailSpan.textContent = user.email;
 
-            // Subscribe to Projects
-            DB.subscribeToProjects((projects) => {
-                currentProjects = projects;
+            // Update Unit UI indicators
+            updateUnitUI();
 
-                // Update Customer filter in Project Management
-                const customerFilter = document.getElementById('project-customer-filter');
-                if (customerFilter) {
-                    const customers = [...new Set(projects.map(p => p.customerName).filter(c => c))];
-                    const currentVal = customerFilter.value;
-                    customerFilter.innerHTML = '<option value="all">All Customers</option>' +
-                        customers.map(c => `< option value = "${c}" > ${c}</option > `).join('');
-                    customerFilter.value = currentVal;
-                }
+            // Prompt Unit Selection if not selected in this browser session
+            if (!Units.hasSessionUnitSelection()) {
+                window.adminApp.openUnitModal();
+            }
 
-                // Refresh UI based on active view
-                const activeView = UI.getActiveView();
-                if (activeView === 'project_management') {
-                    window.adminApp.filterProjects();
-                } else if (activeView === 'project_detail') {
-                    // Re-render detail view if the project exists
-                    const detailId = document.getElementById('detail-project-id')?.textContent;
-                    // Note: detailId might be the projectId (IES-...) not the Firebase doc id.
-                    // We need a way to track which internal ID is active.
-                    // Let's assume we can find it in currentProjects or via a global state.
-                    const activeProject = projects.find(p => p.projectId === detailId);
-                    if (activeProject) {
-
-
-                        // Update basic info too in case it changed
-                        const statusDisplay = document.getElementById('detail-project-status');
-                        if (statusDisplay) {
-                            statusDisplay.textContent = activeProject.status;
-                            statusDisplay.className = `status - badge ${activeProject.status?.toLowerCase().replace(' ', '-')} `;
-                        }
-                    }
-                }
-            });
+            // Ensure subscriptions are running for active unit
+            startUnitSubscriptions();
 
             // Ensure dashboard is ready immediately
             refreshDashboard();
@@ -4824,6 +4917,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 dashDiv.style.display = 'none';
                 dashDiv.classList.add('hidden');
             }
+
+            // Teardown active listeners and reset data on logout
+            stopUnitSubscriptions();
+            currentMembers = [];
+            currentProjects = [];
+            currentOrders = [];
+            currentInventory = [];
+            currentTransactions = [];
         }
     });
 });

@@ -1,3 +1,4 @@
+import { getCollectionName } from "./units.js";
 import { db, storage } from "../../../firebase-config.js";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 import {
@@ -16,14 +17,14 @@ import {
     updateDoc
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-const MEMBERS_COLLECTION = "employees"; // Using same collection for backward compatibility
-const PROJECTS_COLLECTION = "projects";
-const ORDERS_COLLECTION = "internal_orders";
+const getMembersCol = () => getCollectionName("employees");
+const getProjectsCol = () => getCollectionName("projects");
+const getOrdersCol = () => getCollectionName("internal_orders");
 
 // Add a new member (alias for backward compatibility)
 export const addMember = async (memberData) => {
     try {
-        const docRef = await addDoc(collection(db, MEMBERS_COLLECTION), {
+        const docRef = await addDoc(collection(db, getMembersCol()), {
             ...memberData,
             createdAt: serverTimestamp()
         });
@@ -37,7 +38,7 @@ export const addMember = async (memberData) => {
 // Update an existing member
 export const updateMember = async (memberId, memberData) => {
     try {
-        const docRef = doc(db, MEMBERS_COLLECTION, memberId);
+        const docRef = doc(db, getMembersCol(), memberId);
         await updateDoc(docRef, {
             ...memberData,
             updatedAt: serverTimestamp()
@@ -52,7 +53,7 @@ export const updateMember = async (memberId, memberData) => {
 // Get all members (synchronous fetch)
 export const getMembers = async () => {
     try {
-        const snapshot = await getDocs(collection(db, MEMBERS_COLLECTION));
+        const snapshot = await getDocs(collection(db, getMembersCol()));
         return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     } catch (error) {
         console.error("Error fetching members:", error);
@@ -62,7 +63,7 @@ export const getMembers = async () => {
 
 // Subscribe to member list updates (Real-time)
 export const subscribeToMembers = (callback) => {
-    const q = query(collection(db, MEMBERS_COLLECTION), orderBy("createdAt", "desc"));
+    const q = query(collection(db, getMembersCol()), orderBy("createdAt", "desc"));
     return onSnapshot(q, (snapshot) => {
         const members = [];
         snapshot.forEach((doc) => {
@@ -75,7 +76,7 @@ export const subscribeToMembers = (callback) => {
 // Delete a member
 export const deleteMember = async (memberId) => {
     try {
-        const docRef = doc(db, MEMBERS_COLLECTION, memberId);
+        const docRef = doc(db, getMembersCol(), memberId);
         await deleteDoc(docRef);
         return { success: true, error: null };
     } catch (error) {
@@ -91,7 +92,7 @@ export const subscribeToEmployees = subscribeToMembers;
 
 // Get stats
 export const getStats = async () => {
-    const membersSnap = await getDocs(collection(db, MEMBERS_COLLECTION));
+    const membersSnap = await getDocs(collection(db, getMembersCol()));
     return {
         totalMembers: membersSnap.size,
         totalEmployees: membersSnap.size, // Backward compatibility
@@ -112,7 +113,7 @@ export const assignTask = async (employeeId, description) => {
 
 export const generateProjectId = async () => {
     const year = new Date().getFullYear();
-    const q = query(collection(db, PROJECTS_COLLECTION), orderBy("createdAt", "desc"));
+    const q = query(collection(db, getProjectsCol()), orderBy("createdAt", "desc"));
     const snapshot = await getDocs(q);
     let count = 1;
     if (!snapshot.empty) {
@@ -128,7 +129,7 @@ export const addProject = async (projectData) => {
     try {
         // Use custom projectId if provided (e.g. from Internal Order), else auto-generate
         const projectId = projectData.projectId || await generateProjectId();
-        const docRef = await addDoc(collection(db, PROJECTS_COLLECTION), {
+        const docRef = await addDoc(collection(db, getProjectsCol()), {
             ...projectData,
             projectId: projectId,
             revision: 0,
@@ -152,7 +153,7 @@ export const addProject = async (projectData) => {
 
 export const updateProject = async (projectId, updates, userAction = "Updated") => {
     try {
-        const ref = doc(db, PROJECTS_COLLECTION, projectId);
+        const ref = doc(db, getProjectsCol(), projectId);
         // Check if revision increase is needed (e.g., if status was 'Approved')
         // This logic will be more detailed in the UI/App layer, 
         // but we ensure updatedAt is always set.
@@ -173,7 +174,7 @@ export const updateProject = async (projectId, updates, userAction = "Updated") 
 
 export const addAuditLog = async (projectId, action, details) => {
     try {
-        await addDoc(collection(db, PROJECTS_COLLECTION, projectId, "audit_logs"), {
+        await addDoc(collection(db, getProjectsCol(), projectId, "audit_logs"), {
             action,
             details,
             timestamp: serverTimestamp(),
@@ -186,7 +187,7 @@ export const addAuditLog = async (projectId, action, details) => {
 
 export const addProjectFile = async (projectId, fileData) => {
     try {
-        const docRef = await addDoc(collection(db, PROJECTS_COLLECTION, projectId, "files"), {
+        const docRef = await addDoc(collection(db, getProjectsCol(), projectId, "files"), {
             ...fileData,
             uploadedAt: serverTimestamp(),
             isApproved: false
@@ -239,7 +240,7 @@ export const deleteProjectFile = async (projectId, fileId, fileUrl) => {
         }
 
         // 2. Delete metadata from Firestore
-        await deleteDoc(doc(db, PROJECTS_COLLECTION, projectId, "files", fileId));
+        await deleteDoc(doc(db, getProjectsCol(), projectId, "files", fileId));
         return { success: true, error: null };
     } catch (error) {
         console.error("Error deleting project file:", error);
@@ -249,7 +250,7 @@ export const deleteProjectFile = async (projectId, fileId, fileUrl) => {
 
 export const submitApproval = async (projectId, stage, approverData) => {
     try {
-        await addDoc(collection(db, PROJECTS_COLLECTION, projectId, "approvals"), {
+        await addDoc(collection(db, getProjectsCol(), projectId, "approvals"), {
             ...approverData,
             stage,
             timestamp: serverTimestamp()
@@ -271,7 +272,7 @@ export const submitApproval = async (projectId, stage, approverData) => {
 };
 
 export const subscribeToProjects = (callback) => {
-    const q = query(collection(db, PROJECTS_COLLECTION), orderBy("createdAt", "desc"));
+    const q = query(collection(db, getProjectsCol()), orderBy("createdAt", "desc"));
     return onSnapshot(q, (snapshot) => {
         const projects = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         callback(projects);
@@ -280,7 +281,7 @@ export const subscribeToProjects = (callback) => {
 
 export const deleteProject = async (projectId) => {
     try {
-        const docRef = doc(db, PROJECTS_COLLECTION, projectId);
+        const docRef = doc(db, getProjectsCol(), projectId);
         await deleteDoc(docRef);
         return { success: true, error: null };
     } catch (error) {
@@ -291,7 +292,7 @@ export const deleteProject = async (projectId) => {
 
 export const softDeleteProject = async (projectId) => {
     try {
-        const ref = doc(db, PROJECTS_COLLECTION, projectId);
+        const ref = doc(db, getProjectsCol(), projectId);
         await updateDoc(ref, { isDeleted: true, deletedAt: serverTimestamp() });
         await addAuditLog(projectId, "Moved to Trash", "Project soft-deleted.");
         return { success: true };
@@ -303,7 +304,7 @@ export const softDeleteProject = async (projectId) => {
 
 export const restoreProject = async (projectId) => {
     try {
-        const ref = doc(db, PROJECTS_COLLECTION, projectId);
+        const ref = doc(db, getProjectsCol(), projectId);
         await updateDoc(ref, { isDeleted: false, restoredAt: serverTimestamp() });
         await addAuditLog(projectId, "Restored from Trash", "Project restored.");
         return { success: true };
@@ -315,7 +316,7 @@ export const restoreProject = async (projectId) => {
 
 export const addOrder = async (orderData) => {
     try {
-        const docRef = await addDoc(collection(db, ORDERS_COLLECTION), {
+        const docRef = await addDoc(collection(db, getOrdersCol()), {
             ...orderData,
             createdAt: serverTimestamp()
         });
@@ -344,7 +345,7 @@ export const subscribeToOrders = (callback, showTrash = false) => {
     // We will order by createdAt desc. Using where and orderBy usually requires index.
     // Let's just fetch all sorted by date and filter client side for this prototype to avoid index creation blocks.
 
-    const q = query(collection(db, ORDERS_COLLECTION), orderBy("createdAt", "desc"));
+    const q = query(collection(db, getOrdersCol()), orderBy("createdAt", "desc"));
     return onSnapshot(q, (snapshot) => {
         const orders = [];
         snapshot.forEach((doc) => {
@@ -361,7 +362,7 @@ export const subscribeToOrders = (callback, showTrash = false) => {
 
 export const updateOrder = async (orderId, updates) => {
     try {
-        const ref = doc(db, ORDERS_COLLECTION, orderId);
+        const ref = doc(db, getOrdersCol(), orderId);
         await updateDoc(ref, updates);
         return { success: true };
     } catch (error) {
@@ -380,7 +381,7 @@ export const restoreOrder = async (orderId) => {
 
 export const permanentDeleteOrder = async (orderId) => {
     try {
-        await deleteDoc(doc(db, ORDERS_COLLECTION, orderId));
+        await deleteDoc(doc(db, getOrdersCol(), orderId));
         return { success: true };
     } catch (error) {
         console.error("Error deleting order:", error);
@@ -390,7 +391,7 @@ export const permanentDeleteOrder = async (orderId) => {
 
 export const updateProjectStatus = async (projectId, newStatus) => {
     try {
-        const ref = doc(db, PROJECTS_COLLECTION, projectId);
+        const ref = doc(db, getProjectsCol(), projectId);
         const updates = { status: newStatus };
 
         // Auto-file contract for certain statuses
@@ -411,7 +412,7 @@ export const updateProjectStatus = async (projectId, newStatus) => {
 // === CONTRACT REVIEW ===
 export const saveContractReview = async (projectDocId, reviewData) => {
     try {
-        const ref = doc(db, PROJECTS_COLLECTION, projectDocId, 'contractReview', 'review');
+        const ref = doc(db, getProjectsCol(), projectDocId, 'contractReview', 'review');
         await setDoc(ref, { ...reviewData, updatedAt: serverTimestamp() }, { merge: true });
         return { success: true };
     } catch (error) {
@@ -422,7 +423,7 @@ export const saveContractReview = async (projectDocId, reviewData) => {
 
 export const getContractReview = async (projectDocId) => {
     try {
-        const ref = doc(db, PROJECTS_COLLECTION, projectDocId, 'contractReview', 'review');
+        const ref = doc(db, getProjectsCol(), projectDocId, 'contractReview', 'review');
         const snap = await getDoc(ref);
         if (snap.exists()) {
             return { data: snap.data(), error: null };
@@ -435,12 +436,12 @@ export const getContractReview = async (projectDocId) => {
 };
 
 // === DAILY STATS (For Delivery Report) ===
-const STATS_COLLECTION = "daily_stats";
+const getStatsCol = () => getCollectionName("daily_stats");
 
 export const getDailyStats = async (startDate, endDate) => {
     try {
         const q = query(
-            collection(db, STATS_COLLECTION),
+            collection(db, getStatsCol()),
             where("date", ">=", startDate),
             where("date", "<=", endDate)
         );
@@ -459,18 +460,18 @@ export const getDailyStats = async (startDate, endDate) => {
 
 export const saveDailyStat = async (date, field, value) => {
     try {
-        const q = query(collection(db, STATS_COLLECTION), where("date", "==", date));
+        const q = query(collection(db, getStatsCol()), where("date", "==", date));
         const snapshot = await getDocs(q);
 
         if (snapshot.empty) {
-            await addDoc(collection(db, STATS_COLLECTION), {
+            await addDoc(collection(db, getStatsCol()), {
                 date: date,
                 [field]: value,
                 createdAt: serverTimestamp()
             });
         } else {
             const docId = snapshot.docs[0].id;
-            const ref = doc(db, STATS_COLLECTION, docId);
+            const ref = doc(db, getStatsCol(), docId);
             await updateDoc(ref, {
                 [field]: value,
                 updatedAt: serverTimestamp()
@@ -485,7 +486,7 @@ export const saveDailyStat = async (date, field, value) => {
 
 export const getTrashOrders = async () => {
     try {
-        const q = query(collection(db, ORDERS_COLLECTION), orderBy("createdAt", "desc"));
+        const q = query(collection(db, getOrdersCol()), orderBy("createdAt", "desc"));
         const snapshot = await getDocs(q);
         const orders = [];
         snapshot.forEach((doc) => {
@@ -503,7 +504,7 @@ export const getTrashOrders = async () => {
 
 export const emptyTrash = async (type) => {
     try {
-        const q = query(collection(db, ORDERS_COLLECTION), where("isDeleted", "==", true));
+        const q = query(collection(db, getOrdersCol()), where("isDeleted", "==", true));
         const snapshot = await getDocs(q);
 
         let deletedCount = 0;
@@ -531,13 +532,13 @@ export const emptyTrash = async (type) => {
 };
 
 // === DAILY REPORTS (Pending Orders Auto-Save) ===
-const REPORTS_COLLECTION = "daily_reports";
+const getReportsCol = () => getCollectionName("daily_reports");
 
 export const saveReport = async (reportData) => {
     try {
         // Use date string as document ID for easy lookup
         const dateId = reportData.date; // Format: YYYY-MM-DD
-        const docRef = doc(db, REPORTS_COLLECTION, dateId);
+        const docRef = doc(db, getReportsCol(), dateId);
 
         // Check if report exists for this date
         const { getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
@@ -567,7 +568,7 @@ export const saveReport = async (reportData) => {
 export const getReports = async (limit = 30) => {
     try {
         const q = query(
-            collection(db, REPORTS_COLLECTION),
+            collection(db, getReportsCol()),
             orderBy("date", "desc")
         );
         const snapshot = await getDocs(q);
@@ -586,7 +587,7 @@ export const getReports = async (limit = 30) => {
 export const checkTodayReport = async (dateStr) => {
     try {
         const { getDoc } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
-        const docRef = doc(db, REPORTS_COLLECTION, dateStr);
+        const docRef = doc(db, getReportsCol(), dateStr);
         const docSnap = await getDoc(docRef);
         return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
     } catch (error) {
@@ -598,7 +599,7 @@ export const checkTodayReport = async (dateStr) => {
 // --- Real-time Project Detail Subscriptions ---
 
 export const subscribeToProjectFiles = (projectId, callback) => {
-    const q = query(collection(db, PROJECTS_COLLECTION, projectId, "files"), orderBy("version", "desc"));
+    const q = query(collection(db, getProjectsCol(), projectId, "files"), orderBy("version", "desc"));
     return onSnapshot(q, (snapshot) => {
         const files = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         callback(files);
@@ -606,7 +607,7 @@ export const subscribeToProjectFiles = (projectId, callback) => {
 };
 
 export const subscribeToProjectAuditLogs = (projectId, callback) => {
-    const q = query(collection(db, PROJECTS_COLLECTION, projectId, "audit_logs"), orderBy("timestamp", "desc"));
+    const q = query(collection(db, getProjectsCol(), projectId, "audit_logs"), orderBy("timestamp", "desc"));
     return onSnapshot(q, (snapshot) => {
         const logs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         callback(logs);
@@ -614,7 +615,7 @@ export const subscribeToProjectAuditLogs = (projectId, callback) => {
 };
 
 // === DAILY ROSTER MANAGEMENT ===
-const DAILY_ROSTER_COLLECTION = "daily_workflows";
+const getRosterCol = () => getCollectionName("daily_workflows");
 
 /**
  * Normalizes department names to prevent duplicate Firestore documents 
@@ -635,13 +636,13 @@ export const saveWorkflow = async (date, department, assignments, supervisorNote
     try {
         const normDept = normalizeDeptName(department);
         const docId = `${date}_${normDept}`;
-        const docRef = doc(db, DAILY_ROSTER_COLLECTION, docId);
+        const docRef = doc(db, getRosterCol(), docId);
         const existing = await getDoc(docRef);
 
         // EXTRA CLEANUP: If we are saving "Fab", make sure to delete legacy "Fabrication" doc to avoid duplicates
         if (normDept === 'Fab' && department !== 'Fabrication') {
             const legacyId = `${date}_Fabrication`;
-            const legacyRef = doc(db, DAILY_ROSTER_COLLECTION, legacyId);
+            const legacyRef = doc(db, getRosterCol(), legacyId);
             const legacySnap = await getDoc(legacyRef);
             if (legacySnap.exists()) {
                 console.log("Cleaning up legacy Fabrication document...");
@@ -682,13 +683,13 @@ export const deleteDailyRoster = async (date, department) => {
     try {
         const normDept = normalizeDeptName(department);
         const docId = `${date}_${normDept}`;
-        const docRef = doc(db, DAILY_ROSTER_COLLECTION, docId);
+        const docRef = doc(db, getRosterCol(), docId);
         await deleteDoc(docRef);
 
         // Also check and delete legacy if applicable
         if (normDept === 'Fab') {
             const legacyId = `${date}_Fabrication`;
-            const legacyRef = doc(db, DAILY_ROSTER_COLLECTION, legacyId);
+            const legacyRef = doc(db, getRosterCol(), legacyId);
             await deleteDoc(legacyRef).catch(() => { });
         }
 
@@ -706,7 +707,7 @@ export const getWorkflow = async (date, department) => {
     try {
         const normDept = normalizeDeptName(department);
         const docId = `${date}_${normDept}`;
-        const docRef = doc(db, DAILY_ROSTER_COLLECTION, docId);
+        const docRef = doc(db, getRosterCol(), docId);
         const snap = await getDoc(docRef);
         if (snap.exists()) {
             return { data: { id: snap.id, ...snap.data() }, error: null };
@@ -715,7 +716,7 @@ export const getWorkflow = async (date, department) => {
         // Final fallback for legacy data if not yet migrated
         if (normDept === 'Fab') {
             const legacyId = `${date}_Fabrication`;
-            const legacySnap = await getDoc(doc(db, DAILY_ROSTER_COLLECTION, legacyId));
+            const legacySnap = await getDoc(doc(db, getRosterCol(), legacyId));
             if (legacySnap.exists()) {
                 return { data: { id: legacySnap.id, ...legacySnap.data() }, error: null };
             }
@@ -733,7 +734,7 @@ export const getWorkflow = async (date, department) => {
  */
 export const subscribeToWorkflows = (date, callback) => {
     const q = query(
-        collection(db, DAILY_ROSTER_COLLECTION),
+        collection(db, getRosterCol()),
         where("date", "==", date)
     );
     return onSnapshot(q, (snapshot) => {
@@ -748,7 +749,7 @@ export const subscribeToWorkflows = (date, callback) => {
 export const getWorkflowsForDate = async (date) => {
     try {
         const q = query(
-            collection(db, DAILY_ROSTER_COLLECTION),
+            collection(db, getRosterCol()),
             where("date", "==", date)
         );
         const snapshot = await getDocs(q);
@@ -764,7 +765,7 @@ export const getWorkflowsForDate = async (date) => {
  */
 export const deleteWorkflowAssignment = async (workflowId, employeeId) => {
     try {
-        const docRef = doc(db, DAILY_ROSTER_COLLECTION, workflowId);
+        const docRef = doc(db, getRosterCol(), workflowId);
         const snap = await getDoc(docRef);
         if (!snap.exists()) return { error: "Workflow not found" };
 
@@ -785,7 +786,7 @@ export const deleteWorkflowAssignment = async (workflowId, employeeId) => {
 export const getProjectAssignments = async (projectId) => {
     try {
         const q = query(
-            collection(db, DAILY_ROSTER_COLLECTION),
+            collection(db, getRosterCol()),
             where("projectIds", "array-contains", projectId)
         );
         const snapshot = await getDocs(q);
@@ -801,7 +802,7 @@ export const getProjectAssignments = async (projectId) => {
  */
 export const getAllWorkflows = async () => {
     try {
-        const snap = await getDocs(collection(db, DAILY_ROSTER_COLLECTION));
+        const snap = await getDocs(collection(db, getRosterCol()));
         return snap.docs.map(d => ({ id: d.id, ...d.data() }));
     } catch (error) {
         console.error("Error fetching all workflows:", error);
@@ -814,7 +815,7 @@ export const getAllWorkflows = async () => {
 export const getWorkflowsForDateRange = async (startDate, endDate) => {
     try {
         const q = query(
-            collection(db, DAILY_ROSTER_COLLECTION),
+            collection(db, getRosterCol()),
             where("date", ">=", startDate),
             where("date", "<=", endDate)
         );
@@ -832,7 +833,7 @@ export const getWorkflowsForDateRange = async (startDate, endDate) => {
 export const getOrdersForDateRange = async (startDate, endDate) => {
     try {
         const q = query(
-            collection(db, ORDERS_COLLECTION),
+            collection(db, getOrdersCol()),
             where("date", ">=", startDate),
             where("date", "<=", endDate)
         );
@@ -845,11 +846,11 @@ export const getOrdersForDateRange = async (startDate, endDate) => {
 };
 
 // === COSTING EXPENSES ===
-const COSTING_EXPENSES_COLLECTION = "costing_expenses";
+const getCostingCol = () => getCollectionName("costing_expenses");
 
 export const addCostingExpense = async (expenseData) => {
     try {
-        const docRef = await addDoc(collection(db, COSTING_EXPENSES_COLLECTION), {
+        const docRef = await addDoc(collection(db, getCostingCol()), {
             ...expenseData,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
@@ -863,7 +864,7 @@ export const addCostingExpense = async (expenseData) => {
 
 export const updateCostingExpense = async (expenseId, updates) => {
     try {
-        const docRef = doc(db, COSTING_EXPENSES_COLLECTION, expenseId);
+        const docRef = doc(db, getCostingCol(), expenseId);
         await updateDoc(docRef, {
             ...updates,
             updatedAt: serverTimestamp()
@@ -877,7 +878,7 @@ export const updateCostingExpense = async (expenseId, updates) => {
 
 export const deleteCostingExpense = async (expenseId) => {
     try {
-        await deleteDoc(doc(db, COSTING_EXPENSES_COLLECTION, expenseId));
+        await deleteDoc(doc(db, getCostingCol(), expenseId));
         return { success: true, error: null };
     } catch (error) {
         console.error("Error deleting costing expense:", error);
@@ -887,7 +888,7 @@ export const deleteCostingExpense = async (expenseId) => {
 
 export const subscribeToCostingExpenses = (orderId, callback) => {
     const q = query(
-        collection(db, COSTING_EXPENSES_COLLECTION),
+        collection(db, getCostingCol()),
         where("orderId", "==", orderId)
     );
     return onSnapshot(q, (snapshot) => {
@@ -909,7 +910,7 @@ export const subscribeToCostingExpenses = (orderId, callback) => {
 };
 
 export const subscribeToAllCostingExpenses = (callback) => {
-    const q = collection(db, COSTING_EXPENSES_COLLECTION);
+    const q = collection(db, getCostingCol());
     return onSnapshot(q, (snapshot) => {
         const expenses = [];
         snapshot.forEach((doc) => {
@@ -925,12 +926,12 @@ export const subscribeToAllCostingExpenses = (callback) => {
 /* ==========================================================================
    PAYSLIP MODULE COLLECTIONS & FUNCTIONS
    ========================================================================== */
-const PAYSLIPS_COLLECTION = "payslips";
-const PAYSLIP_FORMATS_COLLECTION = "payslip_formats";
+const getPayslipsCol = () => getCollectionName("payslips");
+const getPayslipFormatsCol = () => getCollectionName("payslip_formats");
 
 export const addPayslip = async (data) => {
     try {
-        const docRef = await addDoc(collection(db, PAYSLIPS_COLLECTION), {
+        const docRef = await addDoc(collection(db, getPayslipsCol()), {
             ...data,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
@@ -944,7 +945,7 @@ export const addPayslip = async (data) => {
 
 export const updatePayslip = async (id, data) => {
     try {
-        const docRef = doc(db, PAYSLIPS_COLLECTION, id);
+        const docRef = doc(db, getPayslipsCol(), id);
         await updateDoc(docRef, {
             ...data,
             updatedAt: serverTimestamp()
@@ -958,7 +959,7 @@ export const updatePayslip = async (id, data) => {
 
 export const deletePayslip = async (id) => {
     try {
-        await deleteDoc(doc(db, PAYSLIPS_COLLECTION, id));
+        await deleteDoc(doc(db, getPayslipsCol(), id));
         return { success: true, error: null };
     } catch (error) {
         console.error("Error deleting payslip:", error);
@@ -968,7 +969,7 @@ export const deletePayslip = async (id) => {
 
 export const getPayslip = async (id) => {
     try {
-        const docSnap = await getDoc(doc(db, PAYSLIPS_COLLECTION, id));
+        const docSnap = await getDoc(doc(db, getPayslipsCol(), id));
         if (docSnap.exists()) {
             return { id: docSnap.id, ...docSnap.data() };
         }
@@ -982,7 +983,7 @@ export const getPayslip = async (id) => {
 export const getPayslipsByMonth = async (month) => {
     try {
         const q = query(
-            collection(db, PAYSLIPS_COLLECTION),
+            collection(db, getPayslipsCol()),
             where("payPeriod", "==", month)
         );
         const snapshot = await getDocs(q);
@@ -995,7 +996,7 @@ export const getPayslipsByMonth = async (month) => {
 
 export const subscribeToPayslipsByMonth = (month, callback) => {
     const q = query(
-        collection(db, PAYSLIPS_COLLECTION),
+        collection(db, getPayslipsCol()),
         where("payPeriod", "==", month)
     );
     return onSnapshot(q, (snapshot) => {
@@ -1015,7 +1016,7 @@ export const getEmployeePayslipsInFY = async (employeeId, financialYear, employe
         let docs = [];
         if (employeeId) {
             const q = query(
-                collection(db, PAYSLIPS_COLLECTION),
+                collection(db, getPayslipsCol()),
                 where("employeeId", "==", employeeId)
             );
             const snapshot = await getDocs(q);
@@ -1023,7 +1024,7 @@ export const getEmployeePayslipsInFY = async (employeeId, financialYear, employe
         }
         if (!docs.length && employeeCode) {
             const q = query(
-                collection(db, PAYSLIPS_COLLECTION),
+                collection(db, getPayslipsCol()),
                 where("employeeCode", "==", employeeCode)
             );
             const snapshot = await getDocs(q);
@@ -1039,7 +1040,7 @@ export const getEmployeePayslipsInFY = async (employeeId, financialYear, employe
 export const getLastPayslipForEmployee = async (employeeId) => {
     try {
         const q = query(
-            collection(db, PAYSLIPS_COLLECTION),
+            collection(db, getPayslipsCol()),
             where("employeeId", "==", employeeId)
         );
         const snapshot = await getDocs(q);
@@ -1055,7 +1056,7 @@ export const getLastPayslipForEmployee = async (employeeId) => {
 
 export const savePayslipFormat = async (formatData) => {
     try {
-        const docRef = await addDoc(collection(db, PAYSLIP_FORMATS_COLLECTION), {
+        const docRef = await addDoc(collection(db, getPayslipFormatsCol()), {
             ...formatData,
             createdAt: serverTimestamp()
         });
@@ -1068,7 +1069,7 @@ export const savePayslipFormat = async (formatData) => {
 
 export const getPayslipFormats = async () => {
     try {
-        const snapshot = await getDocs(collection(db, PAYSLIP_FORMATS_COLLECTION));
+        const snapshot = await getDocs(collection(db, getPayslipFormatsCol()));
         return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     } catch (error) {
         console.error("Error fetching payslip formats:", error);
@@ -1078,7 +1079,7 @@ export const getPayslipFormats = async () => {
 
 export const deletePayslipFormat = async (id) => {
     try {
-        await deleteDoc(doc(db, PAYSLIP_FORMATS_COLLECTION, id));
+        await deleteDoc(doc(db, getPayslipFormatsCol(), id));
         return { success: true, error: null };
     } catch (error) {
         console.error("Error deleting payslip format:", error);

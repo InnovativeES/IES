@@ -1,3 +1,4 @@
+import { getCollectionName } from "./units.js";
 import { db, storage } from "../../../firebase-config.js";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 import {
@@ -17,14 +18,14 @@ import {
     increment
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-const INVENTORY_COLLECTION = "inventory";
-const TRANSACTIONS_COLLECTION = "inventory_transactions";
+const getInventoryCol = () => getCollectionName("inventory");
+const getTransactionsCol = () => getCollectionName("inventory_transactions");
 
 /**
  * Get all inventory items with real-time updates
  */
 export const getInventory = (callback) => {
-    const q = query(collection(db, INVENTORY_COLLECTION), orderBy("name", "asc"));
+    const q = query(collection(db, getInventoryCol()), orderBy("name", "asc"));
     return onSnapshot(q, (snapshot) => {
         const items = snapshot.docs.map(doc => ({
             id: doc.id,
@@ -52,7 +53,7 @@ export const addInventoryItem = async (itemData) => {
         };
 
         // Auto-generate ID
-        const docRef = await addDoc(collection(db, INVENTORY_COLLECTION), data);
+        const docRef = await addDoc(collection(db, getInventoryCol()), data);
 
         // Record initial stock as a transaction if > 0
         if (itemData.currentStock > 0) {
@@ -83,7 +84,7 @@ export const addInventoryItem = async (itemData) => {
  */
 export const updateInventoryItem = async (itemId, updatedData) => {
     try {
-        const itemRef = doc(db, INVENTORY_COLLECTION, itemId);
+        const itemRef = doc(db, getInventoryCol(), itemId);
         await updateDoc(itemRef, {
             ...updatedData,
             updatedAt: serverTimestamp()
@@ -100,7 +101,7 @@ export const updateInventoryItem = async (itemId, updatedData) => {
  */
 export const updateStock = async (itemId, itemName, type, quantity, reason, orderId = null, unitPrice = 0, performedBy = 'Admin', category = 'Unknown') => {
     try {
-        const itemRef = doc(db, INVENTORY_COLLECTION, itemId);
+        const itemRef = doc(db, getInventoryCol(), itemId);
         const stockChange = type === 'IN' ? quantity : -quantity;
         const totalCost = quantity * unitPrice;
 
@@ -137,7 +138,7 @@ export const updateStock = async (itemId, itemName, type, quantity, reason, orde
  * Get transaction history (Fixed implementation)
  */
 export const getInventoryTransactions = (callback) => {
-    const q = query(collection(db, TRANSACTIONS_COLLECTION), orderBy("timestamp", "desc"));
+    const q = query(collection(db, getTransactionsCol()), orderBy("timestamp", "desc"));
     return onSnapshot(q, (snapshot) => {
         const transactions = snapshot.docs.map(doc => ({
             id: doc.id,
@@ -154,7 +155,7 @@ export const getInventoryTransactions = (callback) => {
  */
 export const softDeleteInventoryItem = async (itemId) => {
     try {
-        const itemRef = doc(db, INVENTORY_COLLECTION, itemId);
+        const itemRef = doc(db, getInventoryCol(), itemId);
         await updateDoc(itemRef, {
             isDeleted: true,
             updatedAt: serverTimestamp()
@@ -171,7 +172,7 @@ export const softDeleteInventoryItem = async (itemId) => {
  */
 export const restoreInventoryItem = async (itemId) => {
     try {
-        const itemRef = doc(db, INVENTORY_COLLECTION, itemId);
+        const itemRef = doc(db, getInventoryCol(), itemId);
         await updateDoc(itemRef, {
             isDeleted: false,
             updatedAt: serverTimestamp()
@@ -189,7 +190,7 @@ export const restoreInventoryItem = async (itemId) => {
 export const permanentDeleteInventoryItem = async (itemId) => {
     try {
         // Fetch item first to check for photoUrl
-        const itemSnap = await getDoc(doc(db, INVENTORY_COLLECTION, itemId));
+        const itemSnap = await getDoc(doc(db, getInventoryCol(), itemId));
         if (itemSnap.exists()) {
             const item = itemSnap.data();
             if (item.photoUrl) {
@@ -206,7 +207,7 @@ export const permanentDeleteInventoryItem = async (itemId) => {
             }
         }
 
-        await deleteDoc(doc(db, INVENTORY_COLLECTION, itemId));
+        await deleteDoc(doc(db, getInventoryCol(), itemId));
         return { success: true };
     } catch (error) {
         console.error("Error permanent deleting item:", error);
@@ -219,7 +220,7 @@ export const permanentDeleteInventoryItem = async (itemId) => {
  */
 const recordTransaction = async (transactionData) => {
     try {
-        await addDoc(collection(db, TRANSACTIONS_COLLECTION), {
+        await addDoc(collection(db, getTransactionsCol()), {
             ...transactionData,
             category: transactionData.category || 'General',
             user: transactionData.performedBy || 'Admin',
@@ -235,7 +236,7 @@ const recordTransaction = async (transactionData) => {
  */
 export const deleteTransaction = async (transactionId) => {
     try {
-        const txRef = doc(db, TRANSACTIONS_COLLECTION, transactionId);
+        const txRef = doc(db, getTransactionsCol(), transactionId);
         const txSnap = await getDoc(txRef);
 
         if (!txSnap.exists()) {
@@ -246,7 +247,7 @@ export const deleteTransaction = async (transactionId) => {
 
         // Reverse the stock change on the inventory item
         if (txData.itemId) {
-            const itemRef = doc(db, INVENTORY_COLLECTION, txData.itemId);
+            const itemRef = doc(db, getInventoryCol(), txData.itemId);
             const itemSnap = await getDoc(itemRef);
             if (itemSnap.exists()) {
                 // If it was IN, we subtract; if it was OUT, we add back
@@ -284,7 +285,7 @@ export const uploadToolPhoto = async (itemId, file) => {
         const photoUrl = await getDownloadURL(snapshot.ref);
 
         // Update item with photo URL
-        await updateDoc(doc(db, INVENTORY_COLLECTION, itemId), {
+        await updateDoc(doc(db, getInventoryCol(), itemId), {
             photoUrl: photoUrl,
             updatedAt: serverTimestamp()
         });
