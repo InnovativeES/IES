@@ -14,7 +14,7 @@
         href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap"
         rel="stylesheet">
     <link rel="icon" href="../assets/logo%20ver.png" type="image/png">
-    <link rel="stylesheet" href="../assets/store/css/store.css">
+    <link rel="stylesheet" href="../assets/store/css/store.css?v=2">
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
     <script>
         window.onerror = function(msg, url, lineNo, columnNo, error) {
@@ -73,12 +73,14 @@
 
         <!-- VIEWS -->
         <div id="view-home" class="store-view active">
-            <div class="store-hero">
-                <div class="store-hero-content">
-                    <h1>Welcome to IES Store</h1>
-                    <p>Premium quality industrial hardware, kitchen equipment, and custom components.</p>
-                    <a href="#products" class="s-btn s-btn-primary" style="background: white; color: var(--store-primary);">Shop Collection</a>
-                </div>
+            <h2 style="font-size: 1.75rem; font-weight: 800; margin: 0.5rem 0 1.5rem; letter-spacing: -0.02em; color: var(--store-primary);">Featured Products</h2>
+            <div class="product-grid" id="home-featured-grid"></div>
+            
+            <div id="home-view-more-container" style="display:none; justify-content: center; margin: 3rem 0;">
+                <button class="s-btn s-btn-outline" onclick="window.storeApp.loadMoreFeatured()" style="padding: 0.875rem 3rem; font-size: 1.1rem; border-width: 2px;">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right: 0.5rem;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    View More Products
+                </button>
             </div>
 
             <!-- Custom Enquiry Section -->
@@ -94,15 +96,6 @@
                 </div>
                 <button class="s-btn ce-btn" onclick="window.storeApp.openEnquiryModal(null, 'Custom Requirement')">
                     Request Custom Solution
-                </button>
-            </div>
-            <h3>Featured Products</h3>
-            <div class="product-grid" id="home-featured-grid"></div>
-            
-            <div id="home-view-more-container" style="display:none; justify-content: center; margin: 3rem 0;">
-                <button class="s-btn s-btn-outline" onclick="window.storeApp.loadMoreFeatured()" style="padding: 0.875rem 3rem; font-size: 1.1rem; border-width: 2px;">
-                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right: 0.5rem;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                    View More Products
                 </button>
             </div>
 
@@ -435,7 +428,7 @@
     <div id="enquiry-modal" class="modal-overlay" style="display:none">
         <div class="modal" style="max-width: 500px;">
             <div class="modal-header">
-                <h2>Product Enquiry</h2>
+                <h2 id="enquiry-modal-title">Request Custom Solution</h2>
                 <button class="modal-close" onclick="window.storeApp.closeEnquiryModal()">
                     <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
@@ -466,7 +459,7 @@
         </div>
     </div>
 
-    <script type="module" src="../assets/store/js/store-app.js?v=6"></script>
+    <script type="module" src="../assets/store/js/store-app.js?v=7"></script>
 </body>
 
 </html>

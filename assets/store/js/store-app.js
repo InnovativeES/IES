@@ -617,18 +617,25 @@ window.storeApp = {
     },
     submitReview,
     openEnquiryModal: (id, title) => {
-        if (!currentUser) {
-            toast('Please sign in to submit an enquiry.', 'info');
-            location.hash = '#checkout';
-            return;
-        }
         $('enquiry-product-id').value = id || 'CUSTOM';
-        $('enquiry-product-name').textContent = title || 'Custom Requirement';
+        const isCustom = !id || title === 'Custom Requirement';
+        if ($('enquiry-modal-title')) {
+            $('enquiry-modal-title').textContent = isCustom ? 'Request Custom Solution' : 'Product Enquiry';
+        }
+        $('enquiry-product-name').textContent = isCustom
+            ? 'Tell us your custom fabrication or precision engineering requirements:'
+            : (title || 'Custom Requirement');
+
         if (currentUser) {
             $('enquiry-name').value = currentProfile?.name || currentUser.displayName || '';
-            $('enquiry-email').value = currentUser.email;
+            $('enquiry-email').value = currentUser.email || '';
+            $('enquiry-whatsapp').value = currentProfile?.phone || '';
+        } else {
+            $('enquiry-name').value = '';
+            $('enquiry-email').value = '';
+            $('enquiry-whatsapp').value = '';
         }
-        if (currentProfile?.phone) $('enquiry-whatsapp').value = currentProfile.phone;
+        $('enquiry-requirements').value = '';
         $('enquiry-modal').style.display = 'flex';
         setTimeout(() => $('enquiry-modal').classList.add('show'), 10);
     },
