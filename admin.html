@@ -963,6 +963,15 @@
                                 <span>Project Management</span>
                             </a>
                         </li>
+                        <li class="nav-item">
+                            <a href="#" class="nav-link" data-view="customers" title="Customer Data">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                </svg>
+                                <span>Customer Data</span>
+                            </a>
+                        </li>
                     </ul>
                 </div>
 
@@ -3076,6 +3085,114 @@
                     </div>
                 </section>
 
+                <!-- View: Customer Directory (Master Customer & Contact Data) -->
+                <section id="view-customers" class="view-section hidden">
+                    <!-- Header Bar -->
+                    <div class="pm-header">
+                        <div class="pm-header-title">
+                            <h2>Customer Directory</h2>
+                            <span class="pm-header-badge">Client &amp; Contact Records</span>
+                        </div>
+                        <div class="pm-header-actions">
+                            <button class="btn btn-secondary btn-sm" id="customer-export-btn"
+                                onclick="window.adminApp.exportCustomersCSV()" title="Export Directory to CSV">
+                                <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                                Export CSV
+                            </button>
+                            <button class="btn btn-primary btn-sm" id="customer-add-row-btn"
+                                onclick="window.adminApp.addNewCustomerRow()">
+                                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 4v16m8-8H4" />
+                                </svg>
+                                + Add Row
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Stats Ribbon -->
+                    <div class="pm-stats-ribbon" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+                        <div class="pm-stat-card">
+                            <div class="pm-stat-icon total">
+                                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                </svg>
+                            </div>
+                            <div>
+                                <div class="pm-stat-value" id="cust-stat-companies">0</div>
+                                <div class="pm-stat-label">Unique Companies</div>
+                            </div>
+                        </div>
+                        <div class="pm-stat-card">
+                            <div class="pm-stat-icon active">
+                                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <div class="pm-stat-value" id="cust-stat-contacts">0</div>
+                                <div class="pm-stat-label">Total Contacts</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Filter Bar -->
+                    <div class="pm-filter-bar">
+                        <div class="filter-group filter-group-search" style="flex: 1;">
+                            <label class="filter-label">Search Customer Directory</label>
+                            <input type="text" id="customer-search-input" class="filter-input"
+                                placeholder="Search by company, contact person, designation, phone, email, reference..."
+                                oninput="window.adminApp.filterCustomers(this.value)">
+                        </div>
+                        <div class="filter-group">
+                            <label class="filter-label">Company</label>
+                            <select id="customer-company-filter" class="filter-input"
+                                onchange="window.adminApp.filterCustomers()">
+                                <option value="all">All Companies</option>
+                            </select>
+                        </div>
+                        <div class="filter-group flex items-end">
+                            <button type="button" class="btn btn-secondary btn-sm h-[36px] px-3 text-xs flex items-center gap-1 font-semibold"
+                                onclick="document.getElementById('customer-search-input').value=''; document.getElementById('customer-company-filter').value='all'; window.adminApp.filterCustomers();"
+                                title="Reset filters">
+                                ↻ Reset
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Table Container -->
+                    <div class="pm-table-container">
+                        <div class="table-container">
+                            <div class="table-wrapper">
+                                <table id="customer-directory-table" class="excel-style-table text-left border-collapse">
+                                    <thead>
+                                        <tr class="header-group-row">
+                                            <th style="width: 50px; min-width: 50px; text-align: center;">S.No</th>
+                                            <th style="min-width: 200px;">Customer Name (Company Name)</th>
+                                            <th style="min-width: 170px;">Contact Person</th>
+                                            <th style="min-width: 140px;">Designation</th>
+                                            <th style="min-width: 140px;">Contact Number</th>
+                                            <th style="min-width: 180px;">Email ID</th>
+                                            <th style="min-width: 140px;">Reference</th>
+                                            <th style="min-width: 180px;">Comments</th>
+                                            <th style="width: 100px; min-width: 100px; text-align: center;">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="customer-directory-tbody">
+                                        <!-- Injected by JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <datalist id="existing-companies-list"></datalist>
+                </section>
+
 
                 <!-- View: Project Detail (Deep Dive Workspace) -->
                 <section id="view-project_detail" class="view-section hidden">
@@ -3301,7 +3418,15 @@
                                                 </tr>
                                                 <tr>
                                                     <td class="cr-master-label">CONTACT PERSON</td>
-                                                    <td class="p-0"><input type="text" id="cr-contact-person" class="cr-master-input" placeholder="Customer Contact"></td>
+                                                    <td class="p-0">
+                                                        <div class="cr-contact-flex-wrap">
+                                                            <input type="text" id="cr-contact-person" class="cr-master-input" placeholder="Customer Contact" list="cr-contact-datalist" autocomplete="off">
+                                                            <select id="cr-contact-quick-select" class="cr-contact-dropdown" onchange="window.adminApp.onCrContactSelectChange(this.value)" title="Choose saved contact for this customer">
+                                                                <option value="">▼ Saved Contacts</option>
+                                                            </select>
+                                                            <datalist id="cr-contact-datalist"></datalist>
+                                                        </div>
+                                                    </td>
                                                     <td class="cr-master-label">TEAM LEADER</td>
                                                     <td class="p-0">
                                                         <div class="member-search-container" id="cr-search-team-leader">

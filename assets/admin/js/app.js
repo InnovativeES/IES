@@ -21,6 +21,8 @@ let projectUnsubscribe = null;
 let isTrashView = false;
 let isProjectTrashView = false;
 let projectViewMode = 'list';
+let currentCustomers = [];
+let customerUnsubscribe = null;
 let currentInventory = [];
 let currentTransactions = [];
 let inventoryUnsubscribe = null;
@@ -363,6 +365,8 @@ function stopUnitSubscriptions() {
     if (window.unsubscribeOrders) { window.unsubscribeOrders(); window.unsubscribeOrders = null; }
     if (inventoryUnsubscribe) { inventoryUnsubscribe(); inventoryUnsubscribe = null; }
     if (transactionUnsubscribe) { transactionUnsubscribe(); transactionUnsubscribe = null; }
+    if (customerUnsubscribe) { customerUnsubscribe(); customerUnsubscribe = null; }
+    if (window.unsubscribeCustomers) { window.unsubscribeCustomers(); window.unsubscribeCustomers = null; }
 }
 
 function startUnitSubscriptions() {
@@ -457,6 +461,19 @@ function startUnitSubscriptions() {
 
         refreshDashboard();
     }, isTrashView);
+
+    // 4. Customers Directory Subscription
+    if (customerUnsubscribe) customerUnsubscribe();
+    customerUnsubscribe = DB.subscribeToCustomers((customers) => {
+        currentCustomers = customers || [];
+        const custView = document.getElementById('view-customers');
+        if (custView && !custView.classList.contains('hidden')) {
+            window.adminApp.renderCustomerTable();
+        }
+        if (window.adminApp.updateCustomerStats) window.adminApp.updateCustomerStats();
+        if (window.adminApp.refreshContractReviewContacts) window.adminApp.refreshContractReviewContacts();
+    });
+    window.unsubscribeCustomers = customerUnsubscribe;
 }
 
 function switchActiveUnit(unitId) {
@@ -474,6 +491,7 @@ function switchActiveUnit(unitId) {
     currentOrders = [];
     currentInventory = [];
     currentTransactions = [];
+    currentCustomers = [];
 
     Units.setActiveUnit(unitId);
     updateUnitUI();
@@ -6214,6 +6232,9 @@ window.adminApp.switchView = (viewName) => {
     if (viewName === 'project_overview') {
         window.adminApp.renderProjectOverview();
     }
+    if (viewName === 'customers') {
+        window.adminApp.renderCustomerTable();
+    }
 };
 
 const _origUpdateProjectStats = window.adminApp.updateProjectStats;
@@ -6963,4 +6984,520 @@ window.adminApp.loadContractReview = async (projectId) => {
 
     // Populate the Order Specification & Material Availability card
     window.adminApp.populateCrOrderSpec(projectId);
+
+    // Setup customer contacts dropdown for Contract Review
+    window.adminApp.setupCrCustomerContacts(projectId);
+};
+
+
+/* ==========================================================================
+   CUSTOMER DIRECTORY MODULE & CONTRACT REVIEW CONTACT INTEGRATION
+   ========================================================================== */
+
+const escapeCustomerHtml = (str) => {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+};
+
+window.adminApp.getCurrentCustomers = () => currentCustomers;
+
+window.adminApp.updateCustomerStats = () => {
+    const compEl = document.getElementById('cust-stat-companies');
+    const contEl = document.getElementById('cust-stat-contacts');
+    const uniqueCompanies = new Set(currentCustomers.map(c => (c.companyName || '').trim().toUpperCase()).filter(Boolean));
+    if (compEl) compEl.textContent = uniqueCompanies.size;
+    if (contEl) contEl.textContent = currentCustomers.length;
+
+    // Update company filter dropdown
+    const filterSelect = document.getElementById('customer-company-filter');
+    if (filterSelect) {
+        const currentVal = filterSelect.value;
+        const sortedCompanies = Array.from(uniqueCompanies).sort();
+        let opts = '<option value="all">All Companies</option>';
+        sortedCompanies.forEach(comp => {
+            opts += `<option value="${escapeCustomerHtml(comp)}">${escapeCustomerHtml(comp)}</option>`;
+        });
+        filterSelect.innerHTML = opts;
+        if (sortedCompanies.includes(currentVal)) {
+            filterSelect.value = currentVal;
+        } else {
+            filterSelect.value = 'all';
+        }
+    }
+
+    // Update datalist of companies for inline entry
+    const dl = document.getElementById('existing-companies-list');
+    if (dl) {
+        const sortedCompanies = Array.from(uniqueCompanies).sort();
+        dl.innerHTML = sortedCompanies.map(comp => `<option value="${escapeCustomerHtml(comp)}">`).join('');
+    }
+};
+
+window.adminApp.renderCustomerTable = (customList) => {
+    const tbody = document.getElementById('customer-directory-tbody');
+    if (!tbody) return;
+
+    window.adminApp.updateCustomerStats();
+
+    // Preserve draft row if one is open
+    const draftRow = document.getElementById('customer-new-row');
+    const draftValues = draftRow ? {
+        company: document.getElementById('cust-new-company')?.value || '',
+        person: document.getElementById('cust-new-person')?.value || '',
+        designation: document.getElementById('cust-new-designation')?.value || '',
+        phone: document.getElementById('cust-new-phone')?.value || '',
+        email: document.getElementById('cust-new-email')?.value || '',
+        reference: document.getElementById('cust-new-reference')?.value || '',
+        comments: document.getElementById('cust-new-comments')?.value || ''
+    } : null;
+
+    let list = customList;
+    if (!list) {
+        const searchInput = document.getElementById('customer-search-input');
+        const searchVal = (searchInput?.value || '').trim().toLowerCase();
+        const companyFilter = document.getElementById('customer-company-filter')?.value || 'all';
+
+        list = currentCustomers.filter(c => {
+            if (companyFilter !== 'all' && (c.companyName || '').trim().toUpperCase() !== companyFilter) {
+                return false;
+            }
+            if (searchVal) {
+                const haystack = [
+                    c.companyName || '',
+                    c.contactPerson || '',
+                    c.designation || '',
+                    c.contactNumber || '',
+                    c.emailId || '',
+                    c.reference || '',
+                    c.comments || ''
+                ].join(' ').toLowerCase();
+                return haystack.includes(searchVal);
+            }
+            return true;
+        });
+    }
+
+    if (list.length === 0 && !draftValues) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" style="text-align: center; padding: 3rem 1rem; color: #64748b; font-weight: 500;">
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
+                        <svg width="40" height="40" fill="none" stroke="#94a3b8" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                        </svg>
+                        <span>No customer records found. Click <strong>"+ Add Row"</strong> above to add customer contacts.</span>
+                    </div>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    let rowsHtml = '';
+    list.forEach((c, idx) => {
+        const sno = idx + 1;
+        const phoneHtml = c.contactNumber 
+            ? `<a href="tel:${escapeCustomerHtml(c.contactNumber)}" class="text-blue-600 hover:underline font-mono">${escapeCustomerHtml(c.contactNumber)}</a>` 
+            : '<span class="text-slate-400">-</span>';
+        const emailHtml = c.emailId 
+            ? `<a href="mailto:${escapeCustomerHtml(c.emailId)}" class="text-blue-600 hover:underline text-xs">${escapeCustomerHtml(c.emailId)}</a>` 
+            : '<span class="text-slate-400">-</span>';
+
+        rowsHtml += `
+            <tr id="cust-row-${c.id}">
+                <td style="text-align: center; font-weight: 700; color: #64748b;">${sno}</td>
+                <td><span class="cust-company-badge">${escapeCustomerHtml(c.companyName || '-')}</span></td>
+                <td><span class="cust-person-name">${escapeCustomerHtml(c.contactPerson || '-')}</span></td>
+                <td style="color: #475569;">${escapeCustomerHtml(c.designation || '-')}</td>
+                <td>${phoneHtml}</td>
+                <td>${emailHtml}</td>
+                <td style="color: #64748b; font-size: 0.78rem;">${escapeCustomerHtml(c.reference || '-')}</td>
+                <td style="color: #64748b; font-size: 0.78rem;">${escapeCustomerHtml(c.comments || '-')}</td>
+                <td style="text-align: center;">
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 4px;">
+                        <button type="button" class="cust-btn-action cust-btn-edit" onclick="window.adminApp.editCustomerRow('${c.id}')" title="Edit Contact">
+                            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                        </button>
+                        <button type="button" class="cust-btn-action cust-btn-delete" onclick="window.adminApp.deleteCustomerRow('${c.id}')" title="Delete Contact">
+                            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    });
+
+    tbody.innerHTML = rowsHtml;
+
+    // Restore draft row if it existed before re-render
+    if (draftValues) {
+        window.adminApp.addNewCustomerRow(draftValues);
+    }
+};
+
+window.adminApp.addNewCustomerRow = (prefillData = null) => {
+    const tbody = document.getElementById('customer-directory-tbody');
+    if (!tbody) return;
+
+    // If draft row already exists, just focus company input
+    const existingDraft = document.getElementById('customer-new-row');
+    if (existingDraft) {
+        document.getElementById('cust-new-company')?.focus();
+        return;
+    }
+
+    const tr = document.createElement('tr');
+    tr.id = 'customer-new-row';
+    tr.className = 'customer-draft-row';
+    tr.innerHTML = `
+        <td style="text-align: center; font-weight: 800; color: #d97706; font-size: 1.1rem;">+</td>
+        <td>
+            <input type="text" id="cust-new-company" class="table-inline-input" placeholder="COMPANY NAME" list="existing-companies-list" style="text-transform: uppercase; font-weight: 700;" value="${prefillData ? escapeCustomerHtml(prefillData.company || '') : ''}" required autocomplete="off">
+        </td>
+        <td>
+            <input type="text" id="cust-new-person" class="table-inline-input" placeholder="Contact Person *" style="font-weight: 600;" value="${prefillData ? escapeCustomerHtml(prefillData.person || '') : ''}" required autocomplete="off">
+        </td>
+        <td>
+            <input type="text" id="cust-new-designation" class="table-inline-input" placeholder="Designation" value="${prefillData ? escapeCustomerHtml(prefillData.designation || '') : ''}">
+        </td>
+        <td>
+            <input type="tel" id="cust-new-phone" class="table-inline-input" placeholder="Contact Number" value="${prefillData ? escapeCustomerHtml(prefillData.phone || '') : ''}">
+        </td>
+        <td>
+            <input type="email" id="cust-new-email" class="table-inline-input" placeholder="Email Address" value="${prefillData ? escapeCustomerHtml(prefillData.email || '') : ''}">
+        </td>
+        <td>
+            <input type="text" id="cust-new-reference" class="table-inline-input" placeholder="Reference" value="${prefillData ? escapeCustomerHtml(prefillData.reference || '') : ''}">
+        </td>
+        <td>
+            <input type="text" id="cust-new-comments" class="table-inline-input" placeholder="Comments" value="${prefillData ? escapeCustomerHtml(prefillData.comments || '') : ''}">
+        </td>
+        <td style="text-align: center;">
+            <div style="display: flex; align-items: center; justify-content: center; gap: 4px;">
+                <button type="button" class="cust-btn-action cust-btn-save" onclick="window.adminApp.saveNewCustomerRow()" title="Save Row (Enter)">
+                    <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                </button>
+                <button type="button" class="cust-btn-action cust-btn-cancel" onclick="window.adminApp.cancelNewCustomerRow()" title="Cancel (Esc)">
+                    <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+        </td>
+    `;
+
+    // Handle Enter and Esc in inputs
+    tr.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            window.adminApp.saveNewCustomerRow();
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            window.adminApp.cancelNewCustomerRow();
+        }
+    });
+
+    // Prepend to table body
+    if (tbody.firstChild) {
+        tbody.insertBefore(tr, tbody.firstChild);
+    } else {
+        tbody.appendChild(tr);
+    }
+
+    // Auto-focus company name input
+    const compInput = document.getElementById('cust-new-company');
+    if (compInput) compInput.focus();
+};
+
+window.adminApp.saveNewCustomerRow = async () => {
+    const companyInput = document.getElementById('cust-new-company');
+    const personInput = document.getElementById('cust-new-person');
+    const designationInput = document.getElementById('cust-new-designation');
+    const phoneInput = document.getElementById('cust-new-phone');
+    const emailInput = document.getElementById('cust-new-email');
+    const referenceInput = document.getElementById('cust-new-reference');
+    const commentsInput = document.getElementById('cust-new-comments');
+
+    const companyName = (companyInput?.value || '').trim().toUpperCase();
+    const contactPerson = (personInput?.value || '').trim();
+
+    if (!companyName) {
+        alert("Please enter Customer / Company Name.");
+        companyInput?.focus();
+        return;
+    }
+
+    if (!contactPerson) {
+        alert("Please enter Contact Person name.");
+        personInput?.focus();
+        return;
+    }
+
+    const payload = {
+        companyName,
+        contactPerson,
+        designation: (designationInput?.value || '').trim(),
+        contactNumber: (phoneInput?.value || '').trim(),
+        emailId: (emailInput?.value || '').trim(),
+        reference: (referenceInput?.value || '').trim(),
+        comments: (commentsInput?.value || '').trim()
+    };
+
+    try {
+        const res = await DB.addCustomer(payload);
+        if (res.error) {
+            alert("Error saving customer: " + res.error);
+            return;
+        }
+        window.adminApp.cancelNewCustomerRow();
+        UI.showNotification?.("Customer contact saved successfully!", "success");
+    } catch (err) {
+        console.error("Error saving customer row:", err);
+        alert("Failed to save: " + err.message);
+    }
+};
+
+window.adminApp.cancelNewCustomerRow = () => {
+    const draftRow = document.getElementById('customer-new-row');
+    if (draftRow) draftRow.remove();
+    // If table was empty before draft row, re-render
+    if (document.querySelectorAll('#customer-directory-tbody tr').length === 0) {
+        window.adminApp.renderCustomerTable();
+    }
+};
+
+window.adminApp.editCustomerRow = (id) => {
+    const customer = currentCustomers.find(c => c.id === id);
+    if (!customer) return;
+
+    const row = document.getElementById(`cust-row-${id}`);
+    if (!row) return;
+
+    row.className = 'customer-draft-row';
+    row.innerHTML = `
+        <td style="text-align: center; font-weight: 700; color: #2563eb;">•</td>
+        <td>
+            <input type="text" id="cust-edit-company-${id}" class="table-inline-input" placeholder="COMPANY NAME" list="existing-companies-list" style="text-transform: uppercase; font-weight: 700;" value="${escapeCustomerHtml(customer.companyName || '')}" required autocomplete="off">
+        </td>
+        <td>
+            <input type="text" id="cust-edit-person-${id}" class="table-inline-input" placeholder="Contact Person *" style="font-weight: 600;" value="${escapeCustomerHtml(customer.contactPerson || '')}" required autocomplete="off">
+        </td>
+        <td>
+            <input type="text" id="cust-edit-designation-${id}" class="table-inline-input" placeholder="Designation" value="${escapeCustomerHtml(customer.designation || '')}">
+        </td>
+        <td>
+            <input type="tel" id="cust-edit-phone-${id}" class="table-inline-input" placeholder="Contact Number" value="${escapeCustomerHtml(customer.contactNumber || '')}">
+        </td>
+        <td>
+            <input type="email" id="cust-edit-email-${id}" class="table-inline-input" placeholder="Email Address" value="${escapeCustomerHtml(customer.emailId || '')}">
+        </td>
+        <td>
+            <input type="text" id="cust-edit-reference-${id}" class="table-inline-input" placeholder="Reference" value="${escapeCustomerHtml(customer.reference || '')}">
+        </td>
+        <td>
+            <input type="text" id="cust-edit-comments-${id}" class="table-inline-input" placeholder="Comments" value="${escapeCustomerHtml(customer.comments || '')}">
+        </td>
+        <td style="text-align: center;">
+            <div style="display: flex; align-items: center; justify-content: center; gap: 4px;">
+                <button type="button" class="cust-btn-action cust-btn-save" onclick="window.adminApp.saveEditCustomerRow('${id}')" title="Save Changes (Enter)">
+                    <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                </button>
+                <button type="button" class="cust-btn-action cust-btn-cancel" onclick="window.adminApp.cancelEditCustomerRow('${id}')" title="Cancel (Esc)">
+                    <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+        </td>
+    `;
+
+    row.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            window.adminApp.saveEditCustomerRow(id);
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            window.adminApp.cancelEditCustomerRow(id);
+        }
+    });
+
+    document.getElementById(`cust-edit-company-${id}`)?.focus();
+};
+
+window.adminApp.saveEditCustomerRow = async (id) => {
+    const compEl = document.getElementById(`cust-edit-company-${id}`);
+    const personEl = document.getElementById(`cust-edit-person-${id}`);
+    const desigEl = document.getElementById(`cust-edit-designation-${id}`);
+    const phoneEl = document.getElementById(`cust-edit-phone-${id}`);
+    const emailEl = document.getElementById(`cust-edit-email-${id}`);
+    const refEl = document.getElementById(`cust-edit-reference-${id}`);
+    const commEl = document.getElementById(`cust-edit-comments-${id}`);
+
+    const companyName = (compEl?.value || '').trim().toUpperCase();
+    const contactPerson = (personEl?.value || '').trim();
+
+    if (!companyName) {
+        alert("Please enter Customer / Company Name.");
+        compEl?.focus();
+        return;
+    }
+
+    if (!contactPerson) {
+        alert("Please enter Contact Person name.");
+        personEl?.focus();
+        return;
+    }
+
+    const payload = {
+        companyName,
+        contactPerson,
+        designation: (desigEl?.value || '').trim(),
+        contactNumber: (phoneEl?.value || '').trim(),
+        emailId: (emailEl?.value || '').trim(),
+        reference: (refEl?.value || '').trim(),
+        comments: (commEl?.value || '').trim()
+    };
+
+    try {
+        const res = await DB.updateCustomer(id, payload);
+        if (res.error) {
+            alert("Error updating customer: " + res.error);
+            return;
+        }
+        UI.showNotification?.("Customer contact updated successfully!", "success");
+    } catch (err) {
+        console.error("Error updating customer row:", err);
+        alert("Failed to update: " + err.message);
+    }
+};
+
+window.adminApp.cancelEditCustomerRow = (id) => {
+    window.adminApp.renderCustomerTable();
+};
+
+window.adminApp.deleteCustomerRow = async (id) => {
+    const customer = currentCustomers.find(c => c.id === id);
+    const label = customer ? `contact "${customer.contactPerson}" from "${customer.companyName}"` : "this customer contact";
+    if (!confirm(`Are you sure you want to delete ${label}?`)) return;
+
+    try {
+        const res = await DB.deleteCustomer(id);
+        if (res.error) {
+            alert("Error deleting customer: " + res.error);
+            return;
+        }
+        UI.showNotification?.("Customer contact deleted successfully!", "success");
+    } catch (err) {
+        console.error("Error deleting customer:", err);
+        alert("Failed to delete: " + err.message);
+    }
+};
+
+window.adminApp.filterCustomers = (val) => {
+    window.adminApp.renderCustomerTable();
+};
+
+window.adminApp.exportCustomersCSV = () => {
+    if (!currentCustomers || currentCustomers.length === 0) {
+        alert("No customer data available to export.");
+        return;
+    }
+
+    const headers = ["S.No", "Customer Name (Company Name)", "Contact Person", "Designation", "Contact Number", "Email ID", "Reference", "Comments"];
+    const rows = currentCustomers.map((c, i) => [
+        i + 1,
+        `"${(c.companyName || '').replace(/"/g, '""')}"`,
+        `"${(c.contactPerson || '').replace(/"/g, '""')}"`,
+        `"${(c.designation || '').replace(/"/g, '""')}"`,
+        `"${(c.contactNumber || '').replace(/"/g, '""')}"`,
+        `"${(c.emailId || '').replace(/"/g, '""')}"`,
+        `"${(c.reference || '').replace(/"/g, '""')}"`,
+        `"${(c.comments || '').replace(/"/g, '""')}"`
+    ]);
+
+    const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\r\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Customer_Directory_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+};
+
+// === CONTRACT REVIEW CONTACT PICKER INTEGRATION ===
+window.adminApp.setupCrCustomerContacts = (projectId) => {
+    const project = currentProjects.find(p => p.id === projectId || p.projectId === projectId);
+    const allOrders = window.adminApp.getCurrentOrders ? window.adminApp.getCurrentOrders() : currentOrders;
+    const matchingOrder = allOrders.find(o => o.internalOrderNo === project?.projectId);
+    const customerName = (project?.customerName || matchingOrder?.customer || '').trim().toUpperCase();
+    window.adminApp._activeCrCustomerName = customerName;
+    window.adminApp.refreshContractReviewContacts();
+};
+
+window.adminApp.refreshContractReviewContacts = () => {
+    const select = document.getElementById('cr-contact-quick-select');
+    const datalist = document.getElementById('cr-contact-datalist');
+    if (!select && !datalist) return;
+
+    const targetComp = (window.adminApp._activeCrCustomerName || '').trim().toUpperCase();
+
+    // Matching contacts for this specific customer
+    let matching = targetComp 
+        ? currentCustomers.filter(c => (c.companyName || '').trim().toUpperCase() === targetComp)
+        : [];
+
+    let optionsHtml = '';
+    if (matching.length > 0) {
+        optionsHtml = `<option value="">▼ Saved Contacts (${matching.length})</option>`;
+        matching.forEach(c => {
+            const desig = c.designation ? ` (${c.designation})` : '';
+            optionsHtml += `<option value="${c.id}">${escapeCustomerHtml(c.contactPerson)}${escapeCustomerHtml(desig)}</option>`;
+        });
+    } else if (currentCustomers.length > 0) {
+        optionsHtml = `<option value="">▼ All Directory Contacts (${currentCustomers.length})</option>`;
+        currentCustomers.forEach(c => {
+            const comp = c.companyName ? ` [${c.companyName}]` : '';
+            optionsHtml += `<option value="${c.id}">${escapeCustomerHtml(c.contactPerson)}${escapeCustomerHtml(comp)}</option>`;
+        });
+    } else {
+        optionsHtml = `<option value="">(No saved contacts)</option>`;
+    }
+
+    if (select) select.innerHTML = optionsHtml;
+
+    // Datalist for autocomplete typing
+    if (datalist) {
+        const listToSuggest = matching.length > 0 ? matching : currentCustomers;
+        datalist.innerHTML = listToSuggest.map(c => 
+            `<option value="${escapeCustomerHtml(c.contactPerson)}">${escapeCustomerHtml(c.designation ? c.designation + ' • ' : '')}${escapeCustomerHtml(c.contactNumber || '')}</option>`
+        ).join('');
+    }
+};
+
+window.adminApp.onCrContactSelectChange = (contactId) => {
+    if (!contactId) return;
+    const contact = currentCustomers.find(c => c.id === contactId);
+    if (!contact) return;
+
+    const personInput = document.getElementById('cr-contact-person');
+    const phoneInput = document.getElementById('cr-phone');
+
+    if (personInput) {
+        personInput.value = contact.contactPerson || '';
+        personInput.dispatchEvent(new Event('input', { bubbles: true }));
+        personInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    if (phoneInput) {
+        phoneInput.value = contact.contactNumber || '';
+        phoneInput.dispatchEvent(new Event('input', { bubbles: true }));
+        phoneInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    // Reset select back to placeholder prompt
+    const select = document.getElementById('cr-contact-quick-select');
+    if (select) select.value = '';
 };

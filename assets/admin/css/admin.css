@@ -8649,3 +8649,152 @@ body:has(#view-project_management:not(.hidden)) #main-content,
     color: #64748b !important;
     text-transform: uppercase !important;
 }
+
+
+/* ==========================================================================
+   CUSTOMER DIRECTORY & CONTACT MANAGEMENT STYLES
+   ========================================================================== */
+#customer-directory-table.excel-style-table tbody td {
+    font-size: 0.8125rem !important;
+    padding: 0.48rem 0.6rem !important;
+    color: #1e293b;
+    border-bottom: 1px solid #e2e8f0 !important;
+    border-right: 1px solid rgba(226, 232, 240, 0.65) !important;
+    vertical-align: middle !important;
+}
+
+#customer-directory-table tbody tr:hover {
+    background-color: #f8fafc;
+}
+
+#customer-directory-table tbody tr.customer-draft-row {
+    background-color: #fefce8 !important;
+    box-shadow: inset 3px 0 0 #f59e0b;
+}
+
+.cust-company-badge {
+    font-weight: 700;
+    color: #0f172a;
+    letter-spacing: 0.02em;
+    display: inline-block;
+}
+
+.cust-person-name {
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.table-inline-input {
+    width: 100%;
+    border: 1px solid #93c5fd;
+    background: #ffffff;
+    padding: 5px 8px;
+    font-size: 0.8rem;
+    border-radius: 4px;
+    outline: none;
+    box-sizing: border-box;
+    transition: all 0.15s ease;
+    color: #0f172a;
+}
+
+.table-inline-input:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 2.5px rgba(37, 99, 235, 0.18);
+    background: #ffffff;
+}
+
+.cust-btn-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    background: transparent;
+}
+
+.cust-btn-action.cust-btn-save {
+    background: #10b981;
+    color: #ffffff;
+    border-color: #059669;
+}
+.cust-btn-action.cust-btn-save:hover {
+    background: #059669;
+    box-shadow: 0 2px 4px rgba(16, 185, 129, 0.35);
+}
+
+.cust-btn-action.cust-btn-cancel {
+    background: #f1f5f9;
+    color: #64748b;
+    border-color: #cbd5e1;
+}
+.cust-btn-action.cust-btn-cancel:hover {
+    background: #e2e8f0;
+    color: #334155;
+}
+
+.cust-btn-action.cust-btn-edit {
+    color: #0284c7;
+    background: #f0f9ff;
+    border-color: #bae6fd;
+}
+.cust-btn-action.cust-btn-edit:hover {
+    background: #e0f2fe;
+    color: #0369a1;
+}
+
+.cust-btn-action.cust-btn-delete {
+    color: #ef4444;
+    background: #fef2f2;
+    border-color: #fecaca;
+}
+.cust-btn-action.cust-btn-delete:hover {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+/* Contract Review Quick-Select Dropdown Integration */
+.cr-contact-flex-wrap {
+    display: flex;
+    align-items: stretch;
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+
+.cr-contact-flex-wrap input.cr-master-input {
+    flex: 1;
+    min-width: 0;
+    border-right: 1px solid var(--border-color, #e2e8f0) !important;
+}
+
+.cr-contact-dropdown {
+    height: 100%;
+    min-height: 38px;
+    padding: 0 8px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #1d4ed8;
+    background: #eff6ff;
+    border: none;
+    cursor: pointer;
+    outline: none;
+    transition: all 0.15s ease;
+    max-width: 155px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.cr-contact-dropdown:hover {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.cr-contact-dropdown:focus {
+    background: #bfdbfe;
+    color: #1e3a8a;
+}

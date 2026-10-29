@@ -1108,4 +1108,75 @@ export const deletePayslipFormat = async (id) => {
     }
 };
 
+/* ==========================================================================
+   CUSTOMER DIRECTORY MODULE COLLECTIONS & FUNCTIONS
+   ========================================================================== */
+const getCustomersCol = () => getCollectionName("customers");
+
+export const addCustomer = async (data) => {
+    try {
+        const docRef = await addDoc(collection(db, getCustomersCol()), {
+            ...data,
+            companyName: (data.companyName || "").trim().toUpperCase(),
+            contactPerson: (data.contactPerson || "").trim(),
+            designation: (data.designation || "").trim(),
+            contactNumber: (data.contactNumber || "").trim(),
+            emailId: (data.emailId || "").trim(),
+            reference: (data.reference || "").trim(),
+            comments: (data.comments || "").trim(),
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+        });
+        return { id: docRef.id, error: null };
+    } catch (error) {
+        console.error("Error adding customer:", error);
+        return { id: null, error: error.message };
+    }
+};
+
+export const updateCustomer = async (id, data) => {
+    try {
+        const docRef = doc(db, getCustomersCol(), id);
+        const updateData = { ...data, updatedAt: serverTimestamp() };
+        if (updateData.companyName) {
+            updateData.companyName = updateData.companyName.trim().toUpperCase();
+        }
+        await updateDoc(docRef, updateData);
+        return { error: null };
+    } catch (error) {
+        console.error("Error updating customer:", error);
+        return { error: error.message };
+    }
+};
+
+export const deleteCustomer = async (id) => {
+    try {
+        await deleteDoc(doc(db, getCustomersCol(), id));
+        return { error: null };
+    } catch (error) {
+        console.error("Error deleting customer:", error);
+        return { error: error.message };
+    }
+};
+
+export const subscribeToCustomers = (callback) => {
+    const q = collection(db, getCustomersCol());
+    return onSnapshot(q, (snapshot) => {
+        const customers = [];
+        snapshot.forEach((doc) => {
+            customers.push({ id: doc.id, ...doc.data() });
+        });
+        // Sort alphabetically by companyName, then contactPerson
+        customers.sort((a, b) => {
+            const compA = (a.companyName || "").localeCompare(b.companyName || "");
+            if (compA !== 0) return compA;
+            return (a.contactPerson || "").localeCompare(b.contactPerson || "");
+        });
+        callback(customers);
+    }, (error) => {
+        console.error("Error subscribing to customers:", error);
+        callback([]);
+    });
+};
+
 
