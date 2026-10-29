@@ -5370,7 +5370,7 @@ window.adminApp.saveContractReview = async (action) => {
         // Customer Data
         poNo: getVal('cr-po-no'),
         drawingNo: getVal('cr-drawing-no'),
-        itemCode: getVal('cr-item-code'),
+        itemCode: getVal('cr-item-code') || project.itemCode || '',
         date: getVal('cr-date'),
         deliveryDate: getVal('cr-delivery-date'),
         contactPerson: getVal('cr-contact-person'),

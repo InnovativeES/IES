@@ -32,10 +32,10 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js" type="module"></script>
 
     <!-- Admin Styles -->
-    <link rel="stylesheet" href="assets/admin/css/admin.css?v=23">
+    <link rel="stylesheet" href="assets/admin/css/admin.css?v=24">
     <link rel="stylesheet" href="assets/admin/css/delivery-modal.css?v=13">
     <link rel="stylesheet" href="assets/admin/css/project.css?v=13">
-    <link rel="stylesheet" href="assets/admin/css/pm-theme.css?v=15">
+    <link rel="stylesheet" href="assets/admin/css/pm-theme.css?v=16">
     <style>
         /* Force Printing in Landscape & Removing Browser headers/footers */
         @media print {
@@ -3266,16 +3266,12 @@
                                                 <tr>
                                                     <td class="cr-master-label">DRG NO</td>
                                                     <td class="p-0"><input type="text" id="cr-drawing-no" class="cr-master-input" placeholder="Enter Drawing #" style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()"></td>
-                                                    <td class="cr-master-label">ITEM CODE</td>
-                                                    <td class="p-0"><input type="text" id="cr-item-code" class="cr-master-input" placeholder="Enter Item Code" style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()"></td>
-                                                </tr>
-                                                <tr>
                                                     <td class="cr-master-label">IO NUMBER</td>
                                                     <td class="p-0"><input type="text" id="cr-io-number" class="cr-master-input cr-io-readonly" readonly></td>
-                                                    <td class="cr-master-label">CR DATE</td>
-                                                    <td class="p-0"><input type="date" id="cr-date" class="cr-master-input"></td>
                                                 </tr>
                                                 <tr>
+                                                    <td class="cr-master-label">CR DATE</td>
+                                                    <td class="p-0"><input type="date" id="cr-date" class="cr-master-input"></td>
                                                     <td class="cr-master-label">DEPT / TEAM</td>
                                                     <td class="p-0">
                                                         <select id="cr-team" class="cr-master-select">
@@ -3288,10 +3284,10 @@
                                                             <option value="Sourcing">Sourcing</option>
                                                         </select>
                                                     </td>
-                                                    <td class="cr-master-label">DELIVERY DATE</td>
-                                                    <td class="p-0"><input type="date" id="cr-delivery-date" class="cr-master-input"></td>
                                                 </tr>
                                                 <tr>
+                                                    <td class="cr-master-label">DELIVERY DATE</td>
+                                                    <td class="p-0"><input type="date" id="cr-delivery-date" class="cr-master-input"></td>
                                                     <td class="cr-master-label">ACCOUNTABILITY / PL</td>
                                                     <td class="p-0">
                                                         <div class="member-search-container" id="cr-search-accountability">
@@ -3302,6 +3298,10 @@
                                                             <input type="hidden" id="cr-accountability">
                                                         </div>
                                                     </td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="cr-master-label">CONTACT PERSON</td>
+                                                    <td class="p-0"><input type="text" id="cr-contact-person" class="cr-master-input" placeholder="Customer Contact"></td>
                                                     <td class="cr-master-label">TEAM LEADER</td>
                                                     <td class="p-0">
                                                         <div class="member-search-container" id="cr-search-team-leader">
@@ -3314,14 +3314,10 @@
                                                     </td>
                                                 </tr>
                                                 <tr>
-                                                    <td class="cr-master-label">CONTACT PERSON</td>
-                                                    <td class="p-0"><input type="text" id="cr-contact-person" class="cr-master-input" placeholder="Customer Contact"></td>
                                                     <td class="cr-master-label">PHONE NO</td>
                                                     <td class="p-0"><input type="text" id="cr-phone" class="cr-master-input" placeholder="Contact Number"></td>
-                                                </tr>
-                                                <tr>
                                                     <td class="cr-master-label">TEAM MEMBERS</td>
-                                                    <td class="p-0" colspan="3">
+                                                    <td class="p-0">
                                                         <div class="member-search-container" id="cr-search-members">
                                                             <div class="search-tags-container">
                                                                 <input type="text" class="search-input-inline" placeholder="Click to add Members...">
@@ -5676,7 +5672,7 @@
 
     <!-- Application Script -->
 
-    <script type="module" src="assets/admin/js/app.js?v=50"></script>
+    <script type="module" src="assets/admin/js/app.js?v=51"></script>
 
     <!-- Mobile Sidebar Toggle Script -->
     <script>
