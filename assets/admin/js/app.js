@@ -1207,18 +1207,23 @@ window.adminApp = {
             const isDeleted = !!p.isDeleted;
             if (isProjectTrashView !== isDeleted) return false;
 
-            // Cross-reference drawing number for search
+            // Cross-reference drawing number & item code for search
             let drgNo = p.drawingNo || '';
-            if (!drgNo && window.adminApp.getCurrentOrders) {
+            let itemCode = p.itemCode || '';
+            if ((!drgNo || !itemCode) && window.adminApp.getCurrentOrders) {
                 const orders = window.adminApp.getCurrentOrders();
                 const matchingOrder = orders.find(o => o.internalOrderNo === p.projectId);
-                if (matchingOrder) drgNo = matchingOrder.drawingNo || '';
+                if (matchingOrder) {
+                    if (!drgNo) drgNo = matchingOrder.drawingNo || '';
+                    if (!itemCode) itemCode = matchingOrder.itemCode || '';
+                }
             }
 
             const matchesSearch = (p.name?.toLowerCase().includes(searchTerm) ||
                 p.projectId?.toLowerCase().includes(searchTerm) ||
                 p.customerName?.toLowerCase().includes(searchTerm) ||
-                drgNo.toLowerCase().includes(searchTerm));
+                drgNo.toLowerCase().includes(searchTerm) ||
+                itemCode.toLowerCase().includes(searchTerm));
             const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
             const matchesType = typeFilter === 'all' || p.jobType === typeFilter;
             const matchesCustomer = customerFilter === 'all' || (p.customerName && p.customerName.trim().toUpperCase() === customerFilter.toUpperCase());
@@ -1241,7 +1246,7 @@ window.adminApp = {
         if (!tbody) return;
 
         if (projects.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="11" class="text-center py-12 text-slate-400">No projects found.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="12" class="text-center py-12 text-slate-400">No projects found.</td></tr>';
             return;
         }
 
@@ -1255,6 +1260,7 @@ window.adminApp = {
             const matchingOrder = allOrders.find(o => String(o.internalOrderNo || '').trim().toUpperCase() === ioKey && o.entryType !== 'delivery_report');
 
             const drgNo = p.drawingNo || (matchingOrder ? matchingOrder.drawingNo : '') || '-';
+            const itemCode = p.itemCode || (matchingOrder ? matchingOrder.itemCode : '') || '-';
             const teamName = p.crTeam || p.jobType || (matchingOrder ? matchingOrder.department : '') || 'Admin';
             const rawTargetDel = p.crDeliveryDate || p.expectedCompletion || (matchingOrder ? matchingOrder.deliveryDateActual : '');
             const deliveryDate = rawTargetDel ? new Date(rawTargetDel).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' }) : '-';
@@ -1321,6 +1327,7 @@ window.adminApp = {
                     <td class="sticky-pm-io"><span class="io-order-pill">${p.projectId || '-'}</span></td>
                     <td class="font-bold text-slate-800">${(p.customerName || '-').toUpperCase()}</td>
                     <td class="font-mono text-slate-700 font-semibold">${String(drgNo).toUpperCase()}</td>
+                    <td class="font-mono text-slate-700 font-semibold text-center">${String(itemCode).toUpperCase()}</td>
                     <td class="font-semibold text-slate-700 max-w-[220px] truncate" title="${(p.name || '').toUpperCase()}">${(p.name || '-').toUpperCase()}</td>
                     <td class="text-center"><span class="version-tag">${teamName}</span></td>
                     <td class="text-center">${crBadge}</td>
@@ -2508,6 +2515,7 @@ window.adminApp = {
                 customerName: fallbackOrderData.customer || '',
                 jobType: fallbackOrderData.department || 'CNC',
                 drawingNo: fallbackOrderData.drawingNo || '',
+                itemCode: fallbackOrderData.itemCode || '',
                 poNo: fallbackOrderData.poNo || '',
                 status: 'Draft',
                 currentStage: 'Intake'
@@ -2538,12 +2546,14 @@ window.adminApp = {
         if (headerStats) {
             const cust = (project.customerName || matchingOrder?.customer || '-').toUpperCase();
             const drg = (project.drawingNo || matchingOrder?.drawingNo || '-').toUpperCase();
+            const itemCodeVal = (project.itemCode || matchingOrder?.itemCode || '-').toUpperCase();
             const po = project.poNo || matchingOrder?.poNo || '-';
             const inDc = project.customerDcNo || matchingOrder?.customerDcNo || '-';
             const qty = matchingOrder?.qty || project.orderQty || '-';
             headerStats.innerHTML = `
                 <div class="pm-meta-chip"><span class="pm-meta-lbl">CUSTOMER</span><span class="pm-meta-val">${cust}</span></div>
                 <div class="pm-meta-chip"><span class="pm-meta-lbl">DRG NO</span><span class="pm-meta-val">${drg}</span></div>
+                <div class="pm-meta-chip"><span class="pm-meta-lbl">ITEM CODE</span><span class="pm-meta-val">${itemCodeVal}</span></div>
                 <div class="pm-meta-chip"><span class="pm-meta-lbl">PO NO</span><span class="pm-meta-val">${po}</span></div>
                 <div class="pm-meta-chip"><span class="pm-meta-lbl">INWARD DC</span><span class="pm-meta-val">${inDc}</span></div>
                 <div class="pm-meta-chip"><span class="pm-meta-lbl">QTY</span><span class="pm-meta-val">${qty}</span></div>
@@ -2909,6 +2919,7 @@ window.adminApp = {
             setVal('customer', existingOrder.customer);
             setVal('description', existingOrder.description);
             setVal('drawingNo', existingOrder.drawingNo);
+            setVal('itemCode', existingOrder.itemCode);
             setVal('billNo', existingOrder.billNo || '');
             setVal('department', existingOrder.department);
             setVal('labourCost', existingOrder.labourCost || 0);
@@ -3014,6 +3025,7 @@ window.adminApp = {
         setVal('customer', order.customer);
         setVal('description', order.description);
         setVal('drawingNo', order.drawingNo);
+        setVal('itemCode', order.itemCode);
         if (order.billNo) {
             setVal('billNo', order.billNo);
             const firstBillRow = document.querySelector('#dc-rows-container [name="billNo_row"]');
@@ -3079,6 +3091,7 @@ window.adminApp = {
             date: formData.get('date'),
             customer: (formData.get('customer') || '').trim().toUpperCase(),
             drawingNo: (formData.get('drawingNo') || '').trim().toUpperCase(),
+            itemCode: (formData.get('itemCode') || '').trim().toUpperCase(),
             billNo: formData.get('billNo')?.trim() || '',
             description: (formData.get('description') || '').trim().toUpperCase(),
             internalOrderNo: formData.get('internalOrderNo')?.trim() || '',
@@ -3963,6 +3976,7 @@ window.adminApp = {
                     <td style="vertical-align: top; padding-top: 1rem;"><span class="order-id-badge">${ioNo}</span></td>
                     <td style="vertical-align: top; padding-top: 1rem; color: #64748b; font-size: 13px; font-weight: 500;">${internalOrderDate}</td>
                     <td style="vertical-align: top; padding-top: 1rem;"><span style="font-weight: 600; color: var(--brand-600);">${order.drawingNo || '-'}</span></td>
+                    <td style="vertical-align: top; padding-top: 1rem; text-align: center;"><span style="font-weight: 600; color: #475569; font-family: 'JetBrains Mono', monospace; font-size: 12px;">${order.itemCode || '-'}</span></td>
                     <td style="vertical-align: top; padding-top: 1rem;"><div style="max-height: 80px; overflow-y: auto; font-size: 13px;">${order.description || '-'}</div></td>
                     <td style="font-weight: 600; text-align: center; vertical-align: top; padding-top: 1rem;">${order.qty || '-'}</td>
                     <td style="text-align: center; vertical-align: top; padding-top: 1rem;">${order.qtyUnit || '-'}</td>
@@ -4168,7 +4182,7 @@ window.adminApp = {
         }
 
         const headers = [
-            'S.No', 'In. Order No', 'IO Date', 'Drg No', 'Description', 'Qty', 'Unit', 'Value', 
+            'S.No', 'In. Order No', 'IO Date', 'Drg No', 'Item Code', 'Description', 'Qty', 'Unit', 'Value', 
             'Customer', 'Status', 'Update', 'Priority', 'Department', 'Planned Del. Date', 
             'Delivery Date', 'Comments', 'Assigned Date', 'Assigned To'
         ];
@@ -4198,6 +4212,7 @@ window.adminApp = {
                 escapeCSV(o.internalOrderNo || o.id),
                 formatDate(o.date),
                 escapeCSV(o.drawingNo),
+                escapeCSV(o.itemCode),
                 escapeCSV(o.description),
                 escapeCSV(o.qty),
                 escapeCSV(o.qtyUnit),
@@ -4409,6 +4424,7 @@ window.adminApp = {
             id: o.id || '',
             internalOrderNo: o.internalOrderNo || '',
             drawingNo: o.drawingNo || '',
+            itemCode: o.itemCode || '',
             description: o.description || '',
             customer: o.customer || '',
             qty: o.qty || '',
@@ -4425,6 +4441,7 @@ window.adminApp = {
             id: o.id || '',
             internalOrderNo: o.internalOrderNo || '',
             drawingNo: o.drawingNo || '',
+            itemCode: o.itemCode || '',
             description: o.description || '',
             customer: o.customer || '',
             priority: o.priority || 'normal',
@@ -4439,6 +4456,7 @@ window.adminApp = {
             customer: o.customer || '',
             description: o.description || '',
             drawingNo: o.drawingNo || '',
+            itemCode: o.itemCode || '',
             deliveryQty: o.deliveryQty || o.qty || 0,
             dcNo: o.dcNo || '-',
             total: o.total || 0
@@ -5279,6 +5297,7 @@ window.adminApp.loadContractReview = async (projectId) => {
         // Customer Data — pull from saved review, then matching internal order, then project
         setVal('cr-po-no', reviewData.poNo || (matchingOrder ? matchingOrder.poNo : '') || project.poNumber || '');
         setVal('cr-drawing-no', reviewData.drawingNo || (matchingOrder ? matchingOrder.drawingNo : '') || project.drawingNo || '');
+        setVal('cr-item-code', reviewData.itemCode || (matchingOrder ? matchingOrder.itemCode : '') || project.itemCode || '');
         setVal('cr-date', reviewData.date || today);
         setVal('cr-delivery-date', reviewData.deliveryDate || project.expectedCompletion || '');
         setVal('cr-contact-person', reviewData.contactPerson || '');
@@ -5351,6 +5370,7 @@ window.adminApp.saveContractReview = async (action) => {
         // Customer Data
         poNo: getVal('cr-po-no'),
         drawingNo: getVal('cr-drawing-no'),
+        itemCode: getVal('cr-item-code'),
         date: getVal('cr-date'),
         deliveryDate: getVal('cr-delivery-date'),
         contactPerson: getVal('cr-contact-person'),
@@ -5429,6 +5449,7 @@ window.adminApp.saveContractReview = async (action) => {
             crDecisionOa: reviewData.decisionOa || '',
             crDecisionCap: reviewData.decisionCap || '',
             drawingNo: reviewData.drawingNo || project.drawingNo || '',
+            itemCode: reviewData.itemCode || project.itemCode || '',
             poNo: reviewData.poNo || project.poNo || ''
         };
         Object.assign(project, crUpdates);
@@ -5794,6 +5815,7 @@ window.adminApp.buildUnifiedProjectRows = () => {
             poNo: order.poNo || (proj ? (proj.poNo || proj.poNumber) : '') || '-',
             inwardDc: order.customerDcNo || (proj ? proj.customerDcNo : '') || '-',
             drawingNo: order.drawingNo || (proj ? proj.drawingNo : '') || '-',
+            itemCode: order.itemCode || (proj ? proj.itemCode : '') || '-',
             description: order.description || (proj ? (proj.projectDescription || proj.name || proj.projectName) : '') || '-',
             qty,
             unit: order.qtyUnit || order.unit || 'Nos',
@@ -5854,6 +5876,7 @@ window.adminApp.buildUnifiedProjectRows = () => {
             poNo: proj.poNo || proj.poNumber || '-',
             inwardDc: proj.customerDcNo || '-',
             drawingNo: proj.drawingNo || '-',
+            itemCode: proj.itemCode || '-',
             description: proj.projectDescription || proj.name || proj.projectName || '-',
             qty,
             unit: proj.qtyUnit || 'Nos',
@@ -5924,6 +5947,7 @@ window.adminApp.renderProjectOverview = () => {
             String(r.customer).toLowerCase().includes(searchVal) ||
             String(r.poNo).toLowerCase().includes(searchVal) ||
             String(r.drawingNo).toLowerCase().includes(searchVal) ||
+            String(r.itemCode).toLowerCase().includes(searchVal) ||
             String(r.description).toLowerCase().includes(searchVal) ||
             String(r.accountability).toLowerCase().includes(searchVal) ||
             String(r.teamLeader).toLowerCase().includes(searchVal);
@@ -5980,7 +6004,7 @@ window.adminApp.renderProjectOverview = () => {
     }
 
     if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="23" style="text-align: center; padding: 3rem; color: #94a3b8; font-weight: 500;">No matching projects or internal orders found for the selected filters.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="24" style="text-align: center; padding: 3rem; color: #94a3b8; font-weight: 500;">No matching projects or internal orders found for the selected filters.</td></tr>`;
         return;
     }
 
@@ -6050,6 +6074,7 @@ window.adminApp.renderProjectOverview = () => {
                 <td style="font-size: 0.78rem; color: #334155; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.poNo}">${r.poNo}</td>
                 <td style="font-size: 0.78rem; color: #334155; white-space: nowrap;">${r.inwardDc}</td>
                 <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.76rem; color: #334155; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.drawingNo}">${r.drawingNo}</td>
+                <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.76rem; color: #334155; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center;" title="${r.itemCode || '-'}">${r.itemCode || '-'}</td>
                 <td style="max-width: 210px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #1e293b; font-weight: 500;" class="section-end" title="${r.description}">${r.description}</td>
 
                 <!-- Group 2 (6 cols): CR Status, Team, Accountability (PL), Team Leader, Target Del., OA -->
@@ -6133,7 +6158,7 @@ window.adminApp.exportProjectOverviewCSV = () => {
     }
 
     const headers = [
-        'S.No', 'IO No', 'WO Date', 'Customer', 'PO No', 'Inward DC', 'Drawing No', 'Description', 'Order Qty',
+        'S.No', 'IO No', 'WO Date', 'Customer', 'PO No', 'Inward DC', 'Drawing No', 'Item Code', 'Description', 'Order Qty',
         'Workflow Status', 'CR Filed', 'Dept / Team', 'PL / Accountability', 'Team Leader', 'Target Delivery', 'Order Acceptance',
         'Sale Value', 'Total Expenses', 'Profit / Loss', 'Margin %',
         'Delivered Qty', 'Pending Qty', 'Delivery Status'
@@ -6151,6 +6176,7 @@ window.adminApp.exportProjectOverviewCSV = () => {
             r.poNo,
             r.inwardDc,
             r.drawingNo,
+            r.itemCode || '-',
             r.description,
             r.qty,
             r.workflowStatus,
@@ -6874,12 +6900,14 @@ window.adminApp.syncCrOrderField = async (field, value) => {
     if (headerStats && window.adminApp.viewProjectDetails) {
         const cust = (project.customerName || matchingOrder?.customer || '-').toUpperCase();
         const drg = (project.drawingNo || matchingOrder?.drawingNo || '-').toUpperCase();
+        const itemCodeVal = (project.itemCode || matchingOrder?.itemCode || '-').toUpperCase();
         const po = project.poNo || matchingOrder?.poNo || '-';
         const inDc = matchingOrder?.customerDcNo || project.customerDcNo || '-';
         const q = matchingOrder?.qty || project.orderQty || '-';
         headerStats.innerHTML = `
             <div class="pm-meta-chip"><span class="pm-meta-lbl">CUSTOMER</span><span class="pm-meta-val">${cust}</span></div>
             <div class="pm-meta-chip"><span class="pm-meta-lbl">DRG NO</span><span class="pm-meta-val">${drg}</span></div>
+            <div class="pm-meta-chip"><span class="pm-meta-lbl">ITEM CODE</span><span class="pm-meta-val">${itemCodeVal}</span></div>
             <div class="pm-meta-chip"><span class="pm-meta-lbl">PO NO</span><span class="pm-meta-val">${po}</span></div>
             <div class="pm-meta-chip"><span class="pm-meta-lbl">INWARD DC</span><span class="pm-meta-val">${inDc}</span></div>
             <div class="pm-meta-chip"><span class="pm-meta-lbl">QTY</span><span class="pm-meta-val">${q}</span></div>

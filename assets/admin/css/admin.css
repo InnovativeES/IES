@@ -3306,7 +3306,7 @@ tr.row-deleted {
     font-family: 'Inter', sans-serif;
 }
 
-#monitoring-table td:nth-child(9) {
+#monitoring-table td:nth-child(10) {
     /* Total Value */
     font-weight: 700;
 }
@@ -3329,7 +3329,7 @@ tr.row-deleted {
     word-break: break-word;
 }
 
-#monitoring-table td:nth-child(20) {
+#monitoring-table td:nth-child(21) {
     /* Status Column */
     padding-right: 0.25rem;
 }
@@ -6163,8 +6163,8 @@ tr.row-deleted {
     top: 0 !important;
     left: 449px !important;
     z-index: 78 !important;
-    width: 380px !important;
-    min-width: 380px !important;
+    width: 490px !important;
+    min-width: 490px !important;
     background: #162032 !important;
     box-shadow: inset 0 -2px 0 #64748b !important;
     color: #cbd5e1 !important;
@@ -6259,6 +6259,18 @@ tr.row-deleted {
     position: sticky !important;
     top: 31px !important;
     left: 569px !important;
+    z-index: 77 !important;
+    width: 110px !important;
+    min-width: 110px !important;
+    max-width: 110px !important;
+    background: #1e293b !important;
+    color: #cbd5e1 !important;
+}
+
+#monitoring-table .header-column-row th:nth-child(6) {
+    position: sticky !important;
+    top: 31px !important;
+    left: 679px !important;
     z-index: 76 !important;
     width: 260px !important;
     min-width: 260px !important;
@@ -6269,31 +6281,31 @@ tr.row-deleted {
 }
 
 /* Remaining Group Sub-Headers in Tier 2 */
-#monitoring-table .header-column-row th:nth-child(6),
 #monitoring-table .header-column-row th:nth-child(7),
 #monitoring-table .header-column-row th:nth-child(8),
 #monitoring-table .header-column-row th:nth-child(9),
-#monitoring-table .header-column-row th:nth-child(10) {
+#monitoring-table .header-column-row th:nth-child(10),
+#monitoring-table .header-column-row th:nth-child(11) {
     background: #193838 !important;
     color: #cbd5e1 !important;
 }
 
-#monitoring-table .header-column-row th:nth-child(11),
 #monitoring-table .header-column-row th:nth-child(12),
 #monitoring-table .header-column-row th:nth-child(13),
 #monitoring-table .header-column-row th:nth-child(14),
 #monitoring-table .header-column-row th:nth-child(15),
 #monitoring-table .header-column-row th:nth-child(16),
-#monitoring-table .header-column-row th:nth-child(17) {
+#monitoring-table .header-column-row th:nth-child(17),
+#monitoring-table .header-column-row th:nth-child(18) {
     background: #1e293b !important;
     color: #cbd5e1 !important;
 }
 
-#monitoring-table .header-column-row th:nth-child(18),
 #monitoring-table .header-column-row th:nth-child(19),
 #monitoring-table .header-column-row th:nth-child(20),
 #monitoring-table .header-column-row th:nth-child(21),
-#monitoring-table .header-column-row th:nth-child(22) {
+#monitoring-table .header-column-row th:nth-child(22),
+#monitoring-table .header-column-row th:nth-child(23) {
     background: #1a3647 !important;
     color: #cbd5e1 !important;
 }
@@ -6304,10 +6316,10 @@ tr.row-deleted {
 
 /* Strong Vertical Section Dividers in Sub-Header Row */
 #monitoring-table .header-column-row th:nth-child(3),
-#monitoring-table .header-column-row th:nth-child(5),
-#monitoring-table .header-column-row th:nth-child(10),
-#monitoring-table .header-column-row th:nth-child(17),
-#monitoring-table .header-column-row th:nth-child(22) {
+#monitoring-table .header-column-row th:nth-child(6),
+#monitoring-table .header-column-row th:nth-child(11),
+#monitoring-table .header-column-row th:nth-child(18),
+#monitoring-table .header-column-row th:nth-child(23) {
     border-right: 1.5px solid rgba(255, 255, 255, 0.25) !important;
 }
 
@@ -6328,10 +6340,10 @@ tr.row-deleted {
 /* Major Vertical Section Boundaries in Body: Col 1, Col 4, Col 6, Col 11, Col 18, Col 23 */
 #monitoring-table.excel-style-table tbody td:nth-child(1),
 #monitoring-table.excel-style-table tbody td:nth-child(4),
-#monitoring-table.excel-style-table tbody td:nth-child(6),
-#monitoring-table.excel-style-table tbody td:nth-child(11),
-#monitoring-table.excel-style-table tbody td:nth-child(18),
-#monitoring-table.excel-style-table tbody td:nth-child(23),
+#monitoring-table.excel-style-table tbody td:nth-child(7),
+#monitoring-table.excel-style-table tbody td:nth-child(12),
+#monitoring-table.excel-style-table tbody td:nth-child(19),
+#monitoring-table.excel-style-table tbody td:nth-child(24),
 #monitoring-table.excel-style-table tbody td.section-end {
     border-right: 1.5px solid #cbd5e1 !important;
 }
@@ -6393,6 +6405,18 @@ tr.row-deleted {
 #monitoring-table tbody td:nth-child(6) {
     position: sticky !important;
     left: 569px !important;
+    z-index: 26 !important;
+    width: 110px !important;
+    min-width: 110px !important;
+    max-width: 110px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    text-align: center !important;
+}
+#monitoring-table tbody td:nth-child(7) {
+    position: sticky !important;
+    left: 679px !important;
     z-index: 25 !important;
     width: 260px !important;
     min-width: 260px !important;
@@ -6404,37 +6428,37 @@ tr.row-deleted {
 }
 
 /* Opaque Solid Backgrounds for Frozen Columns in Table Body */
-#monitoring-table tbody td:nth-child(-n+6) {
+#monitoring-table tbody td:nth-child(-n+7) {
     background-color: #ffffff;
 }
-#monitoring-table tbody tr.row-pending td:nth-child(-n+6) {
+#monitoring-table tbody tr.row-pending td:nth-child(-n+7) {
     background-color: #ffffff;
 }
-#monitoring-table tbody tr.row-pending:hover td:nth-child(-n+6) {
+#monitoring-table tbody tr.row-pending:hover td:nth-child(-n+7) {
     background-color: #f8fafc;
 }
-#monitoring-table tbody tr.row-portion td:nth-child(-n+6) {
+#monitoring-table tbody tr.row-portion td:nth-child(-n+7) {
     background-color: #fefce8;
 }
-#monitoring-table tbody tr.row-portion:hover td:nth-child(-n+6) {
+#monitoring-table tbody tr.row-portion:hover td:nth-child(-n+7) {
     background-color: #fef9c3;
 }
-#monitoring-table tbody tr.row-delivered td:nth-child(-n+6) {
+#monitoring-table tbody tr.row-delivered td:nth-child(-n+7) {
     background-color: #ecfdf5;
 }
-#monitoring-table tbody tr.row-delivered:hover td:nth-child(-n+6) {
+#monitoring-table tbody tr.row-delivered:hover td:nth-child(-n+7) {
     background-color: #d1fae5;
 }
-#monitoring-table tbody tr.row-closed td:nth-child(-n+6) {
+#monitoring-table tbody tr.row-closed td:nth-child(-n+7) {
     background-color: #f8fafc;
 }
-#monitoring-table tbody tr.row-closed:hover td:nth-child(-n+6) {
+#monitoring-table tbody tr.row-closed:hover td:nth-child(-n+7) {
     background-color: #f1f5f9;
 }
-#monitoring-table tbody tr.row-deleted td:nth-child(-n+6) {
+#monitoring-table tbody tr.row-deleted td:nth-child(-n+7) {
     background-color: #fef2f2;
 }
-#monitoring-table tbody tr.row-deleted:hover td:nth-child(-n+6) {
+#monitoring-table tbody tr.row-deleted:hover td:nth-child(-n+7) {
     background-color: #fee2e2;
 }
 #monitoring-table tbody tr.row-pending {

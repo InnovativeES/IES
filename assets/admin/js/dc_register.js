@@ -71,7 +71,8 @@ export const buildDCDataset = (orders = []) => {
         const deliveredQty = parseFloat(d.deliveryQty) || parseFloat(d.qty) || 0;
         const qtyUnit = d.qtyUnit || (matchedBase ? matchedBase.qtyUnit : '') || 'Nos';
         const customer = d.customer || (matchedBase ? matchedBase.customer : '-') || '-';
-        const drgNo = d.drawingNo || d.itemCode || (matchedBase ? (matchedBase.drawingNo || matchedBase.itemCode) : '') || '-';
+        const drgNo = d.drawingNo || (matchedBase ? matchedBase.drawingNo : '') || '-';
+        const itemCode = d.itemCode || (matchedBase ? matchedBase.itemCode : '') || '-';
         const description = d.description || (matchedBase ? matchedBase.description : '') || '-';
         const billNo = (d.billNo ? d.billNo : (matchedBase && matchedBase.billNo ? matchedBase.billNo : '')) || '-';
 
@@ -90,6 +91,7 @@ export const buildDCDataset = (orders = []) => {
             billNo: billNo,
             customer: customer,
             drawingNo: drgNo,
+            itemCode: itemCode,
             description: description,
             orderedQty: orderedQty || '-',
             qtyUnit: qtyUnit,
@@ -143,7 +145,8 @@ export const buildDCDataset = (orders = []) => {
             internalOrderNo: bo.internalOrderNo || '-',
             billNo: billNo,
             customer: bo.customer || '-',
-            drawingNo: bo.drawingNo || bo.itemCode || '-',
+            drawingNo: bo.drawingNo || '-',
+            itemCode: bo.itemCode || '-',
             description: bo.description || '-',
             orderedQty: orderedQty || '-',
             qtyUnit: qtyUnit,
@@ -229,7 +232,7 @@ export const renderDCTable = (orders = null) => {
 
         let matchesSearch = true;
         if (searchTerm) {
-            const searchStr = `${entry.dcNo} ${entry.internalOrderNo} ${entry.billNo || ''} ${entry.customer} ${entry.drawingNo} ${entry.description}`.toLowerCase();
+            const searchStr = `${entry.dcNo} ${entry.internalOrderNo} ${entry.billNo || ''} ${entry.customer} ${entry.drawingNo} ${entry.itemCode || ''} ${entry.description}`.toLowerCase();
             matchesSearch = searchStr.includes(searchTerm);
         }
 
@@ -440,6 +443,7 @@ export const renderDCTable = (orders = null) => {
             <td class="text-left text-slate-700 font-mono text-xs whitespace-nowrap truncate" title="${t(entry.billNo)}">${t(entry.billNo)}</td>
             <td class="text-left text-slate-800 font-bold truncate" title="${t(entry.customer).toString().toUpperCase()}">${t(entry.customer).toString().toUpperCase()}</td>
             <td class="text-left text-slate-700 font-mono text-xs font-semibold truncate" title="${t(entry.drawingNo).toString().toUpperCase()}">${t(entry.drawingNo).toString().toUpperCase()}</td>
+            <td class="text-left text-slate-700 font-mono text-xs truncate" title="${t(entry.itemCode || '-').toString().toUpperCase()}">${t(entry.itemCode || '-').toString().toUpperCase()}</td>
             <td class="text-left text-slate-700 font-medium truncate" title="${t(entry.description).toString().toUpperCase()}">${t(entry.description).toString().toUpperCase()}</td>
             <td class="text-right tabular-nums text-slate-700 font-semibold">${t(entry.orderedQty)}</td>
             <td class="text-center text-slate-500 text-xs font-medium">${t(entry.qtyUnit)}</td>
@@ -478,6 +482,7 @@ export const exportDCCSV = () => {
         "Bill No",
         "Customer",
         "Drawing No",
+        "Item Code",
         "Description",
         "Ordered Qty",
         "Unit",
@@ -494,6 +499,7 @@ export const exportDCCSV = () => {
         `"${e.billNo || '-'}"`,
         `"${(e.customer || '-').replace(/"/g, '""')}"`,
         `"${(e.drawingNo || '-').replace(/"/g, '""')}"`,
+        `"${(e.itemCode || '-').replace(/"/g, '""')}"`,
         `"${(e.description || '-').replace(/"/g, '""')}"`,
         e.orderedQty || 0,
         `"${e.qtyUnit || 'Nos'}"`,

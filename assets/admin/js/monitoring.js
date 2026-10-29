@@ -104,7 +104,7 @@ export const renderTable = (orders) => {
 
         let matchesSearch = true;
         if (searchTerm) {
-            const searchStr = `${order.internalOrderNo} ${order.customer} ${order.description} ${order.poNo} ${order.customerDcNo || ''} ${order.drawingNo || ''}`.toLowerCase();
+            const searchStr = `${order.internalOrderNo} ${order.customer} ${order.description} ${order.poNo} ${order.customerDcNo || ''} ${order.drawingNo || ''} ${order.itemCode || ''}`.toLowerCase();
             matchesSearch = searchStr.includes(searchTerm);
         }
 
@@ -156,7 +156,7 @@ export const renderTable = (orders) => {
     const paginatedOrders = processedOrders.slice(startIdx, endIdx);
 
     if (totalItems === 0) {
-        tbody.innerHTML = '<tr><td colspan="24" style="padding: 3rem; text-align: center; color: #64748b;">No orders found matching filters.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="25" style="padding: 3rem; text-align: center; color: #64748b;">No orders found matching filters.</td></tr>';
         if (paginationInfo) paginationInfo.textContent = 'Showing 0 to 0 of 0 entries';
         if (paginationControls) paginationControls.innerHTML = '';
         return;
@@ -282,6 +282,7 @@ export const renderTable = (orders) => {
             <td>${formatDate(order.date)}</td>
             <td class="text-center">${statusHtml}</td>
             <td>${tUpper(order.drawingNo)}</td>
+            <td class="text-center font-mono">${tUpper(order.itemCode)}</td>
             <td class="truncate" style="min-width: 260px; max-width: 260px; width: 260px;" title="${tUpper(order.description)}">${tUpper(order.description)}</td>
             <td class="text-right">${t(order.qty)}</td>
             <td>${t(order.qtyUnit)}</td>
@@ -344,7 +345,7 @@ export const handleAddOrder = async () => {
     });
 
     // Enforce ALL CAPS for Drawing No, Description, and Customer Name
-    ['drawingNo', 'description', 'customer'].forEach(field => {
+    ['drawingNo', 'itemCode', 'description', 'customer'].forEach(field => {
         if (data[field]) data[field] = String(data[field]).trim().toUpperCase();
     });
 
@@ -444,6 +445,7 @@ export const handleAddOrder = async () => {
                         jobType: data.department || 'CNC',
                         drawingSource: 'Customer Supplied',
                         drawingNo: data.drawingNo || '',
+                        itemCode: data.itemCode || '',
                         poNo: data.poNo || '',
                         poDate: data.poDate || '',
                         customerDcNo: data.customerDcNo || '',
@@ -500,7 +502,7 @@ export const populateForm = (order) => {
             el.checked = order[el.name] === 'y';
         } else if (order[el.name] !== undefined) {
             const val = order[el.name];
-            if (['drawingNo', 'description', 'customer'].includes(el.name) && val) {
+            if (['drawingNo', 'itemCode', 'description', 'customer'].includes(el.name) && val) {
                 el.value = String(val).toUpperCase();
             } else if (el.name === 'saleValueEa' && val !== '' && val !== null && !isNaN(parseFloat(val))) {
                 el.value = parseFloat(val).toFixed(2);
@@ -682,7 +684,7 @@ export const exportToCSV = () => {
         }
         let matchesSearch = true;
         if (searchTerm) {
-            const searchStr = `${order.internalOrderNo} ${order.customer} ${order.description} ${order.poNo} ${order.customerDcNo || ''} ${order.drawingNo || ''}`.toLowerCase();
+            const searchStr = `${order.internalOrderNo} ${order.customer} ${order.description} ${order.poNo} ${order.customerDcNo || ''} ${order.drawingNo || ''} ${order.itemCode || ''}`.toLowerCase();
             matchesSearch = searchStr.includes(searchTerm);
         }
         return matchesMonth && matchesSearch && order.entryType !== 'delivery_report';
@@ -717,7 +719,7 @@ export const exportToCSV = () => {
 
         // Define Headers matching Internal Orders table structure
         const headers = [
-            'S.No', 'Internal Order No', 'Date', 'Drg No', 'Description', 'Qty', 'Unit',
+            'S.No', 'Internal Order No', 'Date', 'Drg No', 'Item Code', 'Description', 'Qty', 'Unit',
             'Sale Value Ea', /* 'In-House Value', 'Outsource Value', */ 'Labor', 'Total Value',
             'Customer', 'PO No', 'PO Date', 'Inward DC', 'Drg Available', 'Raw Available', 'Finish Available',
             'Del Date Actual', 'DC No', 'Del Qty', 'Pending Qty', 'Bill No', 'Status'
@@ -788,6 +790,7 @@ export const exportToCSV = () => {
                 escapeCSV(o.internalOrderNo || '-'),
                 escapeCSV(formatDate(o.date)),
                 escapeCSV(o.drawingNo ? String(o.drawingNo).toUpperCase() : '-'),
+                escapeCSV(o.itemCode ? String(o.itemCode).toUpperCase() : '-'),
                 escapeCSV(o.description ? String(o.description).toUpperCase() : '-'),
                 o.qty || 0,
                 escapeCSV(o.qtyUnit || '-'),
