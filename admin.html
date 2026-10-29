@@ -32,7 +32,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js" type="module"></script>
 
     <!-- Admin Styles -->
-    <link rel="stylesheet" href="assets/admin/css/admin.css?v=19">
+    <link rel="stylesheet" href="assets/admin/css/admin.css?v=20">
     <link rel="stylesheet" href="assets/admin/css/delivery-modal.css?v=13">
     <link rel="stylesheet" href="assets/admin/css/project.css?v=13">
     <link rel="stylesheet" href="assets/admin/css/pm-theme.css?v=14">
@@ -2787,10 +2787,15 @@
                                 <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                             </div>
                         </div>
-                        <div class="filter-group" style="min-width: 130px;">
-                            <label class="filter-label text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Month</label>
-                            <input type="month" id="po-overview-month" class="filter-input w-full py-1.5 px-2 text-xs font-semibold border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none"
-                                onchange="window.adminApp.renderProjectOverview()">
+                        <div class="filter-group filter-group-period" style="min-width: 270px;">
+                            <label class="filter-label text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Period (Month to Month)</label>
+                            <div class="period-inputs-wrap flex items-center gap-1.5">
+                                <input type="month" id="po-overview-month-from" class="filter-input" title="From Month"
+                                    onchange="window.adminApp.renderProjectOverview()">
+                                <span class="period-sep text-xs text-slate-400 font-bold">to</span>
+                                <input type="month" id="po-overview-month-to" class="filter-input" title="To Month"
+                                    onchange="window.adminApp.renderProjectOverview()">
+                            </div>
                         </div>
                         <div class="filter-group" style="min-width: 140px;">
                             <label class="filter-label text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Team / Dept</label>
@@ -2828,7 +2833,7 @@
                             </select>
                         </div>
                         <div class="filter-group flex items-end">
-                            <button type="button" class="btn btn-secondary btn-sm h-[32px] px-3 text-xs flex items-center gap-1 font-semibold" onclick="document.getElementById('po-overview-search').value=''; document.getElementById('po-overview-month').value=''; document.getElementById('po-overview-dept').value='all'; document.getElementById('po-overview-cr-status').value='all'; document.getElementById('po-overview-del-status').value='all'; window.adminApp.renderProjectOverview();" title="Reset all filters">
+                            <button type="button" class="btn btn-secondary btn-sm h-[32px] px-3 text-xs flex items-center gap-1 font-semibold" onclick="document.getElementById('po-overview-search').value=''; document.getElementById('po-overview-month-from').value=''; document.getElementById('po-overview-month-to').value=''; document.getElementById('po-overview-dept').value='all'; document.getElementById('po-overview-cr-status').value='all'; document.getElementById('po-overview-del-status').value='all'; window.adminApp.renderProjectOverview();" title="Reset all filters">
                                 ↻ Reset
                             </button>
                         </div>
@@ -5645,7 +5650,7 @@
 
     <!-- Application Script -->
 
-    <script type="module" src="assets/admin/js/app.js?v=46"></script>
+    <script type="module" src="assets/admin/js/app.js?v=47"></script>
 
     <!-- Mobile Sidebar Toggle Script -->
     <script>

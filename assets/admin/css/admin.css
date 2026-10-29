@@ -8591,3 +8591,28 @@ body:has(#view-monitoring:not(.hidden)) #main-content,
     box-shadow: 0 2px 6px rgba(217, 119, 6, 0.35) !important;
     transform: translateY(-1px);
 }
+
+/* Master Overview Month-to-Month Period Filter */
+.po-filter-toolbar .filter-group.filter-group-period {
+    min-width: 270px !important;
+}
+
+.po-filter-toolbar .period-inputs-wrap {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+}
+
+.po-filter-toolbar .period-inputs-wrap .filter-input {
+    width: 125px !important;
+    height: 36px !important;
+    font-size: 0.78rem !important;
+    padding: 0 6px !important;
+}
+
+.po-filter-toolbar .period-sep {
+    font-size: 0.75rem !important;
+    font-weight: 700 !important;
+    color: #64748b !important;
+    text-transform: uppercase !important;
+}

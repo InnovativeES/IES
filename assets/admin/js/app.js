@@ -5896,10 +5896,27 @@ window.adminApp.renderProjectOverview = () => {
     const allRows = window.adminApp.buildUnifiedProjectRows();
 
     const searchVal = (document.getElementById('po-overview-search')?.value || '').toLowerCase().trim();
-    const selectedMonth = (document.getElementById('po-overview-month')?.value || '').trim();
+    const monthFrom = (document.getElementById('po-overview-month-from')?.value || document.getElementById('po-overview-month')?.value || '').trim();
+    const monthTo = (document.getElementById('po-overview-month-to')?.value || '').trim();
     const selectedDept = document.getElementById('po-overview-dept')?.value || 'all';
     const selectedCr = document.getElementById('po-overview-cr-status')?.value || 'all';
     const selectedDel = document.getElementById('po-overview-del-status')?.value || 'all';
+
+    const getYearMonth = (dateStr) => {
+        if (!dateStr || typeof dateStr !== 'string') return '';
+        const clean = dateStr.trim();
+        if (clean.includes('-')) {
+            const parts = clean.split('-');
+            if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}`;
+            if (parts[2] && parts[2].length === 4) return `${parts[2]}-${parts[1].padStart(2, '0')}`;
+        }
+        if (clean.includes('/')) {
+            const parts = clean.split('/');
+            if (parts[2] && parts[2].length === 4) return `${parts[2]}-${parts[1].padStart(2, '0')}`;
+            if (parts[0] && parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}`;
+        }
+        return clean.slice(0, 7);
+    };
 
     const filtered = allRows.filter(r => {
         const matchesSearch = !searchVal ||
@@ -5911,7 +5928,22 @@ window.adminApp.renderProjectOverview = () => {
             String(r.accountability).toLowerCase().includes(searchVal) ||
             String(r.teamLeader).toLowerCase().includes(searchVal);
 
-        const matchesMonth = !selectedMonth || selectedMonth === 'all' || (r.woDate && r.woDate.startsWith(selectedMonth));
+        let matchesMonth = true;
+        if (monthFrom || monthTo) {
+            const rowMonth = getYearMonth(r.woDate);
+            if (!rowMonth) {
+                matchesMonth = false;
+            } else {
+                if (monthFrom && monthTo) {
+                    matchesMonth = rowMonth >= monthFrom && rowMonth <= monthTo;
+                } else if (monthFrom) {
+                    matchesMonth = rowMonth >= monthFrom;
+                } else if (monthTo) {
+                    matchesMonth = rowMonth <= monthTo;
+                }
+            }
+        }
+
         const matchesDept = selectedDept === 'all' || String(r.dept).toLowerCase() === selectedDept.toLowerCase();
         const matchesCr = selectedCr === 'all' ||
             (selectedCr === 'Pending' && r.crStatus !== 'Finalized') ||
@@ -5923,6 +5955,8 @@ window.adminApp.renderProjectOverview = () => {
 
         return matchesSearch && matchesMonth && matchesDept && matchesCr && matchesDel;
     });
+
+    window.adminApp.lastFilteredOverviewRows = filtered;
 
     // Update KPI Cards
     const totalCount = filtered.length;
@@ -6092,7 +6126,7 @@ window.adminApp.openOverviewWorkspace = async (ioNo, projectDocId, tab = 'review
 };
 
 window.adminApp.exportProjectOverviewCSV = () => {
-    const allRows = window.adminApp.buildUnifiedProjectRows();
+    const allRows = window.adminApp.lastFilteredOverviewRows || window.adminApp.buildUnifiedProjectRows();
     if (!allRows || allRows.length === 0) {
         alert('No data available to export.');
         return;
