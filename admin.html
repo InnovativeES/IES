@@ -32,10 +32,10 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js" type="module"></script>
 
     <!-- Admin Styles -->
-    <link rel="stylesheet" href="assets/admin/css/admin.css?v=22">
+    <link rel="stylesheet" href="assets/admin/css/admin.css?v=23">
     <link rel="stylesheet" href="assets/admin/css/delivery-modal.css?v=13">
     <link rel="stylesheet" href="assets/admin/css/project.css?v=13">
-    <link rel="stylesheet" href="assets/admin/css/pm-theme.css?v=14">
+    <link rel="stylesheet" href="assets/admin/css/pm-theme.css?v=15">
     <style>
         /* Force Printing in Landscape & Removing Browser headers/footers */
         @media print {
@@ -1382,7 +1382,7 @@
                                         <th class="text-center sortable" style="min-width: 165px; width: 165px;" onclick="window.adminApp.sort('status')">Status
                                         </th>
                                         <th class="text-center" style="width: 120px; min-width: 120px;">Drg No</th>
-                                        <th class="text-center" style="width: 110px; min-width: 110px;">Item Code</th>
+                                        <th class="text-center" style="width: 125px; min-width: 125px;">Item Code</th>
                                         <th style="min-width: 260px; width: 260px;">Description</th>
                                         <th class="text-right">Qty</th>
                                         <th>Unit</th>
@@ -3481,39 +3481,41 @@
 
                                     <!-- Card 4: Checklist Table -->
                                     <div class="cr-section-card flex-1 flex flex-col justify-between">
-                                        <table class="cr-card-table cr-checklist-table w-full h-full flex-1 border-collapse">
-                                            <colgroup>
-                                                <col style="width: 6%;"> <!-- S.No -->
-                                                <col style="width: 28%;"> <!-- Checklist -->
-                                                <col style="width: 6.5%;"> <!-- Req Yes -->
-                                                <col style="width: 6.5%;"> <!-- Req No -->
-                                                <col style="width: 6.5%;"> <!-- Out Ok -->
-                                                <col style="width: 6.5%;"> <!-- Out Nok -->
-                                                <col style="width: 6.5%;"> <!-- Out NA -->
-                                                <col style="width: 7.5%;"> <!-- Out More -->
-                                                <col style="width: 26%;"> <!-- Remarks -->
-                                            </colgroup>
-                                            <thead>
-                                                <tr class="cr-chk-group-row">
-                                                    <th rowspan="2" class="cr-chk-hdr-sno">S.NO</th>
-                                                    <th rowspan="2" class="cr-chk-hdr-item">CHECKLIST ITEMS</th>
-                                                    <th colspan="2" class="cr-chk-hdr-req">REQUIREMENT</th>
-                                                    <th colspan="4" class="cr-chk-hdr-out">REVIEW OUTCOME</th>
-                                                    <th rowspan="2" class="cr-chk-hdr-rem">REMARKS</th>
-                                                </tr>
-                                                <tr class="cr-chk-sub-row">
-                                                    <th>YES</th>
-                                                    <th class="cr-sec-sep">NO</th>
-                                                    <th>OK</th>
-                                                    <th>NOK</th>
-                                                    <th>N.A</th>
-                                                    <th class="cr-sec-sep">CLARITY</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody id="cr-excel-checklist">
-                                                <!-- JS injects checklist rows here -->
-                                            </tbody>
-                                        </table>
+                                        <div class="cr-checklist-scroll-wrapper" style="width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; flex: 1;">
+                                            <table class="cr-card-table cr-checklist-table w-full h-full flex-1 border-collapse" style="min-width: 640px;">
+                                                <colgroup>
+                                                    <col style="width: 6%;"> <!-- S.No -->
+                                                    <col style="width: 28%;"> <!-- Checklist -->
+                                                    <col style="width: 6.5%;"> <!-- Req Yes -->
+                                                    <col style="width: 6.5%;"> <!-- Req No -->
+                                                    <col style="width: 6.5%;"> <!-- Out Ok -->
+                                                    <col style="width: 6.5%;"> <!-- Out Nok -->
+                                                    <col style="width: 6.5%;"> <!-- Out NA -->
+                                                    <col style="width: 7.5%;"> <!-- Out More -->
+                                                    <col style="width: 26%;"> <!-- Remarks -->
+                                                </colgroup>
+                                                <thead>
+                                                    <tr class="cr-chk-group-row">
+                                                        <th rowspan="2" class="cr-chk-hdr-sno">S.NO</th>
+                                                        <th rowspan="2" class="cr-chk-hdr-item">CHECKLIST ITEMS</th>
+                                                        <th colspan="2" class="cr-chk-hdr-req">REQUIREMENT</th>
+                                                        <th colspan="4" class="cr-chk-hdr-out">REVIEW OUTCOME</th>
+                                                        <th rowspan="2" class="cr-chk-hdr-rem">REMARKS</th>
+                                                    </tr>
+                                                    <tr class="cr-chk-sub-row">
+                                                        <th>YES</th>
+                                                        <th class="cr-sec-sep">NO</th>
+                                                        <th>OK</th>
+                                                        <th>NOK</th>
+                                                        <th>N.A</th>
+                                                        <th class="cr-sec-sep">CLARITY</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="cr-excel-checklist">
+                                                    <!-- JS injects checklist rows here -->
+                                                </tbody>
+                                            </table>
+                                        </div>
 
                                         <!-- Add Special Requirement Bar -->
                                         <div class="px-3 py-2 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3 cr-no-print">
@@ -5674,7 +5676,7 @@
 
     <!-- Application Script -->
 
-    <script type="module" src="assets/admin/js/app.js?v=49"></script>
+    <script type="module" src="assets/admin/js/app.js?v=50"></script>
 
     <!-- Mobile Sidebar Toggle Script -->
     <script>

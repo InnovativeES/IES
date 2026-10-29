@@ -6163,8 +6163,8 @@ tr.row-deleted {
     top: 0 !important;
     left: 449px !important;
     z-index: 78 !important;
-    width: 490px !important;
-    min-width: 490px !important;
+    width: 505px !important;
+    min-width: 505px !important;
     background: #162032 !important;
     box-shadow: inset 0 -2px 0 #64748b !important;
     color: #cbd5e1 !important;
@@ -6260,9 +6260,9 @@ tr.row-deleted {
     top: 31px !important;
     left: 569px !important;
     z-index: 77 !important;
-    width: 110px !important;
-    min-width: 110px !important;
-    max-width: 110px !important;
+    width: 125px !important;
+    min-width: 125px !important;
+    max-width: 125px !important;
     background: #1e293b !important;
     color: #cbd5e1 !important;
 }
@@ -6270,7 +6270,7 @@ tr.row-deleted {
 #monitoring-table .header-column-row th:nth-child(6) {
     position: sticky !important;
     top: 31px !important;
-    left: 679px !important;
+    left: 694px !important;
     z-index: 76 !important;
     width: 260px !important;
     min-width: 260px !important;
@@ -6406,9 +6406,9 @@ tr.row-deleted {
     position: sticky !important;
     left: 569px !important;
     z-index: 26 !important;
-    width: 110px !important;
-    min-width: 110px !important;
-    max-width: 110px !important;
+    width: 125px !important;
+    min-width: 125px !important;
+    max-width: 125px !important;
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
@@ -6416,7 +6416,7 @@ tr.row-deleted {
 }
 #monitoring-table tbody td:nth-child(7) {
     position: sticky !important;
-    left: 679px !important;
+    left: 694px !important;
     z-index: 25 !important;
     width: 260px !important;
     min-width: 260px !important;
@@ -7047,8 +7047,10 @@ tr.row-deleted {
 /* Ensure active views fill available viewport height down to bottom with zero gap */
 body:has(#view-project_overview:not(.hidden)) #main-content,
 body:has(#view-monitoring:not(.hidden)) #main-content,
+body:has(#view-project_management:not(.hidden)) #main-content,
 #main-content:has(#view-project_overview:not(.hidden)),
-#main-content:has(#view-monitoring:not(.hidden)) {
+#main-content:has(#view-monitoring:not(.hidden)),
+#main-content:has(#view-project_management:not(.hidden)) {
     padding: 0.75rem 1.25rem 0.5rem 1.25rem !important;
     height: 100vh !important;
     max-height: 100vh !important;
@@ -7058,20 +7060,26 @@ body:has(#view-monitoring:not(.hidden)) #main-content,
 }
 
 #view-project_overview:not(.hidden),
-#view-monitoring:not(.hidden) {
+#view-monitoring:not(.hidden),
+#view-project_management:not(.hidden) {
     display: flex !important;
     flex-direction: column !important;
     flex: 1 1 0% !important;
     height: 100% !important;
     max-height: 100% !important;
     min-height: 0 !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
     overflow: hidden !important;
     padding: 0 !important;
     box-sizing: border-box !important;
 }
 
 #view-project_overview .po-table-container,
-#view-monitoring .table-container {
+#view-monitoring .table-container,
+#view-project_management .pm-list-view,
+#view-project_management .table-container {
     flex: 1 1 0% !important;
     height: 100% !important;
     min-height: 0 !important;
@@ -7086,7 +7094,8 @@ body:has(#view-monitoring:not(.hidden)) #main-content,
 }
 
 #view-project_overview .po-table-wrapper,
-#view-monitoring .table-wrapper {
+#view-monitoring .table-wrapper,
+#view-project_management .table-wrapper {
     flex: 1 1 0% !important;
     height: 100% !important;
     max-height: 100% !important;

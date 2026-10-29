@@ -1327,7 +1327,7 @@ window.adminApp = {
                     <td class="sticky-pm-io"><span class="io-order-pill">${p.projectId || '-'}</span></td>
                     <td class="font-bold text-slate-800">${(p.customerName || '-').toUpperCase()}</td>
                     <td class="font-mono text-slate-700 font-semibold">${String(drgNo).toUpperCase()}</td>
-                    <td class="font-mono text-slate-700 font-semibold text-center">${String(itemCode).toUpperCase()}</td>
+                    <td class="font-mono text-slate-700 font-semibold text-center whitespace-nowrap" style="min-width: 120px;">${String(itemCode).toUpperCase()}</td>
                     <td class="font-semibold text-slate-700 max-w-[220px] truncate" title="${(p.name || '').toUpperCase()}">${(p.name || '-').toUpperCase()}</td>
                     <td class="text-center"><span class="version-tag">${teamName}</span></td>
                     <td class="text-center">${crBadge}</td>
@@ -6074,7 +6074,7 @@ window.adminApp.renderProjectOverview = () => {
                 <td style="font-size: 0.78rem; color: #334155; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.poNo}">${r.poNo}</td>
                 <td style="font-size: 0.78rem; color: #334155; white-space: nowrap;">${r.inwardDc}</td>
                 <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.76rem; color: #334155; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.drawingNo}">${r.drawingNo}</td>
-                <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.76rem; color: #334155; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center;" title="${r.itemCode || '-'}">${r.itemCode || '-'}</td>
+                <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.76rem; color: #334155; min-width: 120px; white-space: nowrap; text-align: center;" title="${r.itemCode || '-'}">${r.itemCode || '-'}</td>
                 <td style="max-width: 210px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #1e293b; font-weight: 500;" class="section-end" title="${r.description}">${r.description}</td>
 
                 <!-- Group 2 (6 cols): CR Status, Team, Accountability (PL), Team Leader, Target Del., OA -->

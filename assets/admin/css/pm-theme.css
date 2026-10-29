@@ -499,9 +499,9 @@
     width: 100%;
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1320px) {
     #view-project_detail .cr-two-page-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr !important;
     }
 }
 
@@ -785,11 +785,18 @@
 }
 
 /* Responsive 2-Page Scaling & Dynamic Row Height Distribution */
-@media (min-width: 1025px) and (max-width: 1200px) {
-    #view-project_detail .cr-two-page-grid {
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr) !important;
-        gap: 0.65rem !important;
-    }
+/* Responsive Horizontal Scroll Wrapper for Checklist on smaller screens */
+.cr-checklist-scroll-wrapper {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+}
+
+#view-project_detail .cr-checklist-table {
+    min-width: 640px !important;
+    width: 100% !important;
 }
 
 /* Dynamic Height Checklist Table: 10+ items automatically expand/contract to fill Card 4 */
