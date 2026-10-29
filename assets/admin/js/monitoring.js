@@ -104,7 +104,7 @@ export const renderTable = (orders) => {
 
         let matchesSearch = true;
         if (searchTerm) {
-            const searchStr = `${order.internalOrderNo} ${order.customer} ${order.description} ${order.poNo} ${order.drawingNo || ''}`.toLowerCase();
+            const searchStr = `${order.internalOrderNo} ${order.customer} ${order.description} ${order.poNo} ${order.customerDcNo || ''} ${order.drawingNo || ''}`.toLowerCase();
             matchesSearch = searchStr.includes(searchTerm);
         }
 
@@ -156,13 +156,13 @@ export const renderTable = (orders) => {
     const paginatedOrders = processedOrders.slice(startIdx, endIdx);
 
     if (totalItems === 0) {
-        tbody.innerHTML = '<tr><td colspan="23" style="padding: 3rem; text-align: center; color: #64748b;">No orders found matching filters.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="24" style="padding: 3rem; text-align: center; color: #64748b;">No orders found matching filters.</td></tr>';
         if (paginationInfo) paginationInfo.textContent = 'Showing 0 to 0 of 0 entries';
         if (paginationControls) paginationControls.innerHTML = '';
         return;
     }
 
-    // Map delivery reports by IO No and by DC No for resolving delivery date, DC & Bill
+    // Map delivery reports by IO No and by DC No for resolving delivery date, DC, Bill & Delivered Qty
     const deliveryReportsByIo = new Map();
     const deliveryReportsByDc = new Map();
     orders.filter(o => o.entryType === 'delivery_report' && !o.isDeleted).forEach(d => {
@@ -170,14 +170,16 @@ export const renderTable = (orders) => {
         const io = (d.internalOrderNo || '').trim().toUpperCase();
         const dc = (d.dcNo || '').trim();
         const bill = (d.billNo || '').trim();
+        const delQty = parseFloat(d.deliveryQty) || 0;
         if (io) {
             if (!deliveryReportsByIo.has(io)) {
-                deliveryReportsByIo.set(io, { dates: [], dcs: [], bills: [] });
+                deliveryReportsByIo.set(io, { dates: [], dcs: [], bills: [], totalDelQty: 0 });
             }
             const entry = deliveryReportsByIo.get(io);
             if (date && !entry.dates.includes(date)) entry.dates.push(date);
             if (dc && !entry.dcs.includes(dc)) entry.dcs.push(dc);
             if (bill && !entry.bills.includes(bill)) entry.bills.push(bill);
+            entry.totalDelQty += delQty;
         }
         if (dc && date && !deliveryReportsByDc.has(dc)) deliveryReportsByDc.set(dc, date);
     });
@@ -187,10 +189,11 @@ export const renderTable = (orders) => {
         const tr = document.createElement('tr');
         let status = order.status ? order.status.toUpperCase() : '';
 
-        // Resolve delivery date, DC, and Bill from delivery reports if missing or pooled
+        // Resolve delivery date, DC, Bill, and Delivered Qty from delivery reports if missing or pooled
         let effectiveDelDate = order.deliveryDateActual;
         let effectiveDcNo = order.dcNo;
         let effectiveBillNo = order.billNo;
+        let effectiveDelQty = parseFloat(order.deliveryQty) || 0;
 
         if (!effectiveDelDate && effectiveDcNo && deliveryReportsByDc.has(effectiveDcNo.trim())) {
             effectiveDelDate = deliveryReportsByDc.get(effectiveDcNo.trim());
@@ -200,7 +203,11 @@ export const renderTable = (orders) => {
             if (!effectiveDelDate && match.dates.length > 0) effectiveDelDate = match.dates[match.dates.length - 1];
             if (!effectiveDcNo && match.dcs.length > 0) effectiveDcNo = match.dcs.join(', ');
             if (!effectiveBillNo && match.bills.length > 0) effectiveBillNo = match.bills.join(', ');
+            if (!effectiveDelQty && match.totalDelQty > 0) effectiveDelQty = match.totalDelQty;
         }
+
+        const totalOrderQty = parseFloat(order.qty) || 0;
+        const pendingQty = Math.max(0, totalOrderQty - effectiveDelQty);
 
         if (!isTrashMode) {
             if (status === 'DELIVERED') tr.className = 'row-delivered';
@@ -212,6 +219,7 @@ export const renderTable = (orders) => {
         }
 
         const t = (val) => val || '-';
+        const tUpper = (val) => val ? String(val).toUpperCase() : '-';
 
         let statusHtml = '';
         const isFC = order.forceClosed === true;
@@ -259,36 +267,45 @@ export const renderTable = (orders) => {
                 </div>`;
         }
 
-        const avail = (val) => val === 'y' ? '<span class="text-brand-600 font-bold">Y</span>' : '-';
+        const avail = (val) => val === 'y' ? '<span class="avail-badge avail-badge-y">Y</span>' : '<span class="avail-badge avail-badge-n">N</span>';
+        const formatPaisa = (val) => {
+            if (val === undefined || val === null || val === '' || val === '-') return '-';
+            const num = parseFloat(String(val).replace(/,/g, ''));
+            return isNaN(num) ? val : num.toFixed(2);
+        };
 
         tr.innerHTML = `
             <td>${startIdx + index + 1}</td>
             <td class="font-medium" style="white-space: nowrap;">
-                ${order.internalOrderNo ? `<a href="#" onclick="event.preventDefault(); window.adminApp.wfOpenProject('${order.internalOrderNo}')" style="color: #0d9488; text-decoration: underline;" title="Open Project">${order.internalOrderNo}</a>` : '-'}
+                ${order.internalOrderNo ? `<a href="#" class="io-order-pill" onclick="event.preventDefault(); window.adminApp.wfOpenProject('${order.internalOrderNo}')" title="Open Project">${order.internalOrderNo}</a>` : '-'}
             </td>
             <td>${formatDate(order.date)}</td>
-            <td>${t(order.drawingNo)}</td>
-            <td class="truncate" style="max-width: 150px;" title="${t(order.description)}">${t(order.description)}</td>
+            <td class="text-center">${statusHtml}</td>
+            <td>${tUpper(order.drawingNo)}</td>
+            <td class="truncate" style="min-width: 260px; max-width: 260px; width: 260px;" title="${tUpper(order.description)}">${tUpper(order.description)}</td>
             <td class="text-right">${t(order.qty)}</td>
             <td>${t(order.qtyUnit)}</td>
-            <td class="text-right">${t(order.saleValueEa || order.value)}</td>
+            <td class="text-right">${formatPaisa(order.saleValueEa || order.value)}</td>
+            <!-- TEMPORARILY REMOVED: Target Production Cost Columns
             <td class="text-right">${t(order.prodValueEa)}</td>
             <td class="text-right">${t(order.outsourceValue)}</td>
+            -->
             <td class="text-center">${avail(order.isLaborJob)}</td>
-            <td class="text-right font-bold">${t(order.total)}</td>
+            <td class="text-right font-bold">${formatPaisa(order.total)}</td>
             
-            <td>${t(order.customer)}</td>
+            <td>${tUpper(order.customer)}</td>
             <td>${t(order.poNo)}</td>
             <td>${formatDate(order.poDate)}</td>
+            <td>${t(order.customerDcNo)}</td>
             <td class="text-center">${avail(order.drgAvail)}</td>
             <td class="text-center">${avail(order.rawAvail)}</td>
             <td class="text-center">${avail(order.finishAvail)}</td>
 
             <td>${formatDate(effectiveDelDate)}</td>
             <td class="col-dc-no" title="${t(effectiveDcNo)}">${t(effectiveDcNo)}</td>
-            <td class="text-right">${t(order.deliveryQty)}</td>
+            <td class="text-right">${effectiveDelQty > 0 ? effectiveDelQty : t(order.deliveryQty)}</td>
+            <td class="text-right tabular-nums ${totalOrderQty > 0 && pendingQty > 0 ? 'pend-qty-active' : 'pend-qty-zero'}">${totalOrderQty > 0 ? pendingQty : '-'}</td>
             <td class="col-bill-no" title="${t(effectiveBillNo)}">${t(effectiveBillNo)}</td>
-            <td class="text-center">${statusHtml}</td>
             <td>${actionsHtml}</td>
         `;
 
@@ -321,7 +338,23 @@ export const handleAddOrder = async () => {
     const formData = new FormData(form);
     const data = Object.fromEntries(formData.entries());
 
-    // Auto-calculate Total based on Sale Value
+    // Explicitly set availability checkboxes to 'y' or 'n' so unchecking is saved properly
+    ['drgAvail', 'rawAvail', 'finishAvail', 'isLaborJob'].forEach(field => {
+        data[field] = data[field] === 'y' ? 'y' : 'n';
+    });
+
+    // Enforce ALL CAPS for Drawing No, Description, and Customer Name
+    ['drawingNo', 'description', 'customer'].forEach(field => {
+        if (data[field]) data[field] = String(data[field]).trim().toUpperCase();
+    });
+
+    // Format Sale Value and auto-calculate Total based on Sale Value
+    if (data.saleValueEa !== undefined && data.saleValueEa !== '') {
+        const saleNum = parseFloat(data.saleValueEa);
+        if (!isNaN(saleNum)) {
+            data.saleValueEa = saleNum.toFixed(2);
+        }
+    }
     if (data.qty) {
         const qty = parseFloat(data.qty) || 0;
         if (data.saleValueEa) data.total = (qty * parseFloat(data.saleValueEa)).toFixed(2);
@@ -395,29 +428,52 @@ export const handleAddOrder = async () => {
             return;
         }
 
-        // Auto-create project if checkbox is ticked (new orders only)
-        if (createProject && data.description) {
+        // Always ensure Project exists and redirect to Contract Review for new orders
+        if (isNewOrder) {
             try {
-                const projectData = {
-                    projectId: data.internalOrderNo || '',
-                    name: data.description,
-                    customerName: data.customer || '',
-                    jobType: data.department || 'CNC',
-                    drawingSource: 'Customer Supplied',
-                    expectedCompletion: data.deliveryDateActual || null,
-                    internalNotes: `Auto-created from Internal Order ${data.internalOrderNo || ''}`,
-                    internalOrderNo: data.internalOrderNo || '',
-                    poNo: data.poNo || '',
-                };
+                const existingProjects = window.adminApp.getCurrentProjects ? window.adminApp.getCurrentProjects() : [];
+                const ioKey = (data.internalOrderNo || '').trim().toUpperCase();
+                let targetProject = existingProjects.find(p => (p.projectId || '').trim().toUpperCase() === ioKey && !p.isDeleted);
+                let createdProjectDocId = targetProject ? targetProject.id : null;
 
-                const projRes = await DB.addProject(projectData);
-                if (projRes.error) {
-                    console.error('Auto-create project failed:', projRes.error);
-                } else {
-                    console.log(`Project auto-created: ${projRes.projectId} from IO ${data.internalOrderNo}`);
+                if (!targetProject) {
+                    const projectData = {
+                        projectId: data.internalOrderNo || '',
+                        name: data.description || data.internalOrderNo || 'NEW PROJECT',
+                        customerName: data.customer || '',
+                        jobType: data.department || 'CNC',
+                        drawingSource: 'Customer Supplied',
+                        drawingNo: data.drawingNo || '',
+                        poNo: data.poNo || '',
+                        poDate: data.poDate || '',
+                        customerDcNo: data.customerDcNo || '',
+                        expectedCompletion: data.deliveryDateActual || null,
+                        internalNotes: `Auto-created from Internal Order ${data.internalOrderNo || ''}`,
+                        internalOrderNo: data.internalOrderNo || ''
+                    };
+                    const projRes = await DB.addProject(projectData);
+                    if (!projRes.error && projRes.id) {
+                        createdProjectDocId = projRes.id;
+                        targetProject = { id: projRes.id, ...projectData, status: 'Draft', currentStage: 'Intake' };
+                        if (window.adminApp.registerProjectInMemory) {
+                            window.adminApp.registerProjectInMemory(targetProject);
+                        }
+                    }
                 }
+
+                window.adminApp.closeModal('add-order-modal');
+                form.reset();
+                const hiddenId = document.getElementById('orderId-input');
+                if (hiddenId) hiddenId.value = '';
+
+                if (createdProjectDocId && window.adminApp.openProjectContractReview) {
+                    setTimeout(() => {
+                        window.adminApp.openProjectContractReview(createdProjectDocId, data);
+                    }, 120);
+                }
+                return;
             } catch (projErr) {
-                console.error('Error auto-creating project:', projErr);
+                console.error('Error auto-creating/redirecting project:', projErr);
             }
         }
 
@@ -443,7 +499,14 @@ export const populateForm = (order) => {
         if (el.type === 'checkbox') {
             el.checked = order[el.name] === 'y';
         } else if (order[el.name] !== undefined) {
-            el.value = order[el.name];
+            const val = order[el.name];
+            if (['drawingNo', 'description', 'customer'].includes(el.name) && val) {
+                el.value = String(val).toUpperCase();
+            } else if (el.name === 'saleValueEa' && val !== '' && val !== null && !isNaN(parseFloat(val))) {
+                el.value = parseFloat(val).toFixed(2);
+            } else {
+                el.value = val;
+            }
         }
     });
 
@@ -479,7 +542,7 @@ export const populateForm = (order) => {
         const allOrders = window.adminApp.getCurrentOrders ? window.adminApp.getCurrentOrders() : [];
         const deliveries = allOrders.filter(o =>
             o.entryType === 'delivery_report' &&
-            o.internalOrderNo === ioNo &&
+            (o.internalOrderNo || '').trim().toUpperCase() === (ioNo || '').trim().toUpperCase() && !o.isDeleted &&
             !o.deleted
         );
 
@@ -489,16 +552,16 @@ export const populateForm = (order) => {
 
             breakdownBody.innerHTML = deliveries.map(d => `
                 <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.2s;" onmouseover="this.style.background='#fbfcfd'" onmouseout="this.style.background='transparent'">
-                    <td style="padding: 10px 8px; color: #313d4f; font-weight: 500;">${d.dcNo || '-'}</td>
-                    <td style="padding: 10px 8px; color: #313d4f; font-weight: 500;">${d.billNo || '-'}</td>
-                    <td style="padding: 10px 8px; color: #64748b;">${formatDate(d.deliveryDateActual || d.date)}</td>
-                    <td style="padding: 10px 8px; text-align: right; color: #0f172a; font-weight: 700;">${d.deliveryQty || 0}</td>
-                    <td style="padding: 10px 8px; text-align: right; color: #0d9488; font-weight: 700;">₹${(parseFloat(d.total) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                    <td style="padding: 5px 8px; color: #313d4f; font-weight: 500;">${d.dcNo || '-'}</td>
+                    <td style="padding: 5px 8px; color: #313d4f; font-weight: 500;">${d.billNo || '-'}</td>
+                    <td style="padding: 5px 8px; color: #64748b;">${formatDate(d.deliveryDateActual || d.date)}</td>
+                    <td style="padding: 5px 8px; text-align: right; color: #0f172a; font-weight: 700;">${d.deliveryQty || 0}</td>
+                    <td style="padding: 5px 8px; text-align: right; color: #0d9488; font-weight: 700;">₹${(parseFloat(d.total) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                 </tr>
             `).join('');
 
         } else {
-            breakdownBody.innerHTML = '<tr><td colspan="5" style="padding: 1.5rem 1rem; text-align: center; color: #94a3b8; font-style: italic; font-size: 0.75rem; background: #f8fafc;">No deliveries recorded.</td></tr>';
+            breakdownBody.innerHTML = '<tr><td colspan="5" style="padding: 0.6rem 1rem; text-align: center; color: #94a3b8; font-style: italic; font-size: 0.72rem; background: #f8fafc;">No deliveries recorded.</td></tr>';
         }
 
         // --- NEW: Populate Summary Stats ---
@@ -619,7 +682,7 @@ export const exportToCSV = () => {
         }
         let matchesSearch = true;
         if (searchTerm) {
-            const searchStr = `${order.internalOrderNo} ${order.customer} ${order.description} ${order.poNo} ${order.drawingNo || ''}`.toLowerCase();
+            const searchStr = `${order.internalOrderNo} ${order.customer} ${order.description} ${order.poNo} ${order.customerDcNo || ''} ${order.drawingNo || ''}`.toLowerCase();
             matchesSearch = searchStr.includes(searchTerm);
         }
         return matchesMonth && matchesSearch && order.entryType !== 'delivery_report';
@@ -655,12 +718,12 @@ export const exportToCSV = () => {
         // Define Headers matching Internal Orders table structure
         const headers = [
             'S.No', 'Internal Order No', 'Date', 'Drg No', 'Description', 'Qty', 'Unit',
-            'Sale Value Ea', 'In-House Value', 'Outsource Value', 'Labor', 'Total Value',
-            'Customer', 'PO No', 'PO Date', 'Drg Available', 'Raw Available', 'Finish Available',
-            'Del Date Actual', 'DC No', 'Del Qty', 'Bill No', 'Status'
+            'Sale Value Ea', /* 'In-House Value', 'Outsource Value', */ 'Labor', 'Total Value',
+            'Customer', 'PO No', 'PO Date', 'Inward DC', 'Drg Available', 'Raw Available', 'Finish Available',
+            'Del Date Actual', 'DC No', 'Del Qty', 'Pending Qty', 'Bill No', 'Status'
         ];
 
-        // Map delivery reports for resolving delivery date, DC & Bill in export
+        // Map delivery reports for resolving delivery date, DC, Bill & Delivered Qty in export
         const deliveryReportsByIo = new Map();
         const deliveryReportsByDc = new Map();
         allOrders.filter(o => o.entryType === 'delivery_report' && !o.isDeleted).forEach(d => {
@@ -668,14 +731,16 @@ export const exportToCSV = () => {
             const io = (d.internalOrderNo || '').trim().toUpperCase();
             const dc = (d.dcNo || '').trim();
             const bill = (d.billNo || '').trim();
+            const delQty = parseFloat(d.deliveryQty) || 0;
             if (io) {
                 if (!deliveryReportsByIo.has(io)) {
-                    deliveryReportsByIo.set(io, { dates: [], dcs: [], bills: [] });
+                    deliveryReportsByIo.set(io, { dates: [], dcs: [], bills: [], totalDelQty: 0 });
                 }
                 const entry = deliveryReportsByIo.get(io);
                 if (date && !entry.dates.includes(date)) entry.dates.push(date);
                 if (dc && !entry.dcs.includes(dc)) entry.dcs.push(dc);
                 if (bill && !entry.bills.includes(bill)) entry.bills.push(bill);
+                entry.totalDelQty += delQty;
             }
             if (dc && date && !deliveryReportsByDc.has(dc)) deliveryReportsByDc.set(dc, date);
         });
@@ -690,6 +755,7 @@ export const exportToCSV = () => {
             let effectiveDelDate = o.deliveryDateActual;
             let effectiveDcNo = o.dcNo;
             let effectiveBillNo = o.billNo;
+            let effectiveDelQty = parseFloat(o.deliveryQty) || 0;
             if (!effectiveDelDate && effectiveDcNo && deliveryReportsByDc.has(effectiveDcNo.trim())) {
                 effectiveDelDate = deliveryReportsByDc.get(effectiveDcNo.trim());
             }
@@ -698,35 +764,50 @@ export const exportToCSV = () => {
                 if (!effectiveDelDate && match.dates.length > 0) effectiveDelDate = match.dates[match.dates.length - 1];
                 if (!effectiveDcNo && match.dcs.length > 0) effectiveDcNo = match.dcs.join(', ');
                 if (!effectiveBillNo && match.bills.length > 0) effectiveBillNo = match.bills.join(', ');
+                if (!effectiveDelQty && match.totalDelQty > 0) effectiveDelQty = match.totalDelQty;
             }
+
+            const totalOrderQty = parseFloat(o.qty) || 0;
+            const pendingQty = Math.max(0, totalOrderQty - effectiveDelQty);
 
             let statusVal = o.status || 'Pending';
             if (o.forceClosed) {
                 statusVal += ' (FC)';
             }
 
+            const rawSaleVal = o.saleValueEa || o.value;
+            const formattedSaleVal = (rawSaleVal !== undefined && rawSaleVal !== null && rawSaleVal !== '' && !isNaN(parseFloat(rawSaleVal)))
+                ? parseFloat(rawSaleVal).toFixed(2)
+                : '0.00';
+            const formattedTotalVal = (o.total !== undefined && o.total !== null && o.total !== '' && !isNaN(parseFloat(o.total)))
+                ? parseFloat(o.total).toFixed(2)
+                : '0.00';
+
             return [
                 index + 1,
                 escapeCSV(o.internalOrderNo || '-'),
                 escapeCSV(formatDate(o.date)),
-                escapeCSV(o.drawingNo || '-'),
-                escapeCSV(o.description || '-'),
+                escapeCSV(o.drawingNo ? String(o.drawingNo).toUpperCase() : '-'),
+                escapeCSV(o.description ? String(o.description).toUpperCase() : '-'),
                 o.qty || 0,
                 escapeCSV(o.qtyUnit || '-'),
-                o.saleValueEa || o.value || 0,
-                o.prodValueEa || 0,
-                o.outsourceValue || 0,
-                escapeCSV(o.isLaborJob === 'y' ? 'Y' : '-'),
-                o.total || 0,
-                escapeCSV(o.customer || '-'),
+                formattedSaleVal,
+                // TEMPORARILY REMOVED: Target Production Cost Columns
+                // o.prodValueEa || 0,
+                // o.outsourceValue || 0,
+                escapeCSV(o.isLaborJob === 'y' ? 'Y' : 'N'),
+                formattedTotalVal,
+                escapeCSV(o.customer ? String(o.customer).toUpperCase() : '-'),
                 escapeCSV(o.poNo || '-'),
                 escapeCSV(formatDate(o.poDate)),
-                escapeCSV(o.drgAvail === 'y' ? 'Y' : '-'),
-                escapeCSV(o.rawAvail === 'y' ? 'Y' : '-'),
-                escapeCSV(o.finishAvail === 'y' ? 'Y' : '-'),
+                escapeCSV(o.customerDcNo || '-'),
+                escapeCSV(o.drgAvail === 'y' ? 'Y' : 'N'),
+                escapeCSV(o.rawAvail === 'y' ? 'Y' : 'N'),
+                escapeCSV(o.finishAvail === 'y' ? 'Y' : 'N'),
                 escapeCSV(formatDate(effectiveDelDate)),
                 escapeCSV(effectiveDcNo || '-'),
-                o.deliveryQty || 0,
+                effectiveDelQty,
+                pendingQty,
                 escapeCSV(effectiveBillNo || '-'),
                 escapeCSV(statusVal)
             ];
@@ -936,23 +1017,23 @@ export const renderDeliveryReport = async (weekValue, monthValue) => {
             const dailyClass = isLast ? "font-bold text-slate-800 bg-slate-50/50" : "";
 
             tr.innerHTML = `
-                <td class="px-4 py-2 text-center text-slate-500">${isFirst ? groupSerialNo : ''}</td>
-                <td class="px-4 py-2 font-medium">${isFirst ? formatDate(date) : ''}</td> 
-                <td class="px-4 py-2 font-medium" style="color: var(--brand-600); white-space: nowrap;">${order.internalOrderNo || '-'}</td>
-                <td class="px-4 py-2">${order.customer || '-'}</td>
-                <td class="px-4 py-2">${order.description || '-'}</td>
-                <td class="px-4 py-2 text-center" style="white-space: nowrap; text-align: center !important;">${order.drawingNo || '-'}</td>
-                <td class="px-4 py-2 text-center">
-                    <span class="px-2 py-1 rounded text-xs font-semibold bg-slate-100 text-slate-600">${order.department || '-'}</span>
+                <td class="sticky-col text-center font-mono text-slate-500">${isFirst ? groupSerialNo : ''}</td>
+                <td class="text-center font-medium">${isFirst ? formatDate(date) : ''}</td> 
+                <td class="text-center"><span class="io-order-pill">${order.internalOrderNo || '-'}</span></td>
+                <td style="font-weight: 600; color: #0f172a;">${order.customer || '-'}</td>
+                <td>${order.description || '-'}</td>
+                <td class="text-center font-mono" style="white-space: nowrap; text-align: center !important;">${order.drawingNo || '-'}</td>
+                <td class="text-center section-end">
+                    <span class="px-2 py-1 rounded text-xs font-semibold bg-slate-100 text-slate-700">${order.department || '-'}</span>
                 </td>
-                <td class="px-4 py-2 text-center">${order.dcNo || '-'}</td> 
-                <td class="px-4 py-2 text-center font-mono text-xs">${order.billNo || '-'}</td>
-                <td class="px-4 py-2 text-right font-bold">${order.deliveryQty || order.qty || 0}</td>
-                <td class="px-4 py-2">${order.qtyUnit || '-'}</td>
-                <td class="px-4 py-2 text-right">₹${(parseFloat(order.total) || 0).toLocaleString('en-IN')}</td>
-                <td class="px-4 py-2 text-right ${dailyClass}">${displayDailyValue}</td>
-                <td class="px-4 py-2 text-right ${dailyClass}">${displayDailyManpower}</td>
-                <td class="px-4 py-2 text-center no-print">
+                <td class="text-center"><span class="dc-no-pill">${order.dcNo || '-'}</span></td> 
+                <td class="text-center font-mono text-xs">${order.billNo || '-'}</td>
+                <td class="text-center font-bold">${order.deliveryQty || order.qty || 0}</td>
+                <td class="text-center section-end">${order.qtyUnit || '-'}</td>
+                <td class="text-right font-mono">₹${(parseFloat(order.total) || 0).toLocaleString('en-IN')}</td>
+                <td class="text-right font-mono ${dailyClass}">${displayDailyValue}</td>
+                <td class="text-right font-mono section-end ${dailyClass}">${displayDailyManpower}</td>
+                <td class="text-center no-print">
                     ${!isDeliveryTrashMode ? `
                     <button class="text-slate-400 hover:text-blue-500 transition-colors mr-2"
                         onclick="window.adminApp.editOrder('${order.id}')" title="Edit Item">
@@ -988,6 +1069,6 @@ export const renderDeliveryReport = async (weekValue, monthValue) => {
     }
 
     if (reportOrders.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="16" class="px-4 py-8 text-center text-slate-400">No delivered orders found for this week.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="15" class="px-4 py-8 text-center text-slate-400">No delivered orders found for this period.</td></tr>`;
     }
 };

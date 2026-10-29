@@ -127,10 +127,11 @@ export const generateProjectId = async () => {
 
 export const addProject = async (projectData) => {
     try {
+        const normalized = normalizeProjectRecord(projectData);
         // Use custom projectId if provided (e.g. from Internal Order), else auto-generate
-        const projectId = projectData.projectId || await generateProjectId();
+        const projectId = normalized.projectId || await generateProjectId();
         const docRef = await addDoc(collection(db, getProjectsCol()), {
-            ...projectData,
+            ...normalized,
             projectId: projectId,
             revision: 0,
             status: "Draft",
@@ -154,12 +155,13 @@ export const addProject = async (projectData) => {
 export const updateProject = async (projectId, updates, userAction = "Updated") => {
     try {
         const ref = doc(db, getProjectsCol(), projectId);
+        const normalized = normalizeProjectRecord(updates);
         // Check if revision increase is needed (e.g., if status was 'Approved')
         // This logic will be more detailed in the UI/App layer, 
         // but we ensure updatedAt is always set.
 
         await updateDoc(ref, {
-            ...updates,
+            ...normalized,
             updatedAt: serverTimestamp()
         });
 
@@ -271,10 +273,28 @@ export const submitApproval = async (projectId, stage, approverData) => {
     }
 };
 
+// Helper to normalize Order / Project text fields to ALL CAPS across the entire admin panel
+const normalizeOrderRecord = (data) => {
+    if (!data) return data;
+    const copy = { ...data };
+    if (copy.customer) copy.customer = String(copy.customer).trim().toUpperCase();
+    if (copy.description) copy.description = String(copy.description).trim().toUpperCase();
+    if (copy.drawingNo) copy.drawingNo = String(copy.drawingNo).trim().toUpperCase();
+    return copy;
+};
+
+const normalizeProjectRecord = (data) => {
+    if (!data) return data;
+    const copy = { ...data };
+    if (copy.customerName) copy.customerName = String(copy.customerName).trim().toUpperCase();
+    if (copy.name) copy.name = String(copy.name).trim().toUpperCase();
+    return copy;
+};
+
 export const subscribeToProjects = (callback) => {
     const q = query(collection(db, getProjectsCol()), orderBy("createdAt", "desc"));
     return onSnapshot(q, (snapshot) => {
-        const projects = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const projects = snapshot.docs.map(doc => normalizeProjectRecord({ id: doc.id, ...doc.data() }));
         callback(projects);
     });
 };
@@ -316,8 +336,9 @@ export const restoreProject = async (projectId) => {
 
 export const addOrder = async (orderData) => {
     try {
+        const normalized = normalizeOrderRecord(orderData);
         const docRef = await addDoc(collection(db, getOrdersCol()), {
-            ...orderData,
+            ...normalized,
             createdAt: serverTimestamp()
         });
         return { id: docRef.id, error: null };
@@ -349,7 +370,7 @@ export const subscribeToOrders = (callback, showTrash = false) => {
     return onSnapshot(q, (snapshot) => {
         const orders = [];
         snapshot.forEach((doc) => {
-            const data = doc.data();
+            const data = normalizeOrderRecord(doc.data());
             // Client-side filtering to avoid index requirements for now
             const isTrash = !!data.isDeleted;
             if (isTrash === showTrash) {
@@ -363,7 +384,7 @@ export const subscribeToOrders = (callback, showTrash = false) => {
 export const updateOrder = async (orderId, updates) => {
     try {
         const ref = doc(db, getOrdersCol(), orderId);
-        await updateDoc(ref, updates);
+        await updateDoc(ref, normalizeOrderRecord(updates));
         return { success: true };
     } catch (error) {
         console.error("Error updating order:", error);
@@ -490,7 +511,7 @@ export const getTrashOrders = async () => {
         const snapshot = await getDocs(q);
         const orders = [];
         snapshot.forEach((doc) => {
-            const data = doc.data();
+            const data = normalizeOrderRecord(doc.data());
             if (!!data.isDeleted) {
                 orders.push({ id: doc.id, ...data });
             }
@@ -838,7 +859,7 @@ export const getOrdersForDateRange = async (startDate, endDate) => {
             where("date", "<=", endDate)
         );
         const snapshot = await getDocs(q);
-        return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        return snapshot.docs.map(d => normalizeOrderRecord({ id: d.id, ...d.data() }));
     } catch (error) {
         console.error("Error fetching orders for range:", error);
         return [];

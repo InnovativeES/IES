@@ -210,6 +210,9 @@ const loadWorkflows = async () => {
                             department: aDept,
                             role: effectiveRole,
                             ...t,
+                            description: t.description ? String(t.description).toUpperCase() : '',
+                            drawingNo: t.drawingNo ? String(t.drawingNo).toUpperCase() : '',
+                            customer: t.customer ? String(t.customer).toUpperCase() : '',
                             qty: parseFloat(t.qty) || 0,
                             allocationPct: parseFloat(t.allocationPct) || 100,
                             overheads: parseFloat(t.overheads) || 0,
@@ -287,6 +290,9 @@ const loadWorkflows = async () => {
                     department: aDept,
                     role: effectiveRole,
                     ...t,
+                    description: t.description ? String(t.description).toUpperCase() : '',
+                    drawingNo: t.drawingNo ? String(t.drawingNo).toUpperCase() : '',
+                    customer: t.customer ? String(t.customer).toUpperCase() : '',
                     qty: parseFloat(t.qty) || 0,
                     allocationPct: parseFloat(t.allocationPct) || 100,
                     overheads: parseFloat(t.overheads) || 0,
@@ -774,16 +780,16 @@ export const openAssignModal = (editIdx = -1) => {
                             </div>
                             <div class="form-group" style="margin-bottom: 0.75rem;">
                                 <label class="wf-form-label">Task Description *</label>
-                                <textarea id="wf-assign-desc" class="form-input" placeholder="Task details..." style="min-height: 45px; max-height: 80px; padding: 0.4rem; font-size: 0.8rem; resize: none;">${editData?.description || ''}</textarea>
+                                <textarea id="wf-assign-desc" class="form-input" placeholder="TASK DETAILS..." style="min-height: 45px; max-height: 80px; padding: 0.4rem; font-size: 0.8rem; resize: none; text-transform: uppercase;" oninput="this.value = this.value.toUpperCase()">${editData?.description ? String(editData.description).toUpperCase() : ''}</textarea>
                             </div>
                             <div class="wf-grid-2">
                                 <div class="form-group">
                                     <label class="wf-form-label">Drawing No</label>
-                                    <input type="text" id="wf-assign-drg" class="form-input" style="padding: 0.4rem; font-size: 0.8rem;" placeholder="DRG #" value="${editData?.drawingNo || ''}">
+                                    <input type="text" id="wf-assign-drg" class="form-input" style="padding: 0.4rem; font-size: 0.8rem; text-transform: uppercase;" placeholder="DRG #" oninput="this.value = this.value.toUpperCase()" value="${editData?.drawingNo ? String(editData.drawingNo).toUpperCase() : ''}">
                                 </div>
                                 <div class="form-group">
                                     <label class="wf-form-label">Customer</label>
-                                    <input type="text" id="wf-assign-customer" class="form-input" style="padding: 0.4rem; font-size: 0.8rem;" placeholder="Client" value="${editData?.customer || ''}">
+                                    <input type="text" id="wf-assign-customer" class="form-input" style="padding: 0.4rem; font-size: 0.8rem; text-transform: uppercase;" placeholder="CLIENT" oninput="this.value = this.value.toUpperCase()" value="${editData?.customer ? String(editData.customer).toUpperCase() : ''}">
                                 </div>
                             </div>
                         </div>
@@ -1166,9 +1172,9 @@ export const confirmAssign = async () => {
     const baseData = {
         type: orderNo ? 'order' : 'adhoc',
         orderNo,
-        description: desc,
-        drawingNo: getVal('wf-assign-drg'),
-        customer: getVal('wf-assign-customer'),
+        description: desc ? String(desc).trim().toUpperCase() : '',
+        drawingNo: (getVal('wf-assign-drg') || '').trim().toUpperCase(),
+        customer: (getVal('wf-assign-customer') || '').trim().toUpperCase(),
         qty: parseFloat(getVal('wf-assign-qty')) || 0,
         unit: getVal('wf-assign-unit') || 'Nos',
         manpower: 1, // Defaulting as requested since it's removed from UI

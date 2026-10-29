@@ -414,44 +414,44 @@ export const renderDCTable = (orders = null) => {
 
         // Standard DC Row
         const tr = document.createElement('tr');
-        tr.style.cursor = 'pointer';
+        tr.className = entry.status === 'Partially Delivered' ? 'row-portion' : 'row-delivered'; tr.style.cursor = 'pointer';
 
-        let statusBadge = '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">Delivered</span>';
+        let statusBadge = '<span class="status-badge status-delivered">Delivered</span>';
         if (entry.status === 'Partially Delivered') {
-            statusBadge = '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200">Partial</span>';
+            statusBadge = '<span class="status-badge status-portion">Partial</span>';
         }
 
         const t = (val) => (val !== undefined && val !== null && val !== '') ? val : '-';
 
         const hasDC = entry.dcNo && entry.dcNo !== '-';
         const dcDisplay = hasDC
-            ? `<span class="dc-badge">#${entry.dcNo}</span>`
+            ? `<span class="dc-no-pill">#${entry.dcNo}</span>`
             : `<span class="dc-badge-missing">—</span>`;
 
         tr.innerHTML = `
-            <td class="text-center text-slate-500 font-medium">${serialNo++}</td>
-            <td class="whitespace-nowrap font-mono font-bold text-teal-700">${dcDisplay}</td>
-            <td class="text-center text-slate-700 whitespace-nowrap">${formatDate(entry.deliveryDate)}</td>
+            <td class="text-center text-slate-500 font-semibold">${serialNo++}</td>
+            <td class="text-left whitespace-nowrap font-mono font-bold text-teal-700">${dcDisplay}</td>
+            <td class="text-center text-slate-700 whitespace-nowrap font-medium">${formatDate(entry.deliveryDate)}</td>
             <td class="text-center whitespace-nowrap">
                 ${entry.internalOrderNo && entry.internalOrderNo !== '-' ? 
-                    `<a href="#" onclick="event.preventDefault(); window.adminApp.wfOpenProject('${entry.internalOrderNo}')" style="color:#0f766e; font-weight:600;" title="Open Project">${entry.internalOrderNo}</a>` : 
+                    `<a href="#" class="io-order-pill" onclick="event.preventDefault(); window.adminApp.wfOpenProject('${entry.internalOrderNo}')" title="Open Project">${entry.internalOrderNo}</a>` : 
                     '<span class="text-slate-400">-</span>'}
             </td>
-            <td class="text-center text-slate-700 font-mono text-xs whitespace-nowrap">${t(entry.billNo)}</td>
-            <td class="text-center text-slate-800 font-medium truncate" title="${t(entry.customer)}">${t(entry.customer)}</td>
-            <td class="text-slate-600 text-center truncate" title="${t(entry.drawingNo)}">${t(entry.drawingNo)}</td>
-            <td class="text-center text-slate-600 truncate" title="${t(entry.description)}">${t(entry.description)}</td>
-            <td class="text-right text-slate-600">${t(entry.orderedQty)}</td>
-            <td class="text-center text-slate-400 text-xs">${t(entry.qtyUnit)}</td>
-            <td class="text-right font-bold text-slate-900">${t(entry.deliveredQty)}</td>
+            <td class="text-left text-slate-700 font-mono text-xs whitespace-nowrap truncate" title="${t(entry.billNo)}">${t(entry.billNo)}</td>
+            <td class="text-left text-slate-800 font-bold truncate" title="${t(entry.customer).toString().toUpperCase()}">${t(entry.customer).toString().toUpperCase()}</td>
+            <td class="text-left text-slate-700 font-mono text-xs font-semibold truncate" title="${t(entry.drawingNo).toString().toUpperCase()}">${t(entry.drawingNo).toString().toUpperCase()}</td>
+            <td class="text-left text-slate-700 font-medium truncate" title="${t(entry.description).toString().toUpperCase()}">${t(entry.description).toString().toUpperCase()}</td>
+            <td class="text-right tabular-nums text-slate-700 font-semibold">${t(entry.orderedQty)}</td>
+            <td class="text-center text-slate-500 text-xs font-medium">${t(entry.qtyUnit)}</td>
+            <td class="text-right tabular-nums font-extrabold text-slate-900">${t(entry.deliveredQty)}</td>
             <td class="text-center">${statusBadge}</td>
             <td class="text-center no-print">
-                <button class="p-1 text-slate-400 hover:text-blue-600 rounded hover:bg-blue-50 transition"
+                <div class="action-btns" style="justify-content:center;"><button class="action-btn edit"
                     onclick="window.adminApp.editOrder('${entry.id}')" title="Edit">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                     </svg>
-                </button>
+                </button></div>
             </td>
         `;
 

@@ -44,8 +44,11 @@ export const switchView = (viewName) => {
             'overview': 'Dashboard Overview',
             'monitoring': 'Internal Orders',
             'dc_register': 'DC Register & Tracking',
+            'delivery_report': 'Delivery Report',
             'team_org': 'Team & Organization',
+            'project_overview': 'Master Order Tracker',
             'project_management': 'Project Management',
+            'inventory_management': 'Inventory Management',
             'progress_tracker': 'Project Progress Tracker',
             'project_detail': 'Project Deep Dive & Workflow',
             'daily_roster': 'Daily Roster',
@@ -133,7 +136,7 @@ export const renderMemberList = (members) => {
     if (!members || members.length === 0) {
         memberListBody.innerHTML = `
             <tr>
-                <td colspan="5" class="text-center" style="padding: 3rem; color: #64748b;">
+                <td colspan="9" class="text-center" style="padding: 3rem; color: #64748b;">
                     No team members found. Click "Add Member" to get started.
                 </td>
             </tr>
@@ -152,7 +155,7 @@ export const renderMemberList = (members) => {
         return 0;
     });
 
-    sortedMembers.forEach(member => {
+    sortedMembers.forEach((member, idx) => {
         // Get role display
         const role = member.role || member.designation || '-';
         const section = member.section || member.department || '-';
@@ -165,25 +168,26 @@ export const renderMemberList = (members) => {
 
         const row = document.createElement('tr');
         row.innerHTML = `
+            <td class="sticky-col text-center font-mono text-slate-400" style="font-weight: 600;">${idx + 1}</td>
             <td>
-                <div class="member-clickable" onclick="window.adminApp.viewMemberWorkload('${member.id}')" style="display: flex; align-items: center; gap: 0.75rem;">
-                    <div id="avatar-${member.id}" style="width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #34d399 0%, #059669 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 0.875rem;">
+                <div class="member-clickable" onclick="window.adminApp.viewMemberWorkload('${member.id}')" style="display: flex; align-items: center; gap: 0.65rem;">
+                    <div id="avatar-${member.id}" style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #0d9488 0%, #059669 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 0.8rem; flex-shrink: 0;">
                         ${member.name.charAt(0).toUpperCase()}
                     </div>
                     <div>
-                        <div class="member-name-text" style="font-weight: 600; color: #1e293b;">${member.name}</div>
-                        <div style="font-size: 0.8125rem; color: #64748b;">${member.email || ''}</div>
+                        <div class="member-name-text" style="font-weight: 700; color: #0f172a; font-size: 0.82rem;">${member.name}</div>
+                        <div style="font-size: 0.72rem; color: #64748b;">${member.email || ''}</div>
                     </div>
                 </div>
             </td>
-            <td><code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 0.8125rem;">${member.employeeId || '-'}</code></td>
-            <td style="font-weight: 500;">${role}</td>
-            <td>${section}</td>
-            <td>${member.phone || '-'}</td>
-            <td>${member.joiningDate ? new Date(member.joiningDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}</td>
-            <td><span class="badge ${badgeClass}">${status}</span></td>
-            <td class="text-right">
-                <div class="action-btns">
+            <td class="text-center section-end"><span class="io-order-pill">${member.employeeId || '-'}</span></td>
+            <td style="font-weight: 600; color: #1e293b;">${role}</td>
+            <td class="text-center section-end"><span style="display:inline-block; padding:2px 8px; border-radius:4px; background:#f1f5f9; color:#334155; font-size:0.75rem; font-weight:700;">${section}</span></td>
+            <td class="text-center font-mono" style="color: #475569;">${member.phone || '-'}</td>
+            <td class="text-center" style="color: #475569;">${member.joiningDate ? new Date(member.joiningDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}</td>
+            <td class="text-center section-end"><span class="badge ${badgeClass}">${status}</span></td>
+            <td class="text-center">
+                <div class="action-btns" style="justify-content: center;">
                     <button class="action-btn edit" onclick="window.adminApp.editMember('${member.id}')" title="Edit">
                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
@@ -234,8 +238,9 @@ export const updateStats = (stats) => {
         }
     }
     setEl('stat-active-orders', stats.activeOrders ?? 0);
-    setEl('stat-pending-count', `${stats.pendingCount ?? 0} Pending`);
+    setEl('stat-pending-count', stats.partialCount ? `${stats.pendingCount ?? 0} Pending · ${stats.partialCount} Partial` : `${stats.pendingCount ?? 0} Pending`);
     setEl('stat-unassigned', stats.unassignedCount ?? 0);
+    setEl('stat-cr-pending-sub', `${stats.crFiledForPendingCount ?? 0} / ${stats.pendingCount ?? 0} Pending Orders Filed`);
 
 
     // Pipeline Bars
@@ -255,26 +260,34 @@ export const renderDashboardPendingOrders = (orders) => {
     const badge = document.getElementById('pending-orders-badge');
     if (!container) return;
 
-    const pending = orders.filter(o => o.status === 'Pending');
+    const pending = orders.filter(o => (o.derivedStatus || o.status) !== 'Delivered');
     if (badge) badge.textContent = `${pending.length} Items`;
 
     if (pending.length === 0) {
-        container.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-slate-400">No pending orders found.</td></tr>';
+        container.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-slate-400">No pending production orders found.</td></tr>';
         return;
     }
 
-    container.innerHTML = pending.map(order => `
-        <tr>
-            <td style="font-weight: 600; color: #1e293b;">${order.internalOrderNo || '-'}</td>
-            <td>${order.customer || '-'}</td>
-            <td class="truncate" style="max-width: 200px;" title="${order.description}">${order.description || '-'}</td>
-            <td>${order.drawingNo || '-'}</td>
-            <td>${order.qty || '-'}</td>
-            <td>${order.qtyUnit || '-'}</td>
-            <td style="color: #64748b;">${order.date || order.deliveryDateActual || '-'}</td>
-            <td><span class="badge" style="background: #fff7ed; color: #c2410c; border: 1px solid #ffedd5;">Pending</span></td>
+    container.innerHTML = pending.map(order => {
+        const st = order.derivedStatus || order.status || 'Pending';
+        const isPartial = st === 'Partially Delivered';
+        const rowClass = isPartial ? 'row-portion' : 'row-pending';
+        const statusBadge = isPartial
+            ? '<span class="status-badge status-portion">Partial</span>'
+            : '<span class="status-badge status-pending">Pending</span>';
+        return `
+        <tr class="${rowClass}">
+            <td class="sticky-col text-center"><span class="io-order-pill">${order.internalOrderNo || '-'}</span></td>
+            <td style="font-weight: 600; color: #0f172a;">${order.customer || '-'}</td>
+            <td class="truncate" style="max-width: 240px;" title="${order.description || ''}">${order.description || '-'}</td>
+            <td class="text-center font-mono section-end">${order.drawingNo || '-'}</td>
+            <td class="text-center font-bold">${order.qty || '-'}</td>
+            <td class="text-center">${order.qtyUnit || '-'}</td>
+            <td class="text-center" style="color: #475569;">${order.date || order.deliveryDateActual || '-'}</td>
+            <td class="text-center">${statusBadge}</td>
         </tr>
-    `).join('');
+        `;
+    }).join('');
 };
 
 export const renderDashboardRecentActivity = (orders) => {

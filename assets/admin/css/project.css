@@ -73,42 +73,46 @@
     margin-top: 2px;
 }
 
-/* === HEADER BAR === */
+/* === HEADER BAR (Modern Executive Theme) === */
 .pm-header,
 .dd-header,
 .inventory-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: linear-gradient(135deg, #059669 0%, #065f46 100%) !important;
-    padding: 1rem 1.5rem;
-    border-radius: 14px;
-    border: 1px solid #065f46;
-    box-shadow: 0 4px 12px rgba(5, 150, 105, 0.15);
-    margin-bottom: 1.5rem;
-    color: #ffffff !important;
+    background: #ffffff !important;
+    padding: 0.85rem 1.25rem !important;
+    border-radius: 12px !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04) !important;
+    margin-bottom: 1rem !important;
+    color: #0f172a !important;
 }
 
 .pm-header-title h2,
 .dd-project-name,
 .inventory-header h2 {
-    color: #ffffff !important;
+    color: #0f172a !important;
+    font-size: 1.35rem !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.025em !important;
+    margin: 0 !important;
 }
-
 
 .pm-header-badges {
     display: flex;
     gap: 0.5rem;
 }
 
-.pm-header .badge {
-    background: rgba(255, 255, 255, 0.15) !important;
-    backdrop-filter: blur(4px);
-    color: #ffffff !important;
-    border: 1px solid rgba(255, 255, 255, 0.3) !important;
-    font-size: 0.65rem;
-    padding: 0.25rem 0.75rem;
-    font-weight: 700;
+.pm-header .badge,
+.pm-header-badge {
+    background: #f1f5f9 !important;
+    color: #475569 !important;
+    border: 1px solid #e2e8f0 !important;
+    font-size: 0.72rem !important;
+    padding: 3px 10px !important;
+    font-weight: 700 !important;
+    border-radius: 9999px !important;
 }
 
 .pm-header-title {

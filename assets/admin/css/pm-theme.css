@@ -138,3 +138,1331 @@
         display: none !important;
     }
 }
+
+
+/* ==========================================================================
+   COMPLETE UI/UX OVERHAUL: PROJECT WORKSPACE & 2-PAGE CONTRACT REVIEW
+   ========================================================================== */
+
+#view-project_detail {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden !important;
+    padding: 0.75rem 1rem !important;
+    background: #f1f5f9 !important;
+}
+
+/* 1. Top Dark-Slate Command Header */
+#view-project_detail .dd-header {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    flex-wrap: wrap !important;
+    gap: 0.75rem !important;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%) !important;
+    border: 1px solid #334155 !important;
+    border-radius: 12px !important;
+    padding: 0.65rem 1rem !important;
+    margin-bottom: 0.55rem !important;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12) !important;
+    color: #ffffff !important;
+}
+
+#view-project_detail .dd-header-left {
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.75rem !important;
+    min-width: 0;
+}
+
+#view-project_detail .dd-back-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 0.35rem !important;
+    width: auto !important;
+    height: 34px !important;
+    padding: 0 0.75rem !important;
+    border-radius: 8px !important;
+    background: rgba(255, 255, 255, 0.1) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    color: #f8fafc !important;
+    font-size: 0.76rem !important;
+    font-weight: 700 !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+}
+
+#view-project_detail .dd-back-btn:hover {
+    background: rgba(255, 255, 255, 0.2) !important;
+    border-color: rgba(255, 255, 255, 0.35) !important;
+    transform: translateX(-2px);
+}
+
+#view-project_detail .dd-header-divider {
+    width: 1px;
+    height: 26px;
+    background: rgba(255, 255, 255, 0.18);
+    flex-shrink: 0;
+}
+
+#view-project_detail .dd-title-top-row {
+    display: flex !important;
+    align-items: center !important;
+    flex-wrap: wrap !important;
+    gap: 0.65rem !important;
+}
+
+/* Structured IO Number Pill in Header */
+#view-project_detail .dd-io-pill-wrap {
+    display: inline-flex !important;
+    align-items: center !important;
+    border-radius: 7px !important;
+    overflow: hidden !important;
+    border: 1px solid #10b981 !important;
+    box-shadow: 0 1px 4px rgba(16, 185, 129, 0.2) !important;
+}
+
+#view-project_detail .dd-io-pill-label {
+    background: #047857 !important;
+    color: #ecfdf5 !important;
+    font-size: 0.62rem !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.08em !important;
+    padding: 0.28rem 0.5rem !important;
+    text-transform: uppercase !important;
+}
+
+#view-project_detail .dd-project-id {
+    background: #ecfdf5 !important;
+    color: #065f46 !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 0.8rem !important;
+    font-weight: 800 !important;
+    padding: 0.22rem 0.65rem !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+
+#view-project_detail .dd-project-name {
+    font-size: 1.05rem !important;
+    font-weight: 800 !important;
+    color: #ffffff !important;
+    margin: 0 !important;
+    letter-spacing: 0.01em !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 340px;
+}
+
+/* High-Visibility Status Dropdown Badge */
+#view-project_detail #detail-project-status.status-badge {
+    padding: 0.28rem 0.75rem !important;
+    border-radius: 999px !important;
+    font-size: 0.7rem !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.05em !important;
+    text-transform: uppercase !important;
+    cursor: pointer !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2) !important;
+}
+
+#view-project_detail #detail-project-status .dd-status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    display: inline-block;
+    background: currentColor;
+}
+
+#view-project_detail #detail-project-status.draft {
+    background: #fef3c7 !important;
+    color: #92400e !important;
+    border: 1px solid #f59e0b !important;
+}
+
+#view-project_detail #detail-project-status.under-review {
+    background: #ffedd5 !important;
+    color: #9a3412 !important;
+    border: 1px solid #fb923c !important;
+}
+
+#view-project_detail #detail-project-status.approved,
+#view-project_detail #detail-project-status.planning {
+    background: #dbeafe !important;
+    color: #1e40af !important;
+    border: 1px solid #60a5fa !important;
+}
+
+#view-project_detail #detail-project-status.in-progress {
+    background: #ccfbf1 !important;
+    color: #115e59 !important;
+    border: 1px solid #2dd4bf !important;
+}
+
+#view-project_detail #detail-project-status.completed {
+    background: #dcfce7 !important;
+    color: #166534 !important;
+    border: 1px solid #4ade80 !important;
+}
+
+/* Right Side Metadata Chips in Header */
+#view-project_detail .dd-meta-grid {
+    display: flex !important;
+    align-items: center !important;
+    flex-wrap: wrap !important;
+    gap: 0.45rem !important;
+}
+
+#view-project_detail .pm-meta-chip {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    justify-content: center !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid rgba(255, 255, 255, 0.16) !important;
+    border-radius: 8px !important;
+    padding: 0.25rem 0.65rem !important;
+    min-width: 82px;
+}
+
+#view-project_detail .pm-meta-lbl {
+    font-size: 0.56rem !important;
+    font-weight: 800 !important;
+    color: #94a3b8 !important;
+    letter-spacing: 0.07em !important;
+    text-transform: uppercase !important;
+    line-height: 1.1 !important;
+}
+
+#view-project_detail .pm-meta-val {
+    font-size: 0.74rem !important;
+    font-weight: 800 !important;
+    color: #ffffff !important;
+    line-height: 1.25 !important;
+    margin-top: 1px !important;
+    max-width: 170px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 2. Workspace Sub-Bar (Tabs + Contract Review Action Toolbar) */
+#view-project_detail .dd-subbar {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    flex-wrap: wrap !important;
+    gap: 0.5rem !important;
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 10px !important;
+    padding: 0.35rem 0.65rem !important;
+    margin-bottom: 0.55rem !important;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04) !important;
+}
+
+#view-project_detail .dd-tabs {
+    display: inline-flex !important;
+    gap: 0.25rem !important;
+    background: #f1f5f9 !important;
+    padding: 0.22rem !important;
+    border-radius: 8px !important;
+    border: 1px solid #e2e8f0 !important;
+    margin: 0 !important;
+}
+
+#view-project_detail .dd-tab {
+    padding: 0.38rem 0.85rem !important;
+    border-radius: 6px !important;
+    font-size: 0.75rem !important;
+    font-weight: 700 !important;
+    color: #475569 !important;
+    background: transparent !important;
+    border: none !important;
+    margin: 0 !important;
+}
+
+#view-project_detail .dd-tab.active {
+    background: #0f172a !important;
+    color: #ffffff !important;
+    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.2) !important;
+}
+
+#view-project_detail .cr-top-toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+#view-project_detail .cr-save-status-pill {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #059669;
+}
+
+#view-project_detail .cr-ref-badge {
+    display: inline-flex;
+    align-items: center;
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+#view-project_detail .cr-ref-label {
+    background: #e2e8f0;
+    color: #334155;
+    font-size: 0.62rem;
+    font-weight: 800;
+    padding: 0.3rem 0.5rem;
+    letter-spacing: 0.05em;
+}
+
+#view-project_detail .cr-ref-input {
+    border: none !important;
+    background: transparent !important;
+    color: #0f766e !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 0.75rem !important;
+    font-weight: 800 !important;
+    padding: 0.2rem 0.55rem !important;
+    width: 145px !important;
+    outline: none !important;
+}
+
+#view-project_detail .cr-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.36rem 0.75rem;
+    border-radius: 7px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border: 1px solid transparent;
+}
+
+#view-project_detail .cr-btn-print {
+    background: #f8fafc;
+    color: #334155;
+    border-color: #cbd5e1;
+}
+
+#view-project_detail .cr-btn-print:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+}
+
+#view-project_detail .cr-btn-draft {
+    background: #ffffff;
+    color: #0f172a;
+    border-color: #94a3b8;
+}
+
+#view-project_detail .cr-btn-draft:hover {
+    background: #f1f5f9;
+}
+
+#view-project_detail .cr-btn-finalize {
+    background: linear-gradient(135deg, #0d9488 0%, #047857 100%);
+    color: #ffffff;
+    box-shadow: 0 2px 6px rgba(13, 148, 136, 0.25);
+}
+
+#view-project_detail .cr-btn-finalize:hover {
+    background: linear-gradient(135deg, #0f766e 0%, #065f46 100%);
+    transform: translateY(-1px);
+}
+
+/* 3. Two-Page Side-by-Side Contract Review Workspace */
+#view-project_detail #dd-panel-review {
+    padding: 0 !important;
+    flex: 1;
+    min-height: 0;
+}
+
+#view-project_detail .cr-gateway-container {
+    padding: 0.15rem 0 1rem 0 !important;
+    gap: 0.65rem !important;
+}
+
+#view-project_detail .cr-two-page-grid {
+    display: grid;
+    grid-template-columns: minmax(420px, 47%) minmax(460px, 53%);
+    gap: 0.85rem;
+    align-items: stretch;
+    width: 100%;
+}
+
+@media (max-width: 1200px) {
+    #view-project_detail .cr-two-page-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+#view-project_detail .cr-page-sheet {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    padding: 0.65rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+}
+
+#view-project_detail .cr-sheet-ribbon {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 1.5px solid #e2e8f0;
+}
+
+#view-project_detail .cr-sheet-tag {
+    background: #0f172a;
+    color: #38bdf8;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    font-weight: 800;
+    padding: 2px 7px;
+    border-radius: 4px;
+    letter-spacing: 0.06em;
+}
+
+#view-project_detail .cr-sheet-title {
+    font-size: 0.74rem;
+    font-weight: 800;
+    color: #334155;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+/* 4. Modernized Table Headers & Cells inside Contract Review */
+#view-project_detail .cr-section-card {
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 8px !important;
+    overflow: hidden !important;
+    box-shadow: none !important;
+}
+
+#view-project_detail .cr-mod-hdr {
+    font-size: 0.68rem !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.06em !important;
+    text-transform: uppercase !important;
+    color: #ffffff !important;
+    padding: 0.42rem 0.65rem !important;
+    border: none !important;
+}
+
+#view-project_detail .cr-hdr-indigo {
+    background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%) !important;
+    border-right: 2px solid #1e293b !important;
+}
+
+#view-project_detail .cr-hdr-teal {
+    background: linear-gradient(135deg, #065f46 0%, #0d9488 100%) !important;
+}
+
+#view-project_detail .cr-hdr-slate {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%) !important;
+}
+
+#view-project_detail .cr-hdr-emerald {
+    background: linear-gradient(135deg, #0f172a 0%, #0f766e 100%) !important;
+}
+
+#view-project_detail .cr-sub-hdr-row td {
+    background: #1e293b !important;
+    color: #cbd5e1 !important;
+    font-size: 0.62rem !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.05em !important;
+    padding: 0.32rem 0.5rem !important;
+    border: 1px solid #334155 !important;
+}
+
+#view-project_detail .cr-master-label {
+    background: #f8fafc !important;
+    color: #334155 !important;
+    font-size: 0.64rem !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.03em !important;
+    text-transform: uppercase !important;
+    padding: 0.32rem 0.55rem !important;
+    border: 1px solid #cbd5e1 !important;
+    white-space: nowrap !important;
+}
+
+#view-project_detail .cr-card-table td {
+    border: 1px solid #cbd5e1 !important;
+    padding: 0.25rem 0.45rem;
+}
+
+#view-project_detail .cr-card-table td.p-0 {
+    padding: 0 !important;
+}
+
+#view-project_detail .cr-master-input,
+#view-project_detail .cr-master-select {
+    height: 29px !important;
+    padding: 0 0.5rem !important;
+    font-size: 0.76rem !important;
+    font-weight: 700 !important;
+    color: #0f172a !important;
+    background: #ffffff !important;
+}
+
+#view-project_detail .cr-io-readonly {
+    color: #0f766e !important;
+    background: #f0fdfa !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-weight: 800 !important;
+}
+
+#view-project_detail .search-tags-container {
+    min-height: 29px !important;
+    padding: 0.15rem 0.4rem !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: #ffffff !important;
+}
+
+#view-project_detail .search-input-inline {
+    font-size: 0.75rem !important;
+    font-weight: 700 !important;
+    color: #0f172a !important;
+    padding: 0.1rem 0 !important;
+    min-width: 70px !important;
+}
+
+/* 5. Checklist Table 2-Tier Modern Header & Compact Rows */
+#view-project_detail .cr-checklist-table thead tr.cr-chk-group-row th {
+    padding: 0.42rem 0.4rem !important;
+    font-size: 0.65rem !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.06em !important;
+    text-transform: uppercase !important;
+    color: #ffffff !important;
+    text-align: center !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+}
+
+#view-project_detail .cr-chk-hdr-sno,
+#view-project_detail .cr-chk-hdr-item,
+#view-project_detail .cr-chk-hdr-rem {
+    background: #0f172a !important;
+}
+
+#view-project_detail .cr-chk-hdr-req {
+    background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%) !important;
+}
+
+#view-project_detail .cr-chk-hdr-out {
+    background: linear-gradient(135deg, #065f46 0%, #0d9488 100%) !important;
+}
+
+#view-project_detail .cr-checklist-table thead tr.cr-chk-sub-row th {
+    background: #1e293b !important;
+    color: #e2e8f0 !important;
+    font-size: 0.62rem !important;
+    font-weight: 800 !important;
+    text-align: center !important;
+    padding: 0.3rem 0.2rem !important;
+    border: 1px solid #334155 !important;
+}
+
+#view-project_detail .cr-checklist-table .cr-item-row td {
+    padding: 0 !important;
+    height: 31px !important;
+}
+
+#view-project_detail .cr-checklist-table .cr-item-index {
+    font-size: 0.7rem !important;
+    font-weight: 800 !important;
+    color: #475569 !important;
+    background: #f8fafc !important;
+    text-align: center !important;
+}
+
+#view-project_detail .cr-checklist-table .cr-item-row span.px-3 {
+    padding: 0.3rem 0.6rem !important;
+    font-size: 0.76rem !important;
+    font-weight: 700 !important;
+    color: #0f172a !important;
+}
+
+#view-project_detail .cr-checklist-table .outcome-tile {
+    min-height: 31px !important;
+    height: 31px !important;
+}
+
+#view-project_detail .cr-add-special-btn {
+    padding: 0.36rem 0.85rem;
+    border-radius: 7px;
+    font-size: 0.73rem;
+    font-weight: 800;
+    color: #0f766e;
+    background: #f0fdfa;
+    border: 1px dashed #14b8a6;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+#view-project_detail .cr-add-special-btn:hover {
+    background: #0d9488;
+    color: #ffffff;
+    border-style: solid;
+}
+
+#view-project_detail .cr-decision-notes {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.65rem !important;
+    font-size: 0.68rem !important;
+    color: #475569 !important;
+    background: #f8fafc !important;
+    border-top: 1px solid #cbd5e1 !important;
+}
+
+#view-project_detail .cr-decision-notes strong {
+    color: #0f172a;
+    text-transform: uppercase;
+    font-size: 0.65rem;
+    letter-spacing: 0.04em;
+}
+
+
+/* ============================================================
+   FULL-VIEWPORT 2-SHEET BALANCE, IO SPEC CARD & ACTIVE MEMBER DROPDOWN
+   ============================================================ */
+
+#view-project_detail #dd-panel-review.active {
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: calc(100vh - 122px) !important;
+}
+
+#view-project_detail .cr-gateway-container {
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 0.75rem 1rem 1rem 1rem !important;
+}
+
+#view-project_detail .cr-two-page-grid {
+    flex: 1 !important;
+    min-height: calc(100vh - 148px) !important;
+    align-items: stretch !important;
+}
+
+#view-project_detail .cr-page-sheet {
+    min-height: 100% !important;
+    justify-content: flex-start !important;
+    padding: 0.85rem !important;
+    gap: 0.75rem !important;
+}
+
+/* Comfortable row heights so both sheets fill the screen naturally */
+#view-project_detail .cr-input-field {
+    height: 35px !important;
+    padding: 0.35rem 0.65rem !important;
+    font-size: 0.8rem !important;
+}
+
+#view-project_detail .cr-label-cell {
+    padding: 0.38rem 0.65rem !important;
+    font-size: 0.68rem !important;
+}
+
+/* Responsive 2-Page Scaling & Dynamic Row Height Distribution */
+@media (min-width: 1025px) and (max-width: 1200px) {
+    #view-project_detail .cr-two-page-grid {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr) !important;
+        gap: 0.65rem !important;
+    }
+}
+
+/* Dynamic Height Checklist Table: 10+ items automatically expand/contract to fill Card 4 */
+#view-project_detail .cr-checklist-table {
+    height: 100% !important;
+    flex: 1 1 auto !important;
+}
+
+#view-project_detail .cr-checklist-table thead tr.cr-chk-group-row,
+#view-project_detail .cr-checklist-table thead tr.cr-chk-sub-row {
+    height: 26px !important;
+}
+
+#view-project_detail .cr-checklist-table tbody#cr-excel-checklist {
+    height: 100% !important;
+}
+
+#view-project_detail .cr-checklist-table .cr-item-row {
+    height: auto !important;
+}
+
+#view-project_detail .cr-checklist-table .cr-item-row td {
+    height: 1px !important;
+    min-height: 30px !important;
+    padding: 0 !important;
+    vertical-align: middle !important;
+}
+
+#view-project_detail .cr-checklist-table .outcome-tile {
+    min-height: 30px !important;
+    height: 100% !important;
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+#view-project_detail .cr-checklist-table .cr-remarks-input,
+#view-project_detail .cr-checklist-table .cr-custom-label {
+    height: 100% !important;
+    min-height: 30px !important;
+}
+
+/* Allow member dropdowns to escape table cards without clipping */
+#view-project_detail .cr-section-card.cr-overflow-visible {
+    overflow: visible !important;
+}
+
+#view-project_detail .cr-section-card.cr-overflow-visible > .cr-banner-indigo,
+#view-project_detail .cr-section-card.cr-overflow-visible > .cr-banner-teal,
+#view-project_detail .cr-section-card.cr-overflow-visible > .cr-banner-slate {
+    border-top-left-radius: 7px;
+    border-top-right-radius: 7px;
+}
+
+/* Order Specification & Material Availability Readiness Pills */
+#view-project_detail .cr-avail-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
+    padding: 0.28rem 0.55rem;
+    border-radius: 6px;
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    color: #475569;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+#view-project_detail .cr-avail-toggle-btn:hover {
+    border-color: #94a3b8;
+    background: #f1f5f9;
+}
+
+#view-project_detail .cr-avail-toggle-btn .avail-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: #94a3b8;
+    flex-shrink: 0;
+}
+
+#view-project_detail .cr-avail-toggle-btn .avail-state {
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 0.62rem;
+    font-weight: 900;
+    background: #e2e8f0;
+    color: #475569;
+}
+
+#view-project_detail .cr-avail-toggle-btn.is-yes {
+    background: #ecfdf5;
+    border-color: #34d399;
+    color: #065f46;
+}
+
+#view-project_detail .cr-avail-toggle-btn.is-yes .avail-dot {
+    background: #10b981;
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+}
+
+#view-project_detail .cr-avail-toggle-btn.is-yes .avail-state {
+    background: #10b981;
+    color: #ffffff;
+}
+
+/* Enhanced Active Member Selector Container & Dropdown */
+#view-project_detail .member-search-container {
+    position: relative !important;
+    min-height: 35px !important;
+    padding: 3px 26px 3px 6px !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 4px !important;
+    cursor: pointer !important;
+    background: #ffffff !important;
+    transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+#view-project_detail .member-search-container .search-tags-container {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 4px !important;
+    width: 100% !important;
+    min-height: 28px !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border: none !important;
+}
+
+#view-project_detail .member-search-container:hover {
+    background: #f8fafc !important;
+}
+
+#view-project_detail .member-search-container:focus-within {
+    background: #f0fdfa !important;
+    box-shadow: inset 0 0 0 1.5px #0d9488 !important;
+}
+
+/* Dropdown chevron indicator */
+#view-project_detail .member-search-container::after {
+    content: "▾";
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.72rem;
+    color: #64748b;
+    pointer-events: none;
+    font-weight: 800;
+}
+
+#view-project_detail .member-search-container:focus-within::after {
+    color: #0d9488;
+}
+
+#view-project_detail .member-tag {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    background: #e0f2fe !important;
+    color: #0369a1 !important;
+    border: 1px solid #7dd3fc !important;
+    border-radius: 5px !important;
+    padding: 2px 7px !important;
+    font-size: 0.72rem !important;
+    font-weight: 800 !important;
+    line-height: 1.25 !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+}
+
+#view-project_detail .member-tag .member-tag-text {
+    color: #0369a1 !important;
+    font-weight: 800 !important;
+}
+
+#view-project_detail .member-tag .remove-tag {
+    cursor: pointer !important;
+    color: #0284c7 !important;
+    font-size: 0.85rem !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+    margin-left: 2px !important;
+}
+
+#view-project_detail .member-tag .remove-tag:hover {
+    color: #dc2626 !important;
+}
+
+#view-project_detail .search-input-inline {
+    flex: 1 1 40px !important;
+    min-width: 36px !important;
+    border: none !important;
+    outline: none !important;
+    background: transparent !important;
+    font-size: 0.76rem !important;
+    font-weight: 700 !important;
+    color: #0f172a !important;
+    padding: 2px 4px !important;
+}
+
+#view-project_detail .search-suggestions-dropdown {
+    position: absolute !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: calc(100% + 3px) !important;
+    min-width: 230px !important;
+    max-height: 225px !important;
+    overflow-y: auto !important;
+    background: #ffffff !important;
+    border: 1px solid #94a3b8 !important;
+    border-radius: 8px !important;
+    box-shadow: 0 12px 28px -4px rgba(15, 23, 42, 0.22), 0 4px 10px -2px rgba(15, 23, 42, 0.1) !important;
+    z-index: 9999 !important;
+}
+
+/* Open upward for bottom sign-off row so it never clips off-screen */
+#view-project_detail .search-suggestions-dropdown.dropdown-up {
+    top: auto !important;
+    bottom: calc(100% + 4px) !important;
+}
+
+#view-project_detail .suggestion-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px 10px;
+    background: #f1f5f9;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 0.6rem;
+    font-weight: 800;
+    color: #475569;
+    letter-spacing: 0.05em;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
+#view-project_detail .suggestion-item {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+    padding: 6px 10px !important;
+    cursor: pointer !important;
+    border-bottom: 1px solid #f1f5f9 !important;
+    transition: background-color 0.12s ease !important;
+}
+
+#view-project_detail .suggestion-item:last-child {
+    border-bottom: none !important;
+}
+
+#view-project_detail .suggestion-item:hover {
+    background: #f0fdfa !important;
+}
+
+#view-project_detail .suggestion-name-wrap {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+}
+
+#view-project_detail .suggestion-avatar {
+    width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    background: #0f766e;
+    color: #ffffff;
+    font-size: 0.64rem;
+    font-weight: 800;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+#view-project_detail .suggestion-item .name {
+    font-size: 0.76rem !important;
+    font-weight: 700 !important;
+    color: #0f172a !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#view-project_detail .suggestion-item .role {
+    font-size: 0.62rem !important;
+    font-weight: 800 !important;
+    color: #0369a1 !important;
+    background: #e0f2fe !important;
+    padding: 1px 6px !important;
+    border-radius: 4px !important;
+    text-transform: uppercase !important;
+    flex-shrink: 0;
+}
+
+#view-project_detail .suggestion-empty {
+    padding: 10px 12px;
+    font-size: 0.73rem;
+    font-weight: 600;
+    color: #64748b;
+    text-align: center;
+}
+
+/* ============================================================
+   PROJECT OVERVIEW TABLE: FULL LEFT-RIGHT & TOP-BOTTOM SCROLLING
+   ============================================================ */
+
+#view-project_overview:not(.hidden) {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 0% !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    overflow: hidden !important;
+    padding: 0 !important;
+}
+
+#view-project_overview .pm-header,
+#view-project_overview .pm-stats-ribbon,
+#view-project_overview .pm-filter-bar,
+#view-project_overview .po-filter-toolbar {
+    flex-shrink: 0 !important;
+}
+
+#view-project_overview .po-table-container {
+    flex: 1 1 0% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 12px !important;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06) !important;
+    overflow: hidden !important;
+    margin-bottom: 0 !important;
+}
+
+#view-project_overview .po-table-wrapper {
+    flex: 1 1 0% !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    min-height: 0 !important;
+    width: 100% !important;
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+    position: relative !important;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Visible, smooth scrollbars for Project Overview */
+#view-project_overview .po-table-wrapper::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+#view-project_overview .po-table-wrapper::-webkit-scrollbar-track {
+    background: #f1f5f9;
+}
+
+#view-project_overview .po-table-wrapper::-webkit-scrollbar-thumb {
+    background: #94a3b8;
+    border-radius: 5px;
+    border: 2px solid #f1f5f9;
+}
+
+#view-project_overview .po-table-wrapper::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
+}
+
+#project-overview-table {
+    width: max-content !important;
+    min-width: 100% !important;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+}
+
+/* (Legacy sticky table header rules removed - unified under admin.css with correct z-index hierarchy) */
+
+/* ============================================================
+   CLEAN UI REFRESH FOR PROJECT MANAGEMENT HOME PAGE (#view-project_management)
+   ============================================================ */
+
+#view-project_management .pm-header {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+
+#view-project_management .pm-stats-ribbon {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.85rem;
+    margin-bottom: 1rem;
+}
+
+#view-project_management .pm-stat-card {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0.9rem 1.1rem;
+    border-radius: 12px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+
+#view-project_management .pm-stat-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+#view-project_management .pm-filter-bar {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: flex-end !important;
+    justify-content: flex-start !important;
+    gap: 0.75rem !important;
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 12px !important;
+    padding: 0.75rem 1rem !important;
+    margin-bottom: 0.85rem !important;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04) !important;
+    width: 100% !important;
+    flex-shrink: 0 !important;
+}
+
+#view-project_management .pm-filter-bar .filter-group {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.25rem !important;
+    flex-shrink: 0 !important;
+}
+
+#view-project_management .pm-filter-bar .filter-group-search {
+    flex: 1 1 0% !important;
+    min-width: 280px !important;
+}
+
+#view-project_management .pm-filter-bar .filter-label {
+    font-size: 0.68rem !important;
+    font-weight: 800 !important;
+    color: #475569 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.06em !important;
+    margin-bottom: 0.15rem !important;
+}
+
+#view-project_management .pm-filter-bar .filter-input {
+    height: 36px !important;
+    border-radius: 8px !important;
+    border: 1px solid #cbd5e1 !important;
+    padding: 0 0.75rem !important;
+    font-size: 0.8125rem !important;
+    font-weight: 500 !important;
+    color: #0f172a !important;
+    background: #f8fafc !important;
+    transition: all 0.15s ease !important;
+}
+
+#view-project_management .pm-filter-bar .filter-input:focus {
+    background: #ffffff !important;
+    border-color: #0d9488 !important;
+    box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15) !important;
+    outline: none !important;
+}
+
+/* Refreshed Project Grid Cards */
+#view-project_management .pm-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1rem;
+}
+
+#view-project_management .pm-card {
+    position: relative;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+    display: flex;
+    flex-direction: column;
+}
+
+#view-project_management .pm-card:hover {
+    border-color: #0d9488;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.09);
+    transform: translateY(-2px);
+}
+
+#view-project_management .pm-card-body {
+    padding: 1rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    flex: 1;
+}
+
+#view-project_management .pm-c-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+#view-project_management .pm-c-top-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+}
+
+#view-project_management .pm-c-drg-pill {
+    font-size: 0.68rem;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    color: #475569;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    padding: 2px 6px;
+    border-radius: 5px;
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#view-project_management .pm-c-title {
+    font-size: 0.92rem;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 0;
+    line-height: 1.35;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+#view-project_management .pm-c-meta-strip {
+    display: grid;
+    grid-template-columns: 1.3fr 0.7fr;
+    gap: 0.5rem;
+    padding: 0.5rem 0.65rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+}
+
+#view-project_management .pm-c-meta-item {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+#view-project_management .pm-c-meta-lbl {
+    font-size: 0.6rem;
+    font-weight: 800;
+    color: #64748b;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+#view-project_management .pm-c-meta-val {
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: #1e293b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#view-project_management .pm-c-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 0.35rem;
+    border-top: 1px solid #f1f5f9;
+    margin-top: auto;
+}
+
+#view-project_management .pm-c-team-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+#view-project_management .pm-c-dept-badge {
+    font-size: 0.68rem;
+    font-weight: 800;
+    color: #0f766e;
+    background: #f0fdfa;
+    border: 1px solid #99f6e4;
+    padding: 2px 8px;
+    border-radius: 5px;
+    text-transform: uppercase;
+}
+
+#view-project_management .pm-c-date-text {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #64748b;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+#view-project_management .pm-c-actions-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding-top: 0.55rem;
+    border-top: 1px solid #e2e8f0;
+}
+
+#view-project_management .pm-c-quick-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+#view-project_management .pm-c-icon-group {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+#view-project_management .pm-c-icon-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    color: #64748b;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+#view-project_management .pm-c-icon-btn:hover {
+    background: #f1f5f9;
+    color: #0f172a;
+    border-color: #cbd5e1;
+}
+
+#view-project_management .pm-c-icon-btn.danger:hover {
+    background: #fef2f2;
+    color: #dc2626;
+    border-color: #fecaca;
+}
+
+

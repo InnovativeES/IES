@@ -103,6 +103,10 @@ export function getOrderSaleValue(order) {
 /**
  * Initialize all costing expenses listener to keep list view in sync
  */
+export function getAllExpenses() {
+    return allExpenses;
+}
+
 export function initCosting() {
     if (!allExpensesUnsubscribe) {
         allExpensesUnsubscribe = DB.subscribeToAllCostingExpenses((expenses) => {
@@ -110,6 +114,14 @@ export function initCosting() {
             const listView = document.getElementById('view-costing_report');
             if (listView && !listView.classList.contains('hidden')) {
                 renderCostingOrderList();
+            }
+            const overviewView = document.getElementById('view-project_overview');
+            if (overviewView && !overviewView.classList.contains('hidden') && window.adminApp?.renderProjectOverview) {
+                window.adminApp.renderProjectOverview();
+            }
+            const pmView = document.getElementById('view-project_management');
+            if (pmView && !pmView.classList.contains('hidden') && window.adminApp?.filterProjects) {
+                window.adminApp.filterProjects();
             }
         });
     }
@@ -351,7 +363,7 @@ export function renderCostingOrderList() {
     let totalPOValueSum = 0;
     let totalExpenseSum = 0;
 
-    const rowsHTML = filtered.map(order => {
+    const rowsHTML = filtered.map((order, idx) => {
         const poVal = getOrderSaleValue(order);
         
         // Sum expenses for this order
@@ -368,68 +380,59 @@ export function renderCostingOrderList() {
         totalPOValueSum += poVal;
         totalExpenseSum += totalExp;
 
-        const statusClass = (order.status === 'Delivered') 
-            ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
-            : 'bg-amber-100 text-amber-700 border-amber-200';
+        const orderStatus = order.status || 'Pending';
+        const statusBadgeClass = orderStatus === 'Delivered'
+            ? 'status-delivered'
+            : (orderStatus === 'Partially Delivered' ? 'status-portion' : 'status-pending');
 
-        // Row highlighting: Soft green background and green left border if filled
-        const rowClass = isFilled ? 'costing-row-filled' : 'hover:bg-slate-50';
+        const statusRowClass = orderStatus === 'Delivered'
+            ? 'row-delivered'
+            : (orderStatus === 'Partially Delivered' ? 'row-portion' : (isFilled ? 'costing-row-filled' : 'row-pending'));
 
         // Costing status badge with tick
         const costingBadge = isFilled 
-            ? `<span class="costing-badge-filled" style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 9999px; font-size: 0.75rem; font-weight: 700; background-color: #d1fae5; color: #065f46; border: 1px solid #6ee7b7;">
-                 <svg style="width: 14px; height: 14px; stroke: #059669;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            ? `<span class="costing-badge-filled" style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 9999px; font-size: 0.72rem; font-weight: 700; background-color: #d1fae5; color: #065f46; border: 1px solid #6ee7b7;">
+                 <svg style="width: 13px; height: 13px; stroke: #059669;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
                  </svg>
                  Filled (${expenses.length})
                </span>`
-            : `<span class="costing-badge-empty" style="display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 9999px; font-size: 0.72rem; font-weight: 500; background-color: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0;">
+            : `<span class="costing-badge-empty" style="display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 9999px; font-size: 0.72rem; font-weight: 600; background-color: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1;">
                  Empty
                </span>`;
 
         return `
-            <tr class="transition-colors border-b border-slate-100 cursor-pointer ${rowClass}" 
-                style="${isFilled ? 'background-color: #ecfdf5 !important; border-left: 4px solid #10b981 !important;' : ''}"
+            <tr class="cursor-pointer ${statusRowClass}" 
                 onclick="window.adminApp.openCostingDetail('${order.id}')">
-                <td class="px-4 py-3 text-center whitespace-nowrap">
+                <td class="sticky-col text-center font-mono text-slate-500">${idx + 1}</td>
+                <td class="text-center whitespace-nowrap">
                     ${costingBadge}
                 </td>
-                <td class="px-4 py-3 font-semibold text-slate-900 flex items-center gap-2">
-                    ${isFilled ? `
-                        <span style="display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 9999px; background-color: #059669; color: #ffffff; font-size: 11px; font-weight: bold; box-shadow: 0 1px 2px rgba(0,0,0,0.15);" title="Costing Sheet Filled">
-                            ✓
-                        </span>
-                    ` : `
-                        <span style="display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 9999px; background-color: #e2e8f0; color: #94a3b8; font-size: 10px;">
-                            •
-                        </span>
-                    `}
-                    ${order.internalOrderNo || '-'}
+                <td class="text-center whitespace-nowrap">
+                    <span class="io-order-pill">${order.internalOrderNo || '-'}</span>
                 </td>
-                <td class="px-4 py-3 text-slate-600 text-sm whitespace-nowrap">${formatDate(order.date)}</td>
-                <td class="px-4 py-3 font-medium text-slate-800">${order.customer || '-'}</td>
-                <td class="px-4 py-3 text-slate-600 text-sm max-w-xs truncate" title="${order.description || ''}">${order.description || '-'}</td>
-                <td class="px-4 py-3 text-center text-sm font-semibold text-slate-700">${order.qty || 1}</td>
-                <td class="px-4 py-3 text-center whitespace-nowrap">
-                    <span class="inline-block px-2.5 py-0.5 text-xs font-semibold rounded-full border ${statusClass}">
-                        ${order.status || 'Pending'}
+                <td class="text-center text-slate-600 whitespace-nowrap">${formatDate(order.date)}</td>
+                <td class="font-semibold text-slate-900">${order.customer || '-'}</td>
+                <td class="text-slate-700 max-w-xs truncate" title="${order.description || ''}">${order.description || '-'}</td>
+                <td class="text-center font-bold text-slate-800 section-end">${order.qty || 1}</td>
+                <td class="text-center whitespace-nowrap">
+                    <span class="status-badge ${statusBadgeClass}">
+                        ${orderStatus}
                     </span>
                 </td>
-                <td class="px-4 py-3 text-right font-medium text-slate-800 whitespace-nowrap">${formatINR(poVal)}</td>
-                <td class="px-4 py-3 text-right font-medium text-slate-700 whitespace-nowrap">${formatINR(totalExp)}</td>
-                <td class="px-4 py-3 text-right whitespace-nowrap">
-                    <div class="font-bold ${isProfitable ? 'text-emerald-600' : 'text-rose-600'}">
-                        ${formatINR(profit)}
-                    </div>
-                    <div class="text-xs ${isProfitable ? 'text-emerald-500' : 'text-rose-500'}">
-                        ${marginPct}% margin
-                    </div>
+                <td class="text-right font-mono font-semibold text-slate-800 whitespace-nowrap">${formatINR(poVal)}</td>
+                <td class="text-right font-mono font-semibold text-slate-700 whitespace-nowrap">${formatINR(totalExp)}</td>
+                <td class="text-right font-mono font-bold whitespace-nowrap ${isProfitable ? 'text-emerald-700' : 'text-rose-700'}">
+                    ${formatINR(profit)}
                 </td>
-                <td class="px-4 py-3 text-center whitespace-nowrap">
+                <td class="text-center font-mono font-bold whitespace-nowrap section-end ${isProfitable ? 'text-emerald-700' : 'text-rose-700'}">
+                    ${marginPct}%
+                </td>
+                <td class="text-center whitespace-nowrap">
                     <button type="button" class="costing-btn-action ${isFilled ? 'action-edit' : 'action-fill'}"
-                            style="background: ${isFilled ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' : 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)'}; color: #ffffff !important; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 14px; border-radius: 8px; font-weight: 700; font-size: 0.75rem; border: none; cursor: pointer; box-shadow: 0 2px 6px ${isFilled ? 'rgba(5, 150, 105, 0.35)' : 'rgba(13, 148, 136, 0.35)'};"
+                            style="background: ${isFilled ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' : 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)'}; color: #ffffff !important; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 5px 12px; border-radius: 7px; font-weight: 700; font-size: 0.72rem; border: none; cursor: pointer; box-shadow: 0 2px 5px ${isFilled ? 'rgba(5, 150, 105, 0.3)' : 'rgba(13, 148, 136, 0.3)'};"
                             onclick="event.stopPropagation(); window.adminApp.openCostingDetail('${order.id}')">
-                        <svg style="width: 14px; height: 14px; stroke: #ffffff; flex-shrink: 0;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg style="width: 13px; height: 13px; stroke: #ffffff; flex-shrink: 0;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                         </svg>
@@ -484,6 +487,13 @@ export function openCostingDetail(orderId) {
 
     currentOrderId = currentOrder.id;
 
+    // Ensure #costing-report-sheet is in its standalone slot inside #view-costing_detail
+    const sheetEl = document.getElementById('costing-report-sheet');
+    const standaloneSlot = document.getElementById('costing-sheet-standalone-slot');
+    if (sheetEl && standaloneSlot && sheetEl.parentElement !== standaloneSlot) {
+        standaloneSlot.appendChild(sheetEl);
+    }
+
     // Switch view to costing_detail
     window.adminApp.switchView('costing_detail');
 
@@ -495,6 +505,65 @@ export function openCostingDetail(orderId) {
 
     expensesUnsubscribe = DB.subscribeToCostingExpenses(currentOrderId, (expenses) => {
         currentExpenses = expenses;
+        renderCostingDetailContent();
+    });
+}
+
+/**
+ * Mount and load the Costing Report Sheet inside Project Management's Costing tab (#pm-costing-sheet-slot)
+ */
+export function loadEmbeddedProjectCosting(orderNoOrId, fallbackProject = null) {
+    const allOrders = window.adminApp?.getCurrentOrders ? window.adminApp.getCurrentOrders() : [];
+    const sanitizedOrders = getSanitizedInternalOrders(allOrders);
+    const lookupKey = String(orderNoOrId || '').trim().toUpperCase();
+
+    let matchedOrder = sanitizedOrders.find(o =>
+        o.id === orderNoOrId ||
+        (o.internalOrderNo && o.internalOrderNo.trim().toUpperCase() === lookupKey)
+    );
+
+    if (!matchedOrder && fallbackProject) {
+        matchedOrder = {
+            id: fallbackProject.id,
+            internalOrderNo: fallbackProject.projectId || fallbackProject.internalOrderNo || orderNoOrId,
+            date: fallbackProject.createdAt?.seconds ? new Date(fallbackProject.createdAt.seconds * 1000).toISOString().slice(0, 10) : '',
+            customer: fallbackProject.customerName || '',
+            description: fallbackProject.name || '',
+            drawingNo: fallbackProject.drawingNo || '',
+            poNo: fallbackProject.poNo || fallbackProject.poNumber || '',
+            qty: 1,
+            status: fallbackProject.status || 'Pending',
+            total: 0
+        };
+    }
+
+    if (!matchedOrder) return;
+
+    currentOrder = matchedOrder;
+    currentOrderId = matchedOrder.id;
+
+    // Move #costing-report-sheet into #pm-costing-sheet-slot
+    const sheetEl = document.getElementById('costing-report-sheet');
+    const pmSlot = document.getElementById('pm-costing-sheet-slot');
+    if (sheetEl && pmSlot && sheetEl.parentElement !== pmSlot) {
+        pmSlot.appendChild(sheetEl);
+    }
+
+    if (expensesUnsubscribe) {
+        expensesUnsubscribe();
+        expensesUnsubscribe = null;
+    }
+
+    expensesUnsubscribe = DB.subscribeToCostingExpenses(currentOrderId, (expenses) => {
+        // Also include expenses matched by internalOrderNo in case orderId differed
+        const ioKey = String(currentOrder.internalOrderNo || '').trim().toUpperCase();
+        const extraByIo = ioKey ? allExpenses.filter(e =>
+            e.orderId !== currentOrderId &&
+            String(e.internalOrderNo || '').trim().toUpperCase() === ioKey
+        ) : [];
+        const mergedMap = new Map();
+        [...expenses, ...extraByIo].forEach(e => mergedMap.set(e.id, e));
+        currentExpenses = Array.from(mergedMap.values());
         renderCostingDetailContent();
     });
 }

@@ -2,8 +2,8 @@ import * as Auth from './auth.js';
 import * as UI from './ui.js';
 import * as DB from './db.js';
 import * as Charts from './charts.js';
-import * as Monitoring from './monitoring.js';
-import * as DCRegister from './dc_register.js';
+import * as Monitoring from './monitoring.js?v=9';
+import * as DCRegister from './dc_register.js?v=9';
 import * as Inventory from './inventory.js';
 import * as Workflow from './workflow.js';
 import * as Reporting from './reporting.js';
@@ -20,7 +20,7 @@ let memberUnsubscribe = null;
 let projectUnsubscribe = null;
 let isTrashView = false;
 let isProjectTrashView = false;
-let projectViewMode = localStorage.getItem('projectViewMode') || 'grid';
+let projectViewMode = 'list';
 let currentInventory = [];
 let currentTransactions = [];
 let inventoryUnsubscribe = null;
@@ -134,47 +134,112 @@ function setupMemberSearch(containerId, inputClass, hiddenInputId, onSelectChang
 
 // Global App Object
 function calculateDashboardStats(orders, selectedMonth = 'all', selectedDept = 'all') {
-    // Filter by month and department
-    const filteredOrders = orders.filter(o => {
-        if (o.isTrash) return false;
+    const rawList = Array.isArray(orders) ? orders : [];
+    const activeRaw = rawList.filter(o => !o.isTrash && !o.deleted && !o.isDeleted);
 
+    // Pre-calculate delivered quantities per IO No from delivery_report entries
+    const deliveredByIo = {};
+    activeRaw.forEach(o => {
+        if (o.entryType === 'delivery_report') {
+            const ioKey = String(o.internalOrderNo || '').trim().toUpperCase();
+            if (!ioKey) return;
+            const dQty = parseFloat(o.deliveryQty ?? o.qty) || 0;
+            deliveredByIo[ioKey] = (deliveredByIo[ioKey] || 0) + dQty;
+        }
+    });
+
+    // Sanitize internal orders (exclude delivery_report entries)
+    const internalOrders = (Costing && Costing.getSanitizedInternalOrders)
+        ? Costing.getSanitizedInternalOrders(activeRaw)
+        : activeRaw.filter(o => o.entryType !== 'delivery_report');
+
+    // Filter by month and department
+    const filteredOrders = internalOrders.filter(o => {
         const matchesMonth = selectedMonth === 'all' || (o.date && o.date.startsWith(selectedMonth));
         const matchesDept = selectedDept === 'all' || o.department === selectedDept;
-
         return matchesMonth && matchesDept;
     });
 
-    const active = filteredOrders.filter(o => o.status === 'Pending');
-    const delivered = filteredOrders.filter(o => o.status === 'Delivered');
-
-    const parseTotal = (val) => {
+    const parseNum = (val) => {
         if (typeof val === 'number') return val;
-        if (typeof val === 'string') return parseFloat(val.replace(/,/g, '')) || 0;
+        if (typeof val === 'string') return parseFloat(val.replace(/[^0-9.-]/g, '')) || 0;
         return 0;
     };
 
-    // Revenue is now sum of all Pending orders in selection (Using In-house Value only)
-    const revenue = active.reduce((sum, o) => sum + parseTotal(o.prodValueEa), 0);
-    const pendingCount = active.length;
+    // Map projects by IO No for Contract Review lookup
+    const projectByIo = {};
+    (currentProjects || []).forEach(p => {
+        if (p.isDeleted) return;
+        const ioKey = String(p.projectId || '').trim().toUpperCase();
+        if (ioKey) projectByIo[ioKey] = p;
+    });
 
-    // Unassigned orders: Pending orders with no assignment
-    const unassignedCount = active.filter(o => !o.assignedTo || o.assignedTo.length === 0).length;
+    const activePendingOrders = [];
+    const deliveredOrders = [];
+    let pendingSaleRevenue = 0;
+    let crPendingCount = 0;
+    let crFiledForPendingCount = 0;
 
-    const totalCount = active.length + delivered.length;
+    filteredOrders.forEach(o => {
+        const ioKey = String(o.internalOrderNo || '').trim().toUpperCase();
+        const qty = parseNum(o.qty);
+        const delQty = (ioKey && deliveredByIo[ioKey] !== undefined)
+            ? deliveredByIo[ioKey]
+            : parseNum(o.deliveryQty);
+
+        let derivedStatus = o.status || 'Pending';
+        if (qty > 0 && delQty >= qty) derivedStatus = 'Delivered';
+        else if (delQty > 0) derivedStatus = 'Partially Delivered';
+
+        if (derivedStatus === 'Delivered') {
+            deliveredOrders.push({ ...o, derivedStatus });
+        } else {
+            activePendingOrders.push({ ...o, derivedStatus, pendingQty: Math.max(0, qty - delQty) });
+
+            // Calculate Pending Sale Value (using Sale Value, NOT prodValueEa)
+            const unitSale = parseNum(o.saleValueEa || o.value);
+            const totalSale = parseNum(o.total || o.totalValue) || (qty * unitSale);
+            const remainingQty = qty > 0 ? Math.max(0, qty - delQty) : 0;
+
+            let orderPendingSale = totalSale;
+            if (qty > 0 && delQty > 0 && remainingQty < qty) {
+                orderPendingSale = unitSale > 0 ? (remainingQty * unitSale) : (totalSale * (remainingQty / qty));
+            }
+            pendingSaleRevenue += orderPendingSale;
+
+            // Check Contract Review status for this Pending Order
+            const proj = ioKey ? projectByIo[ioKey] : null;
+            const isCrFiled = Boolean(
+                o.contractFiled ||
+                (proj && (proj.contractFiled || proj.crStatus === 'Finalized' || ['Approved', 'In Progress', 'Completed'].includes(proj.status)))
+            );
+            if (isCrFiled) {
+                crFiledForPendingCount++;
+            } else {
+                crPendingCount++;
+            }
+        }
+    });
+
+    const pendingCount = activePendingOrders.length;
+    const totalCount = pendingCount + deliveredOrders.length;
 
     // Pipeline percentages
     const pendingPct = totalCount > 0 ? Math.round((pendingCount / totalCount) * 100) : 0;
-    const deliveredPct = totalCount > 0 ? Math.round((delivered.length / totalCount) * 100) : 100;
+    const deliveredPct = totalCount > 0 ? Math.round((deliveredOrders.length / totalCount) * 100) : 0;
 
     return {
-        revenue,
-        activeOrders: active.length,
+        revenue: pendingSaleRevenue,
+        activeOrders: pendingCount,
         pendingCount,
-        unassignedCount,
+        unassignedCount: crPendingCount,
+        crPendingCount,
+        crFiledForPendingCount,
         totalMembers: currentMembers.length,
         pendingPct,
         deliveredPct,
-        filteredOrders
+        filteredOrders: activePendingOrders,
+        allFilteredOrders: filteredOrders
     };
 }
 
@@ -183,13 +248,38 @@ function refreshDashboard() {
     const monthFilter = document.getElementById('dashboard-month-filter');
     const deptFilter = document.getElementById('dashboard-dept-filter');
 
+    // Dynamically populate month dropdown from currentOrders so current months are always selectable
+    if (monthFilter && Array.isArray(currentOrders) && currentOrders.length > 0) {
+        const prevVal = monthFilter.value || 'all';
+        const monthSet = new Set();
+        currentOrders.forEach(o => {
+            if (!o.isTrash && !o.deleted && o.date && o.date.length >= 7) {
+                monthSet.add(o.date.substring(0, 7));
+            }
+        });
+        const sortedMonths = Array.from(monthSet).sort().reverse();
+        const formatMonthLabel = (ym) => {
+            const [y, m] = ym.split('-');
+            const d = new Date(parseInt(y, 10), parseInt(m, 10) - 1, 1);
+            return isNaN(d) ? ym : d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        };
+        monthFilter.innerHTML = `<option value="all">All Time</option>` +
+            sortedMonths.map(ym => `<option value="${ym}">${formatMonthLabel(ym)}</option>`).join('');
+        monthFilter.value = (prevVal === 'all' || monthSet.has(prevVal)) ? prevVal : 'all';
+    }
+
     const selectedMonth = monthFilter ? monthFilter.value : 'all';
     const selectedDept = deptFilter ? deptFilter.value : 'all';
+
+    // Ensure Contract Review subcollection statuses are enriched in background
+    if (window.adminApp && window.adminApp.enrichProjectsWithContractReviews) {
+        window.adminApp.enrichProjectsWithContractReviews();
+    }
 
     const stats = calculateDashboardStats(currentOrders, selectedMonth, selectedDept);
     UI.updateStats(stats);
     UI.renderDashboardPendingOrders(stats.filteredOrders);
-    UI.renderDashboardRecentActivity(stats.filteredOrders);
+    UI.renderDashboardRecentActivity(stats.allFilteredOrders || stats.filteredOrders);
 }
 
 // Multi-Unit Facility Management
@@ -197,13 +287,33 @@ function updateUnitUI() {
     const activeUnit = Units.getActiveUnit();
     const config = Units.getActiveUnitConfig();
 
-    // 1. Sidebar Widget
+    // 1. Sidebar Widget (Expanded + Collapsed Pill)
     const sidebarUnitIndicator = document.getElementById('sidebar-unit-indicator');
     const sidebarUnitCode = document.getElementById('sidebar-unit-code');
     const sidebarUnitSelect = document.getElementById('sidebar-unit-select');
+    const collapsedPill = document.getElementById('sidebar-unit-collapsed-pill');
+    const collapsedDot = document.getElementById('sidebar-unit-collapsed-dot');
+    const collapsedCode = document.getElementById('sidebar-unit-collapsed-code');
+
     if (sidebarUnitIndicator) {
         sidebarUnitIndicator.style.backgroundColor = config.color;
         sidebarUnitIndicator.style.boxShadow = `0 0 8px ${config.color}`;
+    }
+    if (collapsedDot) {
+        collapsedDot.style.backgroundColor = config.color;
+        collapsedDot.style.boxShadow = `0 0 6px ${config.color}`;
+    }
+    if (collapsedCode) {
+        collapsedCode.textContent = config.code;
+    }
+    if (collapsedPill) {
+        if (activeUnit === 'unit2') {
+            collapsedPill.style.borderColor = 'rgba(99, 102, 241, 0.55)';
+            collapsedPill.style.color = '#a5b4fc';
+        } else {
+            collapsedPill.style.borderColor = 'rgba(16, 185, 129, 0.55)';
+            collapsedPill.style.color = '#6ee7b7';
+        }
     }
     if (sidebarUnitCode) {
         sidebarUnitCode.textContent = config.code;
@@ -274,11 +384,11 @@ function startUnitSubscriptions() {
         currentProjects = projects || [];
         const customerFilter = document.getElementById('project-customer-filter');
         if (customerFilter) {
-            const customers = [...new Set(currentProjects.map(p => p.customerName).filter(c => c))];
+            const customers = [...new Set(currentProjects.map(p => p.customerName ? String(p.customerName).trim().toUpperCase() : '').filter(Boolean))].sort();
             const currentVal = customerFilter.value;
             customerFilter.innerHTML = '<option value="all">All Customers</option>' +
                 customers.map(c => `<option value="${c}">${c}</option>`).join('');
-            customerFilter.value = currentVal;
+            customerFilter.value = customers.includes(currentVal) ? currentVal : 'all';
         }
 
         const view = document.getElementById('view-project_management');
@@ -286,6 +396,7 @@ function startUnitSubscriptions() {
             window.adminApp.filterProjects();
         }
         window.adminApp.updateProjectStats();
+        refreshDashboard();
     });
     window.unsubscribeProjects = projectUnsubscribe;
 
@@ -339,6 +450,11 @@ function startUnitSubscriptions() {
             Costing.renderCostingDetailContent();
         }
 
+        const projectOverviewView = document.getElementById('view-project_overview');
+        if (projectOverviewView && !projectOverviewView.classList.contains('hidden') && window.adminApp.renderProjectOverview) {
+            window.adminApp.renderProjectOverview();
+        }
+
         refreshDashboard();
     }, isTrashView);
 }
@@ -386,6 +502,13 @@ function switchActiveUnit(unitId) {
 
 // Global App Object
 window.adminApp = {
+    toggleSidebar: () => {
+        const container = document.getElementById('dashboard-container');
+        if (!container) return;
+        container.classList.toggle('sidebar-collapsed');
+        const isCollapsed = container.classList.contains('sidebar-collapsed');
+        localStorage.setItem('ies_sidebar_collapsed', isCollapsed ? 'true' : 'false');
+    },
     // Multi-Unit Facility Management
     openUnitModal: () => {
         const modal = document.getElementById('modal-unit-selector');
@@ -1077,6 +1200,7 @@ window.adminApp = {
         const searchTerm = document.getElementById('project-search')?.value.toLowerCase() || '';
         const statusFilter = document.getElementById('project-status-filter')?.value || 'all';
         const typeFilter = document.getElementById('project-type-filter')?.value || 'all';
+        const customerFilter = document.getElementById('project-customer-filter')?.value || 'all';
 
         const filtered = currentProjects.filter(p => {
             // Filter based on trash view
@@ -1097,8 +1221,9 @@ window.adminApp = {
                 drgNo.toLowerCase().includes(searchTerm));
             const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
             const matchesType = typeFilter === 'all' || p.jobType === typeFilter;
+            const matchesCustomer = customerFilter === 'all' || (p.customerName && p.customerName.trim().toUpperCase() === customerFilter.toUpperCase());
 
-            return matchesSearch && matchesStatus && matchesType;
+            return matchesSearch && matchesStatus && matchesType && matchesCustomer;
         });
 
         window.adminApp.renderProjectCards(filtered);
@@ -1106,15 +1231,8 @@ window.adminApp = {
     },
 
     setProjectView: (mode) => {
-        window.adminApp.projectViewMode = mode;
-        localStorage.setItem('projectViewMode', mode);
-
-        // Update Toggle Buttons
-        const gridBtn = document.getElementById('btn-view-grid');
-        const listBtn = document.getElementById('btn-view-list');
-        if (gridBtn) gridBtn.classList.toggle('active', mode === 'grid');
-        if (listBtn) listBtn.classList.toggle('active', mode === 'list');
-
+        window.adminApp.projectViewMode = 'list';
+        localStorage.setItem('projectViewMode', 'list');
         window.adminApp.filterProjects();
     },
 
@@ -1123,57 +1241,93 @@ window.adminApp = {
         if (!tbody) return;
 
         if (projects.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-12 text-slate-400">No projects found.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="11" class="text-center py-12 text-slate-400">No projects found.</td></tr>';
             return;
         }
 
-        tbody.innerHTML = projects.map(p => {
+        const allOrders = window.adminApp.getCurrentOrders ? window.adminApp.getCurrentOrders() : [];
+        const allExpenses = Costing.getAllExpenses ? Costing.getAllExpenses() : [];
+
+        tbody.innerHTML = projects.map((p, idx) => {
             const statusClass = (p.status || 'draft').toLowerCase().replace(/\s+/g, '-');
             const isTrashed = !!p.isDeleted;
-            const deliveryDate = p.expectedCompletion ? new Date(p.expectedCompletion).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : 'N/A';
+            const ioKey = String(p.projectId || '').trim().toUpperCase();
+            const matchingOrder = allOrders.find(o => String(o.internalOrderNo || '').trim().toUpperCase() === ioKey && o.entryType !== 'delivery_report');
 
-            // Cross-reference Drawing No if missing
-            let drgNo = p.drawingNo || '';
-            if (!drgNo && window.adminApp.getCurrentOrders) {
-                const orders = window.adminApp.getCurrentOrders();
-                const matchingOrder = orders.find(o => o.internalOrderNo === p.projectId);
-                if (matchingOrder) drgNo = matchingOrder.drawingNo || '';
-            }
+            const drgNo = p.drawingNo || (matchingOrder ? matchingOrder.drawingNo : '') || '-';
+            const teamName = p.crTeam || p.jobType || (matchingOrder ? matchingOrder.department : '') || 'Admin';
+            const rawTargetDel = p.crDeliveryDate || p.expectedCompletion || (matchingOrder ? matchingOrder.deliveryDateActual : '');
+            const deliveryDate = rawTargetDel ? new Date(rawTargetDel).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' }) : '-';
 
-            const displayDrg = drgNo ? `<span class="pm-table-project-drg text-xs font-semibold px-2 py-0.5 rounded ml-2" style="background: var(--brand-50); color: var(--brand-700); border: 1px solid var(--brand-200);">DRG: ${drgNo}</span>` : '';
+            const isContractFiled = p.contractFiled || p.crStatus === 'Finalized' || ['Approved', 'In Progress', 'Completed'].includes(p.status);
+            const crBadge = isContractFiled
+                ? `<button class="pm-badge-filed" onclick="event.stopPropagation(); window.adminApp.viewProjectDetails('${p.id}', 'review')" title="Contract Review Filed (Click to View/Edit)">✓ Filled</button>`
+                : `<button class="pm-badge-pending" onclick="event.stopPropagation(); window.adminApp.viewProjectDetails('${p.id}', 'review')" title="Contract Review Pending (Click to Fill)">Pending</button>`;
 
+            const orderExpenses = allExpenses.filter(e =>
+                (matchingOrder && e.orderId === matchingOrder.id) ||
+                String(e.internalOrderNo || '').trim().toUpperCase() === ioKey
+            );
+            const totalExp = orderExpenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
+            const hasCosting = orderExpenses.length > 0 || (p.costingItems && p.costingItems.length > 0) || (p.expenses && p.expenses.length > 0) || (parseFloat(p.totalCost) > 0);
+            const costingBadge = hasCosting
+                ? `<button class="pm-badge-filed" onclick="event.stopPropagation(); window.adminApp.viewProjectDetails('${p.id}', 'costing')" title="Costing Filled: ₹${totalExp.toLocaleString('en-IN')} (Click to View Sheet)">✓ Filled</button>`
+                : `<button class="pm-badge-pending" onclick="event.stopPropagation(); window.adminApp.viewProjectDetails('${p.id}', 'costing')" title="Costing Pending (Click to Open Sheet)">Pending</button>`;
+
+            // Dynamic Project Status Dropdown (syncs across PM, Master Order Tracker & Dashboard)
+            const currentStatus = p.status || 'Draft';
+            const wfClass = 'wf-' + currentStatus.toLowerCase().replace(/\s+/g, '-');
+            const safeProjId = String(p.id || '').replace(/'/g, "\\'");
+            const safeIoAttr = String(p.projectId || '').replace(/'/g, "\\'");
+            const stageOptions = (window.adminApp.PROJECT_WORKFLOW_STAGES || ['Draft', 'Under Review', 'Approved', 'In Progress', 'Completed']).map(s =>
+                `<option value="${s}" ${s === currentStatus ? 'selected' : ''}>${s}</option>`
+            ).join('');
+            const statusDropdown = `
+                <div class="po-wf-cell" onclick="event.stopPropagation();">
+                    <select class="po-wf-select ${wfClass}" title="Change Project Status"
+                        onchange="window.adminApp.changeOverviewStatus(this, '${safeIoAttr}', '${safeProjId}')">
+                        ${stageOptions}
+                    </select>
+                </div>
+            `;
+
+            const rowStatusCls = p.status === 'Completed' ? 'row-delivered' : (isContractFiled ? 'row-portion' : 'row-pending');
 
             const actions = isTrashed ? `
-                <button class="pm-action-btn restore-btn" onclick="event.stopPropagation(); window.adminApp.restoreProject('${p.id}')">Restore</button>
-                <button class="pm-action-btn" style="color:#ef4444;" onclick="event.stopPropagation(); window.adminApp.permanentDeleteProject('${p.id}')">Delete</button>
+                <div class="flex gap-1.5 justify-center">
+                    <button class="pm-action-btn restore-btn" onclick="event.stopPropagation(); window.adminApp.restoreProject('${p.id}')">Restore</button>
+                    <button class="pm-action-btn" style="color:#ef4444;" onclick="event.stopPropagation(); window.adminApp.permanentDeleteProject('${p.id}')">Delete</button>
+                </div>
             ` : `
-                <div class="flex gap-2 justify-end">
-                    <button class="pm-action-btn" onclick="event.stopPropagation(); window.adminApp.editProject('${p.id}')">Edit</button>
-                    <button class="pm-action-btn deep-dive" onclick="event.stopPropagation(); window.adminApp.viewProjectDetails('${p.id}')">Report</button>
+                <div class="flex gap-1.5 justify-center items-center">
+                    <button class="pm-quick-jump-btn cr-btn" onclick="event.stopPropagation(); window.adminApp.viewProjectDetails('${p.id}', 'review')" title="Open Contract Review">
+                        📋 CR
+                    </button>
+                    <button class="pm-quick-jump-btn cost-btn" onclick="event.stopPropagation(); window.adminApp.viewProjectDetails('${p.id}', 'costing')" title="Open Costing Sheet">
+                        💰 Costing
+                    </button>
+                    <button class="action-btn edit" onclick="event.stopPropagation(); window.adminApp.editProject('${p.id}')" title="Edit Project">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                    </button>
+                    <button class="action-btn delete" onclick="event.stopPropagation(); window.adminApp.trashProject('${p.id}')" title="Move to Trash">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </button>
                 </div>
             `;
 
             return `
-                <tr class="${isTrashed ? 'opacity-50' : ''}">
-                    <td>
-                        <div class="pm-table-project-info">
-                            <span class="pm-table-project-name">${p.name}</span>
-                            <div class="flex items-center mt-1">
-                                <span class="pm-table-project-id">${p.projectId}</span>
-                                ${displayDrg}
-                            </div>
-                        </div>
-                    </td>
-                    <td><span class="pm-table-customer">${p.customerName}</span></td>
-                    <td><span class="version-tag">${p.jobType || 'N/A'}</span></td>
-                    <td><span class="status-badge ${statusClass}">${p.status}</span></td>
-                    <td>
-                        <div class="pm-table-timeline">
-                            <span class="pm-table-date-label">Delivery</span>
-                            <span class="font-bold text-slate-700">${deliveryDate}</span>
-                        </div>
-                    </td>
-                    <td class="text-right">${actions}</td>
+                <tr class="${rowStatusCls} ${isTrashed ? 'opacity-50' : ''} cursor-pointer" onclick="window.adminApp.viewProjectDetails('${p.id}', 'review')">
+                    <td class="sticky-pm-sno text-center font-mono text-slate-400">${idx + 1}</td>
+                    <td class="sticky-pm-io"><span class="io-order-pill">${p.projectId || '-'}</span></td>
+                    <td class="font-bold text-slate-800">${(p.customerName || '-').toUpperCase()}</td>
+                    <td class="font-mono text-slate-700 font-semibold">${String(drgNo).toUpperCase()}</td>
+                    <td class="font-semibold text-slate-700 max-w-[220px] truncate" title="${(p.name || '').toUpperCase()}">${(p.name || '-').toUpperCase()}</td>
+                    <td class="text-center"><span class="version-tag">${teamName}</span></td>
+                    <td class="text-center">${crBadge}</td>
+                    <td class="text-center font-mono text-slate-600">${deliveryDate}</td>
+                    <td class="text-center">${costingBadge}</td>
+                    <td class="text-center">${statusDropdown}</td>
+                    <td class="text-center">${actions}</td>
                 </tr>
             `;
         }).join('');
@@ -1183,10 +1337,12 @@ window.adminApp = {
         const active = currentProjects.filter(p => !p.isDeleted);
         const completed = active.filter(p => p.status === 'Completed');
         const trashed = currentProjects.filter(p => !!p.isDeleted);
+        const crFiledCount = active.filter(p => p.contractFiled || p.crStatus === 'Finalized' || ['Approved', 'In Progress', 'Completed'].includes(p.status)).length;
 
         const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
         setEl('pm-stat-total', active.length);
         setEl('pm-stat-active', active.length - completed.length);
+        setEl('pm-stat-cr-filed', `${crFiledCount} / ${active.length}`);
         setEl('pm-stat-completed', completed.length);
         setEl('pm-stat-trash', trashed.length);
 
@@ -1319,46 +1475,60 @@ window.adminApp = {
 
     renderInventoryList: (items) => {
         const body = document.getElementById('inventory-list-body');
-        const table = body.closest('table');
-        const headerRow = table ? table.querySelector('thead tr') : null;
+        const table = body ? body.closest('table') : null;
+        const thead = table ? table.querySelector('thead') : null;
         if (!body) return;
 
         // Filter items based on trash view
         const displayItems = items.filter(item => !!item.isDeleted === isInventoryTrashView);
 
-        // Adjust Table Header for Trash View
-        if (headerRow) {
+        // Adjust 2-Tier Table Header for Active vs Trash View
+        if (thead) {
             const sortIcon = (col) => {
-                if (inventorySortState.column !== col) return '<span class="inv-sort-icon">⇅</span>';
-                return inventorySortState.direction === 'asc' ? '<span class="inv-sort-icon active">▲</span>' : '<span class="inv-sort-icon active">▼</span>';
+                if (inventorySortState.column !== col) return '<span class="inv-sort-icon" style="opacity:0.5; margin-left:4px;">⇅</span>';
+                return inventorySortState.direction === 'asc'
+                    ? '<span class="inv-sort-icon active" style="color:#34d399; margin-left:4px;">▲</span>'
+                    : '<span class="inv-sort-icon active" style="color:#34d399; margin-left:4px;">▼</span>';
             };
             if (isInventoryTrashView) {
-                headerRow.innerHTML = `
-                    <th class="cr-emerald-bg">Item Details</th>
-                    <th class="cr-emerald-bg">Category</th>
-                    <th class="cr-emerald-bg">Last Stock</th>
-                    <th class="cr-emerald-bg">Deleted On</th>
-                    <th class="cr-emerald-bg text-right">Actions</th>
+                thead.innerHTML = `
+                    <tr class="group-header-row">
+                        <th rowspan="2" class="group-sno sticky-col-header text-center" style="width: 48px; min-width: 48px;">S.No</th>
+                        <th colspan="4" class="group-io text-center">Deleted Inventory Items (Trash)</th>
+                        <th rowspan="2" class="group-actions text-center" style="width: 170px; min-width: 170px;">Actions</th>
+                    </tr>
+                    <tr class="sub-header-row">
+                        <th class="sub-header" style="min-width: 220px;">Item Details</th>
+                        <th class="sub-header text-center" style="min-width: 130px;">Category</th>
+                        <th class="sub-header text-center" style="min-width: 130px;">Last Stock</th>
+                        <th class="sub-header section-end text-center" style="min-width: 120px;">Deleted On</th>
+                    </tr>
                 `;
             } else {
-                headerRow.innerHTML = `
-                    <th class="cr-emerald-bg inv-sortable" onclick="window.adminApp.sortInventory('name')">Item Details ${sortIcon('name')}</th>
-                    <th class="cr-emerald-bg inv-sortable" onclick="window.adminApp.sortInventory('category')">Category ${sortIcon('category')}</th>
-                    <th class="cr-emerald-bg">Location</th>
-                    <th class="cr-emerald-bg text-center inv-sortable" onclick="window.adminApp.sortInventory('stock')">Current Stock ${sortIcon('stock')}</th>
-                    <th class="cr-emerald-bg inv-sortable" onclick="window.adminApp.sortInventory('status')">Status ${sortIcon('status')}</th>
-                    <th class="cr-emerald-bg text-right">Actions</th>
+                thead.innerHTML = `
+                    <tr class="group-header-row">
+                        <th rowspan="2" class="group-sno sticky-col-header text-center" style="width: 48px; min-width: 48px;">S.No</th>
+                        <th colspan="3" class="group-io text-center">1. Item Specification &amp; Storage</th>
+                        <th colspan="2" class="group-price text-center">2. Stock Level &amp; Status</th>
+                        <th rowspan="2" class="group-actions text-center" style="width: 170px; min-width: 170px;">Actions</th>
+                    </tr>
+                    <tr class="sub-header-row">
+                        <th class="sub-header inv-sortable cursor-pointer" style="min-width: 220px;" onclick="window.adminApp.sortInventory('name')">Item Details ${sortIcon('name')}</th>
+                        <th class="sub-header text-center inv-sortable cursor-pointer" style="min-width: 130px;" onclick="window.adminApp.sortInventory('category')">Category ${sortIcon('category')}</th>
+                        <th class="sub-header section-end" style="min-width: 130px;">Location / Bin</th>
+                        <th class="sub-header text-center inv-sortable cursor-pointer" style="min-width: 130px;" onclick="window.adminApp.sortInventory('stock')">Current Stock ${sortIcon('stock')}</th>
+                        <th class="sub-header section-end text-center inv-sortable cursor-pointer" style="min-width: 120px;" onclick="window.adminApp.sortInventory('status')">Status ${sortIcon('status')}</th>
+                    </tr>
                 `;
             }
         }
 
         if (displayItems.length === 0) {
-            const colspan = isInventoryTrashView ? 5 : 6;
+            const colspan = isInventoryTrashView ? 6 : 7;
             body.innerHTML = `
                 <tr>
                     <td colspan="${colspan}" class="p-12 text-center text-slate-400">
                         <div class="flex flex-col items-center gap-2">
-                            <span class="text-2xl">${isInventoryTrashView ? '🗑️' : '📦'}</span>
                             <p class="italic">No ${isInventoryTrashView ? 'deleted' : 'inventory'} items found.</p>
                         </div>
                     </td>
@@ -1367,43 +1537,44 @@ window.adminApp = {
             return;
         }
 
-        body.innerHTML = displayItems.map(item => {
+        body.innerHTML = displayItems.map((item, idx) => {
             const isLow = item.currentStock <= item.minimumLevel && item.currentStock > 0;
             const isOut = item.currentStock <= 0;
 
-            let statusBadge = `<span class="badge badge-success">In Stock</span>`;
-            if (isOut) statusBadge = `<span class="badge" style="background: #fef2f2; color: #ef4444; border: 1px solid #fee2e2;">Out of Stock</span>`;
-            else if (isLow) statusBadge = `<span class="badge badge-warning">Low Stock</span>`;
+            let statusBadge = `<span class="status-badge status-delivered">In Stock</span>`;
+            if (isOut) statusBadge = `<span class="status-badge" style="background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca;">Out of Stock</span>`;
+            else if (isLow) statusBadge = `<span class="status-badge status-portion">Low Stock</span>`;
+
+            const rowClass = isOut ? 'row-pending' : (isLow ? 'row-portion' : '');
 
             // Thumbnail Logic
             let thumb = `
-                <div class="inventory-icon-placeholder">
+                <div class="inventory-icon-placeholder" style="width:32px; height:32px; border-radius:7px; background:#f1f5f9; border:1px solid #e2e8f0; display:inline-flex; align-items:center; justify-content:center; font-size:13px; flex-shrink:0;">
                     <span>${item.category === 'Tool' ? '🔧' : (item.category === 'Raw Material' ? '🏗️' : '📦')}</span>
                 </div>
             `;
             if (item.photoUrl) {
                 const safeName = (item.name || '').replace(/'/g, "\\'");
-                thumb = `<img src="${item.photoUrl}" class="inventory-thumb cursor-pointer hover:ring-2 hover:ring-teal-500 transition-all" alt="${item.name}" onclick="event.stopPropagation(); window.adminApp.openPhotoViewer('${item.photoUrl}', '${safeName}')">`;
+                thumb = `<img src="${item.photoUrl}" class="inventory-thumb cursor-pointer hover:ring-2 hover:ring-teal-500 transition-all" style="width:32px; height:32px; border-radius:7px; object-fit:cover; flex-shrink:0;" alt="${item.name}" onclick="event.stopPropagation(); window.adminApp.openPhotoViewer('${item.photoUrl}', '${safeName}')">`;
             }
 
             if (isInventoryTrashView) {
                 return `
-                    <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                        <td class="p-3">
-                            <div class="flex items-center gap-3">
+                    <tr>
+                        <td class="sticky-col text-center font-mono text-slate-400">${idx + 1}</td>
+                        <td>
+                            <div class="flex items-center gap-2.5">
                                 ${thumb}
-                                <div>
-                                    <div class="font-bold text-slate-700">${item.name}</div>
-                                </div>
+                                <span class="font-bold text-slate-800">${item.name}</span>
                             </div>
                         </td>
-                        <td class="p-3 text-slate-500 font-medium">${item.category}</td>
-                        <td class="p-3 text-slate-700 font-bold">${item.currentStock} ${item.unit}</td>
-                        <td class="p-3 text-slate-400 text-xs">${item.updatedAt ? new Date(item.updatedAt.seconds * 1000).toLocaleDateString() : 'Recently'}</td>
-                        <td class="p-3 text-right">
-                            <div class="flex justify-end gap-2">
-                                <button class="btn btn-ghost btn-sm text-green-600" onclick="window.adminApp.restoreInventoryItem('${item.id}')" title="Restore">Restore</button>
-                                <button class="btn btn-ghost btn-sm text-red-600" onclick="window.adminApp.permanentDeleteInventoryItem('${item.id}', '${item.name}')" title="Delete Permanently">Delete</button>
+                        <td class="text-center"><span class="version-tag">${item.category || '-'}</span></td>
+                        <td class="text-center font-bold text-slate-700">${item.currentStock} ${item.unit || ''}</td>
+                        <td class="section-end text-center text-slate-500 font-mono text-xs">${item.updatedAt ? new Date(item.updatedAt.seconds * 1000).toLocaleDateString('en-IN') : 'Recently'}</td>
+                        <td class="text-center">
+                            <div class="flex justify-center gap-1.5">
+                                <button class="btn btn-secondary btn-sm text-emerald-700" onclick="window.adminApp.restoreInventoryItem('${item.id}')" title="Restore">Restore</button>
+                                <button class="btn btn-danger btn-sm" onclick="window.adminApp.permanentDeleteInventoryItem('${item.id}', '${item.name}')" title="Delete Permanently">Delete</button>
                             </div>
                         </td>
                     </tr>
@@ -1411,26 +1582,28 @@ window.adminApp = {
             }
 
             return `
-                <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                    <td class="p-3">
-                        <div class="flex items-center gap-3">
+                <tr class="${rowClass}">
+                    <td class="sticky-col text-center font-mono text-slate-400">${idx + 1}</td>
+                    <td>
+                        <div class="flex items-center gap-2.5">
                             ${thumb}
                             <div>
-                                <div class="font-bold text-slate-700">${item.name}</div>
+                                <div class="font-bold text-slate-800">${item.name}</div>
+                                ${item.price ? `<div class="text-[10px] text-slate-400 font-mono">₹${Number(item.price).toLocaleString('en-IN')}/${item.unit || 'unit'}</div>` : ''}
                             </div>
                         </div>
                     </td>
-                    <td class="p-3 text-slate-500 font-medium">${item.category}</td>
-                    <td class="p-3 text-slate-500">${item.location || '-'}</td>
-                    <td class="p-3 text-center">
-                        <div class="font-bold text-slate-700 text-lg">${item.currentStock}</div>
-                        <div class="text-[10px] text-slate-400 uppercase font-bold">${item.unit}</div>
+                    <td class="text-center"><span class="version-tag">${item.category || '-'}</span></td>
+                    <td class="section-end font-semibold text-slate-600">${item.location || '-'}</td>
+                    <td class="text-center">
+                        <span class="font-extrabold text-slate-800 text-sm">${item.currentStock}</span>
+                        <span class="text-[10px] text-slate-500 uppercase font-bold ml-1">${item.unit || ''}</span>
                     </td>
-                    <td class="p-3">${statusBadge}</td>
-                    <td class="p-3 text-right">
-                        <div class="flex justify-end gap-2">
-                            <button class="pm-c-primary-btn" onclick='window.adminApp.openAdjustStockModal("${item.id}")'>🔄 Adjust</button>
-                            <button class="action-btn" onclick="window.adminApp.editInventoryItem('${item.id}')" title="Edit Item" style="background: #eff6ff !important; color: #2563eb !important;">
+                    <td class="section-end text-center">${statusBadge}</td>
+                    <td class="text-center">
+                        <div class="flex justify-center items-center gap-1.5">
+                            <button class="pm-quick-jump-btn cr-btn" onclick='window.adminApp.openAdjustStockModal("${item.id}")'>Adjust</button>
+                            <button class="action-btn edit" onclick="window.adminApp.editInventoryItem('${item.id}')" title="Edit Item">
                                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                 </svg>
@@ -1796,37 +1969,41 @@ window.adminApp = {
         if (!body) return;
 
         if (!transactions || transactions.length === 0) {
-            body.innerHTML = '<tr><td colspan="11" class="p-8 text-center text-slate-400 italic">No transactions found.</td></tr>';
+            body.innerHTML = '<tr><td colspan="12" class="p-8 text-center text-slate-400 italic">No transactions found.</td></tr>';
             return;
         }
 
-        body.innerHTML = transactions.map(t => {
+        body.innerHTML = transactions.map((t, idx) => {
             const date = t.timestamp?.toDate ? t.timestamp.toDate() : (t.timestamp?.seconds ? new Date(t.timestamp.seconds * 1000) : new Date());
-            const formattedDate = date.toLocaleDateString();
+            const formattedDate = date.toLocaleDateString('en-IN');
             const formattedTime = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
             const unitPrice = t.unitPrice || 0;
             const totalCost = t.totalCost || (t.quantity * unitPrice);
             const performedBy = t.user || t.performedBy || '-';
+            const isIn = (t.type || '').toUpperCase() === 'IN';
 
             return `
-                <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                    <td class="p-3">
-                        <div class="text-slate-800 font-bold text-xs">${formattedDate}</div>
-                        <div class="text-slate-400 text-[10px] uppercase">${formattedTime}</div>
+                <tr>
+                    <td class="sticky-col text-center font-mono text-slate-400">${idx + 1}</td>
+                    <td>
+                        <div class="text-slate-800 font-bold text-xs font-mono">${formattedDate}</div>
+                        <div class="text-slate-400 text-[10px] uppercase font-mono">${formattedTime}</div>
                     </td>
-                    <td class="p-3 font-medium text-slate-700">${t.itemName}</td>
-                    <td class="p-3 text-slate-500 font-medium text-xs">${t.category || 'General'}</td>
-                    <td class="p-3"><span class="inv-trans-type ${t.type.toLowerCase()}">${t.type}</span></td>
-                    <td class="p-3 text-center font-bold ${t.type === 'IN' ? 'text-green-600' : 'text-red-600'}">${t.type === 'IN' ? '+' : '-'}${t.quantity}</td>
-                    <td class="p-3 font-mono text-slate-600 text-xs">₹${unitPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                    <td class="p-3 font-bold text-slate-800 text-xs">₹${totalCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                    <td class="p-3 text-slate-500 text-xs truncate max-w-[150px]" title="${t.reason || ''}">${t.reason || '-'}</td>
-                    <td class="p-3 text-teal-600 font-bold text-xs">${t.orderId || '-'}</td>
-                    <td class="p-3 text-slate-500 text-xs">${performedBy}</td>
-                    <td class="p-3 text-center">
+                    <td class="font-bold text-slate-800">${t.itemName || '-'}</td>
+                    <td class="section-end text-center"><span class="version-tag">${t.category || 'General'}</span></td>
+                    <td class="text-center">
+                        <span class="status-badge ${isIn ? 'status-delivered' : 'status-portion'}">${t.type || 'OUT'}</span>
+                    </td>
+                    <td class="text-center font-extrabold ${isIn ? 'text-emerald-700' : 'text-rose-600'}">${isIn ? '+' : '-'}${t.quantity}</td>
+                    <td class="text-right font-mono text-slate-600">₹${unitPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                    <td class="section-end text-right font-mono font-bold text-slate-800">₹${totalCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                    <td class="text-slate-600 truncate max-w-[160px]" title="${t.reason || ''}">${t.reason || '-'}</td>
+                    <td class="text-center">${t.orderId ? `<span class="io-order-pill">${t.orderId}</span>` : '<span class="text-slate-400">-</span>'}</td>
+                    <td class="section-end font-semibold text-slate-700">${performedBy}</td>
+                    <td class="text-center">
                         <button class="action-btn delete" onclick="window.adminApp.deleteTransactionRow('${t.id}')" title="Delete Transaction">
-                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                             </svg>
                         </button>
@@ -2290,115 +2467,9 @@ window.adminApp = {
     renderProjectCards: (projects) => {
         const grid = document.getElementById('project-grid');
         const listView = document.getElementById('project-list-view');
-        if (!grid || !listView) return;
-
-        const mode = window.adminApp.projectViewMode || 'grid';
-
-        if (mode === 'list') {
-            grid.classList.add('hidden');
-            listView.classList.remove('hidden');
-            window.adminApp.renderProjectTable(projects);
-            return;
-        } else {
-            grid.classList.remove('hidden');
-            listView.classList.add('hidden');
-        }
-
-        if (projects.length === 0) {
-            const msg = isProjectTrashView ? 'Trash is empty.' : 'No projects found matching your filters.';
-            const sub = isProjectTrashView ? 'Deleted projects will appear here.' : 'Try adjusting your search or create a new project.';
-            grid.innerHTML = `
-                <div class="pm-empty-state">
-                    <div class="pm-empty-icon">
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
-                    </div>
-                    <div class="pm-empty-title">${msg}</div>
-                    <div class="pm-empty-text">${sub}</div>
-                </div>
-            `;
-            return;
-        }
-
-        grid.innerHTML = projects.map(p => {
-            const rawStatus = p.status || 'Draft';
-            const statusClass = rawStatus.toLowerCase().replace(/\s+/g, '-');
-            const statusSlug = `st-${statusClass}`;
-            const isTrashed = !!p.isDeleted;
-            const startDate = p.createdAt ? new Date(p.createdAt.seconds * 1000).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : 'N/A';
-            const deliveryDate = p.expectedCompletion ? new Date(p.expectedCompletion).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : 'N/A';
-
-            const isContractFiled = p.contractFiled || ['Approved', 'In Progress', 'Completed'].includes(p.status);
-            const contractStatusHtml = isContractFiled ?
-                '<span class="pm-c-contract-val"><svg style="width:13px;height:13px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg> Filed</span>' :
-                `<span class="pm-c-contract-val pending">${rawStatus}</span>`;
-
-            // NEW: Fetch Drawing Number from Internal Order if missing on project
-            const allOrders = window.adminApp.getCurrentOrders ? window.adminApp.getCurrentOrders() : [];
-            const matchingOrder = allOrders.find(o => o.internalOrderNo === p.projectId);
-            const displayDrg = p.drawingNo || (matchingOrder ? matchingOrder.drawingNo : '');
-
-            const actionButtons = isTrashed ? `
-                <button class="pm-c-icon-btn" onclick="event.stopPropagation(); window.adminApp.restoreProject('${p.id}')" title="Restore">
-                    <svg style="width:16px;height:16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
-                </button>
-                <button class="pm-c-icon-btn trash" onclick="event.stopPropagation(); window.adminApp.permanentDeleteProject('${p.id}')" title="Delete Permanently">
-                    <svg style="width:16px;height:16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
-            ` : `
-                <button class="pm-c-icon-btn" onclick="event.stopPropagation(); window.adminApp.editProject('${p.id}')" title="Edit">
-                    <svg style="width:16px;height:16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                </button>
-                <button class="pm-c-icon-btn trash" onclick="event.stopPropagation(); window.adminApp.trashProject('${p.id}')" title="Trash">
-                    <svg style="width:16px;height:16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                </button>
-            `;
-
-            return `
-                <div class="pm-card-compact ${statusSlug} ${isTrashed ? 'trashed' : ''}">
-                    <div class="pm-c-accent ${statusClass}"></div>
-                    <div class="pm-c-body">
-                        <div class="pm-c-header">
-                            <div class="pm-c-title-group">
-                                <span class="pm-c-title">${p.name}</span>
-                                <span class="pm-c-subtitle">${p.customerName || 'N/A'}</span>
-                            </div>
-                            <div class="pm-c-id-group">
-                                <span class="pm-c-id-pill">${p.projectId}</span>
-                                ${displayDrg ? `<span class="pm-c-drg">DRG: ${displayDrg}</span>` : ''}
-                            </div>
-                        </div>
-                        <div class="pm-c-status-row">
-                            <span class="pm-c-label">Status</span>
-                            <span class="status-badge ${statusClass}">${p.status || 'Draft'}</span>
-                            ${p.jobType ? `<span class="pm-c-type-badge">${p.jobType}</span>` : ''}
-                        </div>
-                    </div>
-                    <div class="pm-c-dates">
-                        <div class="pm-c-date-cell">
-                            <span class="pm-c-label">Start Date</span>
-                            <span class="pm-c-value">${startDate}</span>
-                        </div>
-                        <div class="pm-c-date-cell">
-                            <span class="pm-c-label">Delivery</span>
-                            <span class="pm-c-value">${deliveryDate}</span>
-                        </div>
-                    </div>
-                    <div class="pm-c-footer">
-                        <div class="pm-c-contract-status">
-                            <span class="pm-c-label">Contract</span>
-                            ${contractStatusHtml}
-                        </div>
-                        <div class="pm-c-actions">
-                            ${actionButtons}
-                            <button class="pm-c-primary-btn" onclick="event.stopPropagation(); window.adminApp.viewProjectDetails('${p.id}')">
-                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
-                                View Report
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }).join('');
+        if (grid) grid.classList.add('hidden');
+        if (listView) listView.classList.remove('hidden');
+        window.adminApp.renderProjectTable(projects);
     },
 
     getStatusColorClass: (status) => {
@@ -2412,42 +2483,72 @@ window.adminApp = {
         }
     },
 
-    viewProjectDetails: async (id) => {
+    registerProjectInMemory: (projectObj) => {
+        if (!projectObj || !projectObj.id) return;
+        const idx = currentProjects.findIndex(p => p.id === projectObj.id);
+        if (idx >= 0) {
+            currentProjects[idx] = { ...currentProjects[idx], ...projectObj };
+        } else {
+            currentProjects.unshift(projectObj);
+        }
+    },
+
+    openProjectContractReview: async (projectDocId, orderData = null) => {
+        await window.adminApp.viewProjectDetails(projectDocId, 'review', orderData);
+    },
+
+    viewProjectDetails: async (id, initialTab = 'review', fallbackOrderData = null) => {
         window.adminApp.currentEditingProjectId = id;
-        const project = currentProjects.find(p => p.id === id);
+        let project = currentProjects.find(p => p.id === id);
+        if (!project && fallbackOrderData) {
+            project = {
+                id,
+                projectId: fallbackOrderData.internalOrderNo || '',
+                name: fallbackOrderData.description || '',
+                customerName: fallbackOrderData.customer || '',
+                jobType: fallbackOrderData.department || 'CNC',
+                drawingNo: fallbackOrderData.drawingNo || '',
+                poNo: fallbackOrderData.poNo || '',
+                status: 'Draft',
+                currentStage: 'Intake'
+            };
+            currentProjects.unshift(project);
+        }
         if (!project) return;
 
         window.adminApp.switchView('project_detail');
-        window.adminApp.switchDeepDiveTab('review');
 
-        // Populate Basic Info
+        // Populate Basic Info + Quick Metadata Pills
         const idDisplay = document.getElementById('detail-project-id');
         const nameDisplay = document.getElementById('detail-project-name');
         const statusDisplay = document.getElementById('detail-project-status');
+        const headerStats = document.getElementById('dd-header-stats');
+
+        const ioKey = String(project.projectId || '').trim().toUpperCase();
+        const matchingOrder = currentOrders.find(o => String(o.internalOrderNo || '').trim().toUpperCase() === ioKey && o.entryType !== 'delivery_report') || fallbackOrderData;
 
         if (idDisplay) idDisplay.textContent = project.projectId;
-        if (nameDisplay) nameDisplay.textContent = project.name;
+        if (nameDisplay) nameDisplay.textContent = (project.name || project.projectDescription || project.projectName || matchingOrder?.description || 'PROJECT').toUpperCase();
         if (statusDisplay) {
-            const span = statusDisplay.querySelector('span');
-            if (span) span.textContent = project.status || 'Draft';
+            const textSpan = statusDisplay.querySelector('.dd-status-text') || statusDisplay.querySelector('span:last-of-type') || statusDisplay.querySelector('span');
+            if (textSpan) textSpan.textContent = project.status || 'Draft';
             const statusCls = (project.status || 'Draft').toLowerCase().replace(/\s+/g, '-');
-            statusDisplay.className = `status-badge ${statusCls} flex items-center gap-1 group`;
+            statusDisplay.className = `status-badge ${statusCls} flex items-center gap-1.5 group`;
         }
-
-        // Side Info
-        const infoCustomer = document.getElementById('info-customer');
-        const infoJobType = document.getElementById('info-job-type');
-        const infoDrgSource = document.getElementById('info-drg-source');
-        const infoExpectedDate = document.getElementById('info-expected-date');
-        const infoNotes = document.getElementById('info-notes');
-
-        if (infoCustomer) infoCustomer.textContent = project.customerName || '-';
-        if (infoJobType) infoJobType.textContent = project.jobType || '-';
-        if (infoDrgSource) infoDrgSource.textContent = project.drawingSource || '-';
-        if (infoExpectedDate) infoExpectedDate.textContent = project.expectedCompletion || 'Not Set';
-        if (infoNotes) infoNotes.textContent = project.internalNotes || 'No internal notes.';
-
-
+        if (headerStats) {
+            const cust = (project.customerName || matchingOrder?.customer || '-').toUpperCase();
+            const drg = (project.drawingNo || matchingOrder?.drawingNo || '-').toUpperCase();
+            const po = project.poNo || matchingOrder?.poNo || '-';
+            const inDc = project.customerDcNo || matchingOrder?.customerDcNo || '-';
+            const qty = matchingOrder?.qty || project.orderQty || '-';
+            headerStats.innerHTML = `
+                <div class="pm-meta-chip"><span class="pm-meta-lbl">CUSTOMER</span><span class="pm-meta-val">${cust}</span></div>
+                <div class="pm-meta-chip"><span class="pm-meta-lbl">DRG NO</span><span class="pm-meta-val">${drg}</span></div>
+                <div class="pm-meta-chip"><span class="pm-meta-lbl">PO NO</span><span class="pm-meta-val">${po}</span></div>
+                <div class="pm-meta-chip"><span class="pm-meta-lbl">INWARD DC</span><span class="pm-meta-val">${inDc}</span></div>
+                <div class="pm-meta-chip"><span class="pm-meta-lbl">QTY</span><span class="pm-meta-val">${qty}</span></div>
+            `;
+        }
 
         // Subscribe to Project Sub-collections (Files & Logs)
         DB.subscribeToProjectFiles(id, (files) => {
@@ -2459,10 +2560,13 @@ window.adminApp = {
         });
 
         // Load Contract Review form for this project
-        window.adminApp.loadContractReview(id);
+        await window.adminApp.loadContractReview(id);
 
-        // Load Costing Data
-        window.adminApp.loadProjectCosting(id, project.projectId);
+        // Load Embedded Costing Sheet for this project
+        Costing.loadEmbeddedProjectCosting(project.projectId, project);
+
+        // Switch to requested tab ('review' or 'costing' or 'files')
+        window.adminApp.switchDeepDiveTab(initialTab || 'review');
     },
 
     renderProgressDots: (project) => {
@@ -2499,7 +2603,7 @@ window.adminApp = {
             const currentId = window.adminApp.currentEditingProjectId;
             const project = currentProjects.find(p => p.id === currentId);
             if (project) {
-                window.adminApp.loadProjectCosting(currentId, project.projectId);
+                Costing.loadEmbeddedProjectCosting(project.projectId, project);
             }
         }
     },
@@ -2681,7 +2785,7 @@ window.adminApp = {
         // NEW: Clear breakdown table and summary stats for new orders
         const breakdownBody = document.getElementById('io-delivery-breakdown-body');
         if (breakdownBody) {
-            breakdownBody.innerHTML = '<tr><td colspan="4" style="padding: 1.5rem; text-align: center; color: #94a3b8; font-style: italic;">No delivery records found for this order.</td></tr>';
+            breakdownBody.innerHTML = '<tr><td colspan="5" style="padding: 0.6rem 1rem; text-align: center; color: #94a3b8; font-style: italic; font-size: 0.72rem; background: #f8fafc;">No delivery records found for this order.</td></tr>';
         }
 
         // Clear summary stats
@@ -2973,10 +3077,10 @@ window.adminApp = {
 
         const baseData = {
             date: formData.get('date'),
-            customer: formData.get('customer'),
-            drawingNo: formData.get('drawingNo') || '',
+            customer: (formData.get('customer') || '').trim().toUpperCase(),
+            drawingNo: (formData.get('drawingNo') || '').trim().toUpperCase(),
             billNo: formData.get('billNo')?.trim() || '',
-            description: formData.get('description') || '',
+            description: (formData.get('description') || '').trim().toUpperCase(),
             internalOrderNo: formData.get('internalOrderNo')?.trim() || '',
             department: formData.get('department') || '',
             labourCost: parseFloat(formData.get('labourCost')) || 0,
@@ -3020,13 +3124,13 @@ window.adminApp = {
             if (baseData.internalOrderNo) {
                 const ioNo = baseData.internalOrderNo;
                 const originalOrder = currentOrders.find(o =>
-                    o.internalOrderNo === ioNo && (!o.entryType || o.entryType !== 'delivery_report')
+                    (o.internalOrderNo || '').trim().toUpperCase() === ioNo.trim().toUpperCase() && (!o.entryType || o.entryType !== 'delivery_report')
                 );
 
                 if (originalOrder) {
                     const existingDeliveries = currentOrders.filter(o =>
                         o.entryType === 'delivery_report' &&
-                        o.internalOrderNo === ioNo &&
+                        (o.internalOrderNo || '').trim().toUpperCase() === ioNo.trim().toUpperCase() && !o.isDeleted && !o.deleted &&
                         o.id !== orderId
                     );
 
@@ -3051,7 +3155,7 @@ window.adminApp = {
                     else if (totalDelivered > 0) newStatus = 'Partially Delivered';
 
                     await DB.updateOrder(originalOrder.id, {
-                        deliveryQty: totalDelivered,
+                        deliveryDateActual: dcRows[dcRows.length - 1]?.dcDate || baseData.date || originalOrder.deliveryDateActual || '', deliveryQty: totalDelivered,
                         dcNo: pooledDCs,
                         billNo: pooledBills,
                         status: newStatus
@@ -3835,7 +3939,7 @@ window.adminApp = {
                 priorityOptions += `<option value="${i}" ${order.priorityNumber == i ? 'selected' : ''}>${i}</option>`;
             }
 
-            const depts = ['Admin', 'Fab', 'CNC', 'VMC', 'Turning', 'Assembly'];
+            const depts = ['Admin', 'Fab', 'CNC', 'VMC', 'Assembly'];
             let deptOptions = '<option value="">-</option>';
             depts.forEach(d => {
                 deptOptions += `<option value="${d}" ${order.department === d ? 'selected' : ''}>${d}</option>`;
@@ -5183,9 +5287,9 @@ window.adminApp.loadContractReview = async (projectId) => {
         // Internal Order Data
         setVal('cr-review-no', reviewNo);
         setVal('cr-io-number', project.projectId || '');
-        setVal('cr-internal-date', reviewData.internalDate || today);
+        setVal('cr-internal-date', reviewData.internalDate || (matchingOrder ? matchingOrder.date : '') || today);
         setVal('cr-accountability', reviewData.accountability || '');
-        setVal('cr-team', reviewData.team || '');
+        setVal('cr-team', reviewData.team || (matchingOrder ? matchingOrder.department : '') || project.jobType || '');
         setVal('cr-team-leader', reviewData.teamLeader || '');
         setVal('cr-members', reviewData.members || '');
 
@@ -5314,10 +5418,24 @@ window.adminApp.saveContractReview = async (action) => {
         // Save to the actual subcollection
         await DB.saveContractReview(projectDocId, reviewData);
 
-        // Update project with filed status
-        await DB.updateProject(projectDocId, {
-            contractFiled: isFiled
-        }, 'Contract Review ' + (isFiled ? 'Finalized' : 'Draft Saved'));
+        // Update project with filed status + Contract Review summary fields for Project Overview
+        const crUpdates = {
+            contractFiled: isFiled,
+            crStatus: isFiled ? 'Finalized' : 'Draft',
+            crTeam: reviewData.team || project.jobType || '',
+            crAccountability: reviewData.accountability || '',
+            crTeamLeader: reviewData.teamLeader || '',
+            crDeliveryDate: reviewData.deliveryDate || project.expectedCompletion || '',
+            crDecisionOa: reviewData.decisionOa || '',
+            crDecisionCap: reviewData.decisionCap || '',
+            drawingNo: reviewData.drawingNo || project.drawingNo || '',
+            poNo: reviewData.poNo || project.poNo || ''
+        };
+        Object.assign(project, crUpdates);
+        if (window.adminApp.invalidateProjectCrCache) {
+            window.adminApp.invalidateProjectCrCache(projectDocId);
+        }
+        await DB.updateProject(projectDocId, crUpdates, 'Contract Review ' + (isFiled ? 'Finalized' : 'Draft Saved'));
 
         if (statusSpan) {
             statusSpan.textContent = `Saved at ${new Date().toLocaleTimeString()} `;
@@ -5336,6 +5454,11 @@ window.adminApp.saveContractReview = async (action) => {
 
 // Initialize view on load
 document.addEventListener('DOMContentLoaded', () => {
+    // Restore sidebar state if saved
+    if (localStorage.getItem('ies_sidebar_collapsed') === 'true') {
+        document.getElementById('dashboard-container')?.classList.add('sidebar-collapsed');
+    }
+
     // Close status menu on click outside
     document.addEventListener('click', (e) => {
         const menu = document.getElementById('dd-status-menu');
@@ -5348,8 +5471,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     setTimeout(() => {
-        const savedMode = localStorage.getItem('projectViewMode') || 'grid';
-        window.adminApp.setProjectView(savedMode);
+        localStorage.setItem('projectViewMode', 'list');
+        window.adminApp.setProjectView('list');
 
         // Handle initial view logic
         const activeView = UI.getActiveView();
@@ -5382,3 +5505,1400 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }, 100);
 });
+
+
+// ==========================================
+// PROJECT OVERVIEW & CROSS-MODULE AGGREGATION
+// ==========================================
+const _crEnrichedCache = new Set();
+let _crEnrichInProgress = false;
+
+const formatCrMemberDisplay = (rawVal) => {
+    if (!rawVal) return '';
+    if (Array.isArray(rawVal)) return rawVal.filter(Boolean).join(', ');
+    const str = String(rawVal).trim();
+    if (!str || str === '-' || str === '[]') return '';
+    if (str.startsWith('[')) {
+        try {
+            const parsed = JSON.parse(str);
+            if (Array.isArray(parsed)) return parsed.filter(Boolean).join(', ');
+        } catch (e) { /* ignore */ }
+    }
+    return str;
+};
+
+window.adminApp.invalidateProjectCrCache = (projectId) => {
+    if (projectId) _crEnrichedCache.delete(projectId);
+    else _crEnrichedCache.clear();
+};
+
+window.adminApp.enrichProjectsWithContractReviews = async () => {
+    if (_crEnrichInProgress || !currentProjects || currentProjects.length === 0) return;
+    const toEnrich = currentProjects.filter(p => p.id && !_crEnrichedCache.has(p.id));
+    if (toEnrich.length === 0) return;
+
+    _crEnrichInProgress = true;
+    let updatedAny = false;
+    try {
+        const batch = toEnrich.slice(0, 30);
+        await Promise.all(batch.map(async (p) => {
+            _crEnrichedCache.add(p.id);
+            try {
+                const res = await DB.getContractReview(p.id);
+                const review = (res && res.data) ? res.data : null;
+                if (review && Object.keys(review).length > 0) {
+                    const isFinalized = Boolean(p.contractFiled || review.status === 'Finalized');
+                    p.crStatus = isFinalized ? 'Finalized' : 'Draft';
+                    p.crTeam = review.team || p.crTeam || p.jobType || '';
+                    p.crAccountability = formatCrMemberDisplay(review.accountability || p.crAccountability);
+                    p.crTeamLeader = formatCrMemberDisplay(review.teamLeader || p.crTeamLeader);
+                    p.crDeliveryDate = review.deliveryDate || p.crDeliveryDate || p.expectedCompletion || '';
+                    p.crDecisionOa = review.decisionOa || p.crDecisionOa || '';
+                    p.crDecisionCap = review.decisionCap || p.crDecisionCap || '';
+                    updatedAny = true;
+                } else if (!p.crStatus) {
+                    p.crStatus = p.contractFiled ? 'Finalized' : 'Pending';
+                    updatedAny = true;
+                }
+            } catch (err) {
+                console.warn('Could not enrich CR for project:', p.id, err);
+            }
+        }));
+    } finally {
+        _crEnrichInProgress = false;
+    }
+
+    if (updatedAny) {
+        const poView = document.getElementById('view-project_overview');
+        if (poView && !poView.classList.contains('hidden')) {
+            window.adminApp.renderProjectOverview();
+        }
+        const pmView = document.getElementById('view-project_management');
+        if (pmView && !pmView.classList.contains('hidden')) {
+            window.adminApp.filterProjects();
+        }
+        window.adminApp.updateProjectStats();
+        refreshDashboard();
+    }
+
+    // Continue enriching remaining projects if more exist
+    if (currentProjects.some(p => p.id && !_crEnrichedCache.has(p.id))) {
+        setTimeout(() => window.adminApp.enrichProjectsWithContractReviews(), 100);
+    }
+};
+
+// Project workflow stages shown & editable in the Master Order Tracker
+window.adminApp.PROJECT_WORKFLOW_STAGES = ['Draft', 'Under Review', 'Approved', 'In Progress', 'Completed'];
+
+window.adminApp.getProjectWorkflowStatus = (proj) => {
+    if (!proj) return 'Not Started';
+    const s = String(proj.status || '').trim();
+    if (window.adminApp.PROJECT_WORKFLOW_STAGES.includes(s)) return s;
+    if (proj.contractFiled || proj.crStatus === 'Finalized') return 'Approved';
+    return 'Draft';
+};
+
+// Ensure a project workspace exists for an IO (auto-creates it from the Internal Order if missing)
+window.adminApp.ensureProjectForIo = async (ioNo, projectDocId) => {
+    const cleanIo = String(ioNo || '').trim();
+    let proj = null;
+    if (projectDocId) proj = (currentProjects || []).find(p => p.id === projectDocId);
+    if (!proj && cleanIo && cleanIo !== '-') {
+        proj = (currentProjects || []).find(p => String(p.projectId || '').trim() === cleanIo);
+    }
+    if (proj) return proj;
+
+    const matchingOrder = (currentOrders || []).find(o => !o.isTrash && o.entryType !== 'delivery_report' && String(o.internalOrderNo || '').trim() === cleanIo) || null;
+    if (!matchingOrder) return null;
+
+    const newProjPayload = {
+        projectName: matchingOrder.description || `Order ${cleanIo}`,
+        projectId: cleanIo,
+        customerName: matchingOrder.customer || '',
+        projectDescription: matchingOrder.description || '',
+        drawingNo: matchingOrder.drawingNo || '',
+        poNo: matchingOrder.poNo || '',
+        orderQty: matchingOrder.qty || 1,
+        startDate: matchingOrder.date || new Date().toISOString().split('T')[0],
+        expectedCompletion: matchingOrder.deliveryDate || '',
+        jobType: matchingOrder.department || 'Admin',
+        status: 'Draft',
+        assignedMembers: []
+    };
+    const createdId = await DB.addProject(newProjPayload);
+    proj = { id: createdId, ...newProjPayload };
+    window.adminApp.registerProjectInMemory(proj);
+    return proj;
+};
+
+// Inline status change from the Master Order Tracker table
+window.adminApp.changeOverviewStatus = async (selectEl, ioNo, projectDocId) => {
+    const newStatus = selectEl.value;
+    if (!window.adminApp.PROJECT_WORKFLOW_STAGES.includes(newStatus)) return;
+    selectEl.disabled = true;
+    try {
+        const proj = await window.adminApp.ensureProjectForIo(ioNo, projectDocId);
+        if (!proj || !proj.id) throw new Error('Could not find or create project workspace for this order.');
+
+        const result = await DB.updateProjectStatus(proj.id, newStatus);
+        if (result && result.error) throw new Error(result.error);
+
+        proj.status = newStatus;
+        if (['Approved', 'In Progress', 'Completed'].includes(newStatus)) {
+            proj.contractFiled = true;
+            proj.crStatus = 'Finalized';
+        }
+        const isMilestone = ['Approved', 'In Progress', 'Completed'].includes(newStatus);
+        DB.addAuditLog(proj.id, 'Status Updated', `Status moved to ${newStatus} from Master Order Tracker${isMilestone ? ' (Contract Auto-filed)' : ''}`).catch(() => {});
+
+        window.adminApp.renderProjectOverview();
+        if (window.adminApp.filterProjects) window.adminApp.filterProjects();
+        if (window.adminApp.updateProjectStats) window.adminApp.updateProjectStats();
+        if (typeof refreshDashboard === 'function') refreshDashboard();
+    } catch (err) {
+        console.error('Inline status update failed:', err);
+        alert('Error updating status: ' + err.message);
+        window.adminApp.renderProjectOverview();
+        if (window.adminApp.filterProjects) window.adminApp.filterProjects();
+    } finally {
+        selectEl.disabled = false;
+    }
+};
+
+window.adminApp.buildUnifiedProjectRows = () => {
+    const rawOrders = Array.isArray(currentOrders) ? currentOrders : [];
+    const activeOrders = rawOrders.filter(o => !o.isTrash && !o.deleted && !o.isDeleted);
+
+    const sanitizedOrders = (Costing && Costing.getSanitizedInternalOrders)
+        ? Costing.getSanitizedInternalOrders(activeOrders)
+        : activeOrders.filter(o => o.entryType !== 'delivery_report');
+
+    const allExpenses = (Costing && Costing.getAllExpenses) ? Costing.getAllExpenses() : [];
+
+    // Pre-calculate delivered quantities per IO No from delivery_report entries
+    const deliveredByIo = {};
+    activeOrders.forEach(o => {
+        if (o.entryType === 'delivery_report') {
+            const ioKey = String(o.internalOrderNo || '').trim().toUpperCase();
+            if (!ioKey) return;
+            const dQty = parseFloat(o.deliveryQty ?? o.qty) || 0;
+            deliveredByIo[ioKey] = (deliveredByIo[ioKey] || 0) + dQty;
+        }
+    });
+
+    // Group expenses by both orderId (doc ID) and internalOrderNo
+    const expenseByOrderId = {};
+    const expenseByIoNo = {};
+    allExpenses.forEach(exp => {
+        const amt = parseFloat(exp.amount) || ((parseFloat(exp.qty) || 0) * (parseFloat(exp.rate) || 0));
+        if (!amt) return;
+        const ordId = String(exp.orderId || '').trim();
+        const ioKey = String(exp.internalOrderNo || '').trim().toUpperCase();
+        if (ordId) expenseByOrderId[ordId] = (expenseByOrderId[ordId] || 0) + amt;
+        if (ioKey && ioKey !== ordId.toUpperCase()) {
+            expenseByIoNo[ioKey] = (expenseByIoNo[ioKey] || 0) + amt;
+        }
+    });
+
+    // Map projects by projectId (IO No, case-insensitive)
+    const projectByIo = {};
+    (currentProjects || []).forEach(p => {
+        if (p.isTrash || p.deleted || p.isDeleted) return;
+        const ioKey = String(p.projectId || '').trim().toUpperCase();
+        if (ioKey) {
+            projectByIo[ioKey] = p;
+        }
+    });
+
+    const parseMoney = (val) => {
+        if (typeof val === 'number') return isNaN(val) ? 0 : val;
+        if (typeof val === 'string') return parseFloat(val.replace(/[^0-9.-]/g, '')) || 0;
+        return 0;
+    };
+
+    const unifiedRows = [];
+    const seenProjectIds = new Set();
+    const seenIoKeys = new Set();
+
+    sanitizedOrders.forEach(order => {
+        const ioNo = String(order.internalOrderNo || '').trim();
+        const ioKey = ioNo.toUpperCase();
+        if (ioKey) seenIoKeys.add(ioKey);
+
+        const proj = (ioKey && projectByIo[ioKey]) ? projectByIo[ioKey] : null;
+        if (proj && proj.id) seenProjectIds.add(proj.id);
+
+        const qty = parseFloat(order.qty) || (proj ? parseFloat(proj.orderQty) || 0 : 0);
+
+        // Calculate delivered qty from delivery_report entries or fallback to order.deliveryQty
+        const reportDelQty = ioKey ? (deliveredByIo[ioKey] || 0) : 0;
+        const directDelQty = parseFloat(order.deliveryQty) || 0;
+        let delQty = Math.max(reportDelQty, directDelQty);
+        if (delQty === 0 && String(order.status || '').toLowerCase() === 'delivered' && qty > 0) {
+            delQty = qty;
+        }
+        const pendQty = Math.max(0, qty - delQty);
+
+        let delStatus = 'Pending';
+        const rawStatus = String(order.status || '').toLowerCase();
+        if ((qty > 0 && delQty >= qty) || rawStatus === 'delivered') {
+            delStatus = 'Delivered';
+        } else if (delQty > 0 || rawStatus.includes('partial') || rawStatus.includes('portion')) {
+            delStatus = 'Portion';
+        }
+
+        // Sale Value: use Costing.getOrderSaleValue or order.total / order.saleValueEa
+        let totalSale = (Costing && Costing.getOrderSaleValue) ? Costing.getOrderSaleValue(order) : 0;
+        if (!totalSale) {
+            const unitSale = parseMoney(order.saleValueEa ?? order.value ?? order.prodValueEa);
+            totalSale = parseMoney(order.total ?? order.totalValue) || (qty * unitSale);
+        }
+
+        // Expenses: match by order.id or ioNo without double counting
+        const matchingExpenses = allExpenses.filter(e =>
+            (order.id && e.orderId === order.id) ||
+            (ioKey && String(e.internalOrderNo || '').trim().toUpperCase() === ioKey) ||
+            (ioKey && String(e.orderId || '').trim().toUpperCase() === ioKey) ||
+            (proj && proj.id && e.orderId === proj.id)
+        );
+        const totalExp = matchingExpenses.reduce((sum, e) => {
+            const amt = parseFloat(e.amount) || ((parseFloat(e.qty) || 0) * (parseFloat(e.rate) || 0));
+            return sum + amt;
+        }, 0);
+
+        const profit = totalSale - totalExp;
+        const marginPct = totalSale > 0 ? ((profit / totalSale) * 100) : 0;
+
+        const cleanPl = proj ? formatCrMemberDisplay(proj.crAccountability) : '';
+        const cleanTl = proj ? formatCrMemberDisplay(proj.crTeamLeader) : '';
+
+        let crStatus = 'Pending';
+        if (proj) {
+            if (proj.contractFiled || proj.crStatus === 'Finalized' || proj.status === 'Approved' || proj.status === 'Completed') {
+                crStatus = 'Finalized';
+            } else if (proj.crStatus === 'Draft' || cleanPl || cleanTl || proj.crDecisionOa) {
+                crStatus = 'Draft';
+            }
+        }
+
+        const woDate = order.date || (proj ? proj.startDate : '') || '';
+        const dept = (proj && proj.crTeam) || order.department || (proj ? proj.jobType : '') || '-';
+        const workflowStatus = window.adminApp.getProjectWorkflowStatus(proj);
+
+        unifiedRows.push({
+            ioNo: ioNo || '-',
+            orderId: order.id || '',
+            projectDocId: proj ? proj.id : '',
+            woDate,
+            customer: order.customer || (proj ? proj.customerName : '') || '-',
+            poNo: order.poNo || (proj ? (proj.poNo || proj.poNumber) : '') || '-',
+            inwardDc: order.customerDcNo || (proj ? proj.customerDcNo : '') || '-',
+            drawingNo: order.drawingNo || (proj ? proj.drawingNo : '') || '-',
+            description: order.description || (proj ? (proj.projectDescription || proj.name || proj.projectName) : '') || '-',
+            qty,
+            unit: order.qtyUnit || order.unit || 'Nos',
+            crStatus,
+            workflowStatus,
+            dept,
+            accountability: cleanPl || '-',
+            teamLeader: cleanTl || '-',
+            targetDelDate: (proj && (proj.crDeliveryDate || proj.expectedCompletion)) || order.deliveryDate || order.expectedDeliveryDate || '-',
+            decisionOa: (proj && proj.crDecisionOa) ? proj.crDecisionOa : '-',
+            totalSale,
+            totalExp,
+            profit,
+            marginPct,
+            delQty,
+            pendQty,
+            delStatus,
+            rawOrder: order,
+            rawProject: proj
+        });
+    });
+
+    // Also include any projects in currentProjects that didn't match an Internal Order
+    (currentProjects || []).forEach(proj => {
+        if (proj.isTrash || proj.deleted || proj.isDeleted) return;
+        if (proj.id && seenProjectIds.has(proj.id)) return;
+        const ioNo = String(proj.projectId || '').trim();
+        const ioKey = ioNo.toUpperCase();
+        if (ioKey && seenIoKeys.has(ioKey)) return;
+
+        const qty = parseFloat(proj.orderQty ?? proj.qty) || 0;
+        const matchingExpenses = allExpenses.filter(e =>
+            (proj.id && e.orderId === proj.id) ||
+            (ioKey && String(e.internalOrderNo || '').trim().toUpperCase() === ioKey) ||
+            (ioKey && String(e.orderId || '').trim().toUpperCase() === ioKey)
+        );
+        const totalExp = matchingExpenses.reduce((sum, e) => {
+            const amt = parseFloat(e.amount) || ((parseFloat(e.qty) || 0) * (parseFloat(e.rate) || 0));
+            return sum + amt;
+        }, 0);
+
+        const cleanPl = formatCrMemberDisplay(proj.crAccountability);
+        const cleanTl = formatCrMemberDisplay(proj.crTeamLeader);
+
+        let crStatus = 'Pending';
+        if (proj.contractFiled || proj.crStatus === 'Finalized') {
+            crStatus = 'Finalized';
+        } else if (proj.crStatus === 'Draft' || cleanPl || cleanTl || proj.crDecisionOa) {
+            crStatus = 'Draft';
+        }
+
+        unifiedRows.push({
+            ioNo: ioNo || '-',
+            orderId: '',
+            projectDocId: proj.id || '',
+            woDate: proj.startDate || '',
+            customer: proj.customerName || '-',
+            poNo: proj.poNo || proj.poNumber || '-',
+            inwardDc: proj.customerDcNo || '-',
+            drawingNo: proj.drawingNo || '-',
+            description: proj.projectDescription || proj.name || proj.projectName || '-',
+            qty,
+            unit: proj.qtyUnit || 'Nos',
+            crStatus,
+            workflowStatus: window.adminApp.getProjectWorkflowStatus(proj),
+            dept: proj.crTeam || proj.jobType || '-',
+            accountability: cleanPl || '-',
+            teamLeader: cleanTl || '-',
+            targetDelDate: proj.crDeliveryDate || proj.expectedCompletion || '-',
+            decisionOa: proj.crDecisionOa || '-',
+            totalSale: 0,
+            totalExp,
+            profit: -totalExp,
+            marginPct: 0,
+            delQty: 0,
+            pendQty: qty,
+            delStatus: proj.status === 'Completed' ? 'Delivered' : 'Pending',
+            rawOrder: null,
+            rawProject: proj
+        });
+    });
+
+    // Sort newest IO / WO Date first
+    unifiedRows.sort((a, b) => {
+        const cmpIo = String(b.ioNo || '').localeCompare(String(a.ioNo || ''), undefined, { numeric: true });
+        if (cmpIo !== 0) return cmpIo;
+        return String(b.woDate || '').localeCompare(String(a.woDate || ''));
+    });
+
+    return unifiedRows;
+};
+
+window.adminApp.renderProjectOverview = () => {
+    const tbody = document.getElementById('project-overview-body');
+    if (!tbody) return;
+
+    // Trigger background enrichment for any un-enriched projects
+    window.adminApp.enrichProjectsWithContractReviews();
+
+    const allRows = window.adminApp.buildUnifiedProjectRows();
+
+    const searchVal = (document.getElementById('po-overview-search')?.value || '').toLowerCase().trim();
+    const selectedMonth = (document.getElementById('po-overview-month')?.value || '').trim();
+    const selectedDept = document.getElementById('po-overview-dept')?.value || 'all';
+    const selectedCr = document.getElementById('po-overview-cr-status')?.value || 'all';
+    const selectedDel = document.getElementById('po-overview-del-status')?.value || 'all';
+
+    const filtered = allRows.filter(r => {
+        const matchesSearch = !searchVal ||
+            String(r.ioNo).toLowerCase().includes(searchVal) ||
+            String(r.customer).toLowerCase().includes(searchVal) ||
+            String(r.poNo).toLowerCase().includes(searchVal) ||
+            String(r.drawingNo).toLowerCase().includes(searchVal) ||
+            String(r.description).toLowerCase().includes(searchVal) ||
+            String(r.accountability).toLowerCase().includes(searchVal) ||
+            String(r.teamLeader).toLowerCase().includes(searchVal);
+
+        const matchesMonth = !selectedMonth || selectedMonth === 'all' || (r.woDate && r.woDate.startsWith(selectedMonth));
+        const matchesDept = selectedDept === 'all' || String(r.dept).toLowerCase() === selectedDept.toLowerCase();
+        const matchesCr = selectedCr === 'all' ||
+            (selectedCr === 'Pending' && r.crStatus !== 'Finalized') ||
+            (selectedCr === 'Finalized' && r.crStatus === 'Finalized') ||
+            r.workflowStatus === selectedCr;
+        const matchesDel = selectedDel === 'all' ||
+            r.delStatus === selectedDel ||
+            (selectedDel === 'Partially Delivered' && r.delStatus === 'Portion');
+
+        return matchesSearch && matchesMonth && matchesDept && matchesCr && matchesDel;
+    });
+
+    // Update KPI Cards
+    const totalCount = filtered.length;
+    const finalizedCount = filtered.filter(r => r.crStatus === 'Finalized').length;
+    const totalSales = filtered.reduce((acc, r) => acc + (r.totalSale || 0), 0);
+    const totalProfit = filtered.reduce((acc, r) => acc + (r.profit || 0), 0);
+
+    const fmtCurrency = (val) => '₹' + Math.round(val).toLocaleString('en-IN');
+
+    const kpiTotalEl = document.getElementById('po-kpi-total');
+    const kpiCrEl = document.getElementById('po-kpi-cr');
+    const kpiSalesEl = document.getElementById('po-kpi-sales');
+    const kpiProfitEl = document.getElementById('po-kpi-profit');
+
+    if (kpiTotalEl) kpiTotalEl.textContent = totalCount;
+    if (kpiCrEl) kpiCrEl.textContent = `${finalizedCount} / ${totalCount}`;
+    if (kpiSalesEl) kpiSalesEl.textContent = fmtCurrency(totalSales);
+    if (kpiProfitEl) {
+        kpiProfitEl.textContent = (totalProfit >= 0 ? '+' : '-') + fmtCurrency(Math.abs(totalProfit));
+        kpiProfitEl.style.color = totalProfit >= 0 ? '#059669' : '#dc2626';
+    }
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="23" style="text-align: center; padding: 3rem; color: #94a3b8; font-weight: 500;">No matching projects or internal orders found for the selected filters.</td></tr>`;
+        return;
+    }
+
+    const formatDateShort = (d) => {
+        if (!d || d === '-') return '-';
+        const parts = String(d).split('-');
+        if (parts.length === 3 && parts[0].length === 4) {
+            return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+        return d;
+    };
+
+    tbody.innerHTML = filtered.map((r, idx) => {
+        const rowStateClass = r.delStatus === 'Delivered' ? 'row-delivered' : (r.delStatus === 'Portion' ? 'row-portion' : 'row-pending');
+
+        // Inline-editable workflow / CR status select
+        const wf = r.workflowStatus || 'Not Started';
+        const wfClass = 'wf-' + wf.toLowerCase().replace(/\s+/g, '-');
+        const safeIoAttr = String(r.ioNo || '').replace(/'/g, "\\'");
+        const safeProjAttr = String(r.projectDocId || '').replace(/'/g, "\\'");
+        const stageOptions = (wf === 'Not Started' ? `<option value="Not Started" selected disabled>Not Started</option>` : '') +
+            window.adminApp.PROJECT_WORKFLOW_STAGES.map(s => `<option value="${s}" ${s === wf ? 'selected' : ''}>${s}</option>`).join('');
+        const crBadge = `
+            <div class="po-wf-cell" onclick="event.stopPropagation();">
+                <select class="po-wf-select ${wfClass}" title="Change project / CR status"
+                    onchange="window.adminApp.changeOverviewStatus(this, '${safeIoAttr}', '${safeProjAttr}')">${stageOptions}</select>
+                ${r.crStatus === 'Finalized' ? `<span class="po-cr-filed" title="Contract Review filed">✓</span>` : ''}
+            </div>`;
+
+        // OA = Order Acceptance decision from the Contract Review sign-off (OK / NOK)
+        const oaUpper = String(r.decisionOa || '').trim().toUpperCase();
+        const oaBadge = (['OK', 'Y', 'YES'].includes(oaUpper))
+            ? `<span class="po-oa-pill po-oa-ok" title="Order Accepted">✓ Accepted</span>`
+            : ((['NOK', 'N', 'NO'].includes(oaUpper)) ? `<span class="po-oa-pill po-oa-nok" title="Order Not Accepted">✗ Rejected</span>` : `<span style="color:#94a3b8;">—</span>`);
+
+        const delBadge = r.delStatus === 'Delivered'
+            ? `<span class="status-pill status-delivered">DELIVERED</span>`
+            : (r.delStatus === 'Portion'
+                ? `<span class="status-pill status-portion">PORTION</span>`
+                : `<span class="status-pill status-pending">PENDING</span>`);
+
+        const profitColor = r.profit >= 0 ? '#059669' : '#dc2626';
+        const marginBadgeBg = r.totalSale > 0
+            ? (r.marginPct >= 20 ? '#dcfce7' : (r.marginPct >= 0 ? '#fef3c7' : '#ffe4e6'))
+            : '#f1f5f9';
+        const marginBadgeColor = r.totalSale > 0
+            ? (r.marginPct >= 20 ? '#15803d' : (r.marginPct >= 0 ? '#b45309' : '#be123c'))
+            : '#64748b';
+        const marginText = r.totalSale > 0 ? `${r.marginPct.toFixed(1)}%` : '-';
+
+        const safeIo = String(r.ioNo || '').replace(/'/g, "\\'");
+        const safeProjId = String(r.projectDocId || '').replace(/'/g, "\\'");
+
+        return `
+            <tr class="${rowStateClass}" style="cursor: pointer;" onclick="window.adminApp.openOverviewWorkspace('${safeIo}', '${safeProjId}', 'review')">
+                <!-- Col 1: S.No (Frozen) -->
+                <td class="sticky-po-sno" style="font-weight: 700; color: #64748b; text-align: center;">${idx + 1}</td>
+                <!-- Col 2: IO No (Frozen) -->
+                <td class="sticky-po-io" style="white-space: nowrap;">
+                    <span class="io-badge">${r.ioNo}</span>
+                </td>
+                <!-- Col 3: WO Date (Frozen) -->
+                <td class="sticky-po-date" style="font-size: 0.78rem; color: #475569; text-align: center; white-space: nowrap;">${formatDateShort(r.woDate)}</td>
+                <!-- Col 4: Customer (Frozen) -->
+                <td class="sticky-po-cust" style="font-weight: 700; color: #0f172a; max-width: 165px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.customer}">${r.customer}</td>
+                <!-- Col 5: PO No -->
+                <td style="font-size: 0.78rem; color: #334155; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.poNo}">${r.poNo}</td>
+                <td style="font-size: 0.78rem; color: #334155; white-space: nowrap;">${r.inwardDc}</td>
+                <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.76rem; color: #334155; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.drawingNo}">${r.drawingNo}</td>
+                <td style="max-width: 210px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #1e293b; font-weight: 500;" class="section-end" title="${r.description}">${r.description}</td>
+
+                <!-- Group 2 (6 cols): CR Status, Team, Accountability (PL), Team Leader, Target Del., OA -->
+                <td style="text-align: center;">${crBadge}</td>
+                <td style="text-align: center;"><span style="background: #f1f5f9; color: #334155; padding: 2px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: 700;">${r.dept}</span></td>
+                <td style="font-weight: 600; color: #1e293b; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.accountability}">${r.accountability}</td>
+                <td style="font-weight: 600; color: #1e293b; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.teamLeader}">${r.teamLeader}</td>
+                <td style="font-size: 0.78rem; color: #475569; text-align: center; white-space: nowrap;">${formatDateShort(r.targetDelDate)}</td>
+                <td style="text-align: center;" class="section-end">${oaBadge}</td>
+
+                <!-- Group 3 (4 cols): Sale Value, Expenses, Profit / Loss, Margin % -->
+                <td style="text-align: right; font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #0f172a; white-space: nowrap;">${r.totalSale > 0 ? r.totalSale.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'}</td>
+                <td style="text-align: right; font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #b45309; white-space: nowrap;">${r.totalExp > 0 ? r.totalExp.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}</td>
+                <td style="text-align: right; font-family: 'JetBrains Mono', monospace; font-weight: 800; color: ${profitColor}; white-space: nowrap;">${(r.totalSale > 0 || r.totalExp > 0) ? r.profit.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'}</td>
+                <td style="text-align: center;" class="section-end">
+                    <span style="background: ${marginBadgeBg}; color: ${marginBadgeColor}; padding: 2px 7px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; font-weight: 800;">${marginText}</span>
+                </td>
+
+                <!-- Group 4 (5 cols): Qty, Del. Qty, Pend. Qty, Status, Open Workspace -->
+                <td style="text-align: center; font-weight: 700; color: #0f172a;">${r.qty}</td>
+                <td style="text-align: center; font-weight: 700; color: #059669;">${r.delQty}</td>
+                <td style="text-align: center; font-weight: 800; color: ${r.pendQty > 0 ? '#d97706' : '#64748b'};">${r.pendQty}</td>
+                <td style="text-align: center;">${delBadge}</td>
+                <td style="text-align: center; white-space: nowrap;" onclick="event.stopPropagation();">
+                    <button class="pm-quick-jump-btn" onclick="window.adminApp.openOverviewWorkspace('${safeIo}', '${safeProjId}', 'review')" title="Open Contract Review">📋 CR</button>
+                    <button class="pm-quick-jump-btn" onclick="window.adminApp.openOverviewWorkspace('${safeIo}', '${safeProjId}', 'costing')" title="Open Project Costing Sheet">💰 Costing</button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+};
+
+window.adminApp.openOverviewWorkspace = async (ioNo, projectDocId, tab = 'review') => {
+    const cleanIo = String(ioNo || '').trim();
+    const matchingOrder = (currentOrders || []).find(o => !o.isTrash && String(o.internalOrderNo || '').trim() === cleanIo) || null;
+
+    // 1. Check if project exists in memory by doc ID or IO number
+    let proj = null;
+    if (projectDocId) {
+        proj = (currentProjects || []).find(p => p.id === projectDocId);
+    }
+    if (!proj && cleanIo && cleanIo !== '-') {
+        proj = (currentProjects || []).find(p => String(p.projectId || '').trim() === cleanIo);
+    }
+
+    // 2. If project doesn't exist yet for this Internal Order, create it on the fly
+    if (!proj && matchingOrder) {
+        try {
+            const newProjPayload = {
+                projectName: matchingOrder.description || `Order ${cleanIo}`,
+                projectId: cleanIo,
+                customerName: matchingOrder.customer || '',
+                projectDescription: matchingOrder.description || '',
+                drawingNo: matchingOrder.drawingNo || '',
+                poNo: matchingOrder.poNo || '',
+                orderQty: matchingOrder.qty || 1,
+                startDate: matchingOrder.date || new Date().toISOString().split('T')[0],
+                expectedCompletion: matchingOrder.deliveryDate || '',
+                jobType: matchingOrder.department || 'Admin',
+                status: 'Contract Review',
+                assignedMembers: []
+            };
+            const createdId = await DB.addProject(newProjPayload);
+            proj = { id: createdId, ...newProjPayload };
+            window.adminApp.registerProjectInMemory(proj);
+        } catch (err) {
+            console.error('Failed to auto-create project workspace from overview:', err);
+        }
+    }
+
+    if (proj && proj.id) {
+        window.adminApp.viewProjectDetails(proj.id, tab, matchingOrder);
+    }
+};
+
+window.adminApp.exportProjectOverviewCSV = () => {
+    const allRows = window.adminApp.buildUnifiedProjectRows();
+    if (!allRows || allRows.length === 0) {
+        alert('No data available to export.');
+        return;
+    }
+
+    const headers = [
+        'S.No', 'IO No', 'WO Date', 'Customer', 'PO No', 'Inward DC', 'Drawing No', 'Description', 'Order Qty',
+        'Workflow Status', 'CR Filed', 'Dept / Team', 'PL / Accountability', 'Team Leader', 'Target Delivery', 'Order Acceptance',
+        'Sale Value', 'Total Expenses', 'Profit / Loss', 'Margin %',
+        'Delivered Qty', 'Pending Qty', 'Delivery Status'
+    ];
+
+    const esc = (val) => `"${String(val ?? '').replace(/"/g, '""')}"`;
+
+    const csvLines = [
+        headers.map(esc).join(','),
+        ...allRows.map((r, i) => [
+            i + 1,
+            r.ioNo,
+            r.woDate,
+            r.customer,
+            r.poNo,
+            r.inwardDc,
+            r.drawingNo,
+            r.description,
+            r.qty,
+            r.workflowStatus,
+            r.crStatus === 'Finalized' ? 'Yes' : 'No',
+            r.dept,
+            r.accountability,
+            r.teamLeader,
+            r.targetDelDate,
+            r.decisionOa,
+            r.totalSale.toFixed(2),
+            r.totalExp.toFixed(2),
+            r.profit.toFixed(2),
+            r.totalSale > 0 ? r.marginPct.toFixed(1) + '%' : '-',
+            r.delQty,
+            r.pendQty,
+            r.delStatus
+        ].map(esc).join(','))
+    ];
+
+    const blob = new Blob([csvLines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Project_Overview_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+};
+
+// Hook switchView & updateProjectStats to keep Project Overview synchronized
+const _origSwitchView = window.adminApp.switchView;
+window.adminApp.switchView = (viewName) => {
+    _origSwitchView(viewName);
+    if (viewName === 'project_overview') {
+        window.adminApp.renderProjectOverview();
+    }
+};
+
+const _origUpdateProjectStats = window.adminApp.updateProjectStats;
+window.adminApp.updateProjectStats = () => {
+    if (_origUpdateProjectStats) _origUpdateProjectStats();
+    const poView = document.getElementById('view-project_overview');
+    if (poView && !poView.classList.contains('hidden')) {
+        window.adminApp.renderProjectOverview();
+    }
+    window.adminApp.enrichProjectsWithContractReviews();
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.nav-link[data-view="project_overview"]').forEach(link => {
+        link.addEventListener('click', () => {
+            setTimeout(() => {
+                window.adminApp.renderProjectOverview();
+            }, 50);
+        });
+    });
+});
+
+
+// ==========================================
+// MODERNIZED PROJECT DETAIL & CONTRACT REVIEW PRINT
+// ==========================================
+window.adminApp.switchDeepDiveTab = (tabName) => {
+    document.querySelectorAll('.dd-tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.tab === tabName);
+    });
+    document.querySelectorAll('.dd-panel').forEach(p => {
+        p.classList.toggle('active', p.id === `dd-panel-${tabName}`);
+    });
+
+    const crToolbar = document.getElementById('cr-top-toolbar');
+    if (crToolbar) {
+        crToolbar.style.display = tabName === 'review' ? 'flex' : 'none';
+    }
+
+    if (tabName === 'costing') {
+        const currentId = window.adminApp.currentEditingProjectId;
+        const project = currentProjects.find(p => p.id === currentId);
+        if (project) {
+            Costing.loadEmbeddedProjectCosting(project.projectId, project);
+        }
+    }
+};
+
+window.adminApp.updateProjectStatus = async (newStatus) => {
+    const id = window.adminApp.currentEditingProjectId;
+    if (!id) return;
+
+    const result = await DB.updateProjectStatus(id, newStatus);
+    if (result.error) {
+        alert('Error updating status: ' + result.error);
+    } else {
+        const statusDisplay = document.getElementById('detail-project-status');
+        if (statusDisplay) {
+            const textSpan = statusDisplay.querySelector('.dd-status-text') || statusDisplay.querySelector('span:last-of-type') || statusDisplay.querySelector('span');
+            if (textSpan) textSpan.textContent = newStatus;
+            statusDisplay.className = `status-badge ${newStatus.toLowerCase().replace(/\s+/g, '-')} flex items-center gap-1.5 group`;
+        }
+        const menu = document.getElementById('dd-status-menu');
+        if (menu) menu.classList.add('hidden');
+
+        const isMilestone = ['Approved', 'In Progress', 'Completed'].includes(newStatus);
+        const detail = `Status changed to ${newStatus}${isMilestone ? ' (Contract Auto-filed)' : ''}`;
+        await DB.addAuditLog(id, 'Status Updated', detail);
+    }
+};
+
+window.adminApp.printContractReview = () => {
+    const pw = window.open('', '_blank', 'width=1050,height=950');
+    if (!pw) return;
+
+    const v = (id) => document.getElementById(id)?.value || '';
+    const formatDate = (isoStr) => {
+        if (!isoStr || !isoStr.includes('-')) return isoStr || '-';
+        const [y, m, d] = isoStr.split('-');
+        return `${d}-${m}-${y}`;
+    };
+    const selText = (id) => {
+        const s = document.getElementById(id) || document.querySelector(`[data-field="${id}"]`);
+        return s ? (s.options?.[s.selectedIndex]?.text || s.value || '') : '';
+    };
+    const tagText = (containerId) => {
+        const c = document.getElementById(containerId);
+        if (!c) return '-';
+        const tags = Array.from(c.querySelectorAll('.member-tag, .search-tag-text, .tag-text'))
+            .map(t => t.textContent.replace('×', '').trim())
+            .filter(Boolean);
+        if (tags.length) return tags.join(', ');
+        const inlineVal = c.querySelector('.search-input-inline')?.value?.trim();
+        if (inlineVal) return inlineVal;
+        let raw = c.querySelector('input[type=hidden]')?.value || '';
+        try {
+            const arr = JSON.parse(raw);
+            if (Array.isArray(arr) && arr.length) return arr.join(', ');
+        } catch (e) {}
+        return raw.replace(/^\["?|"?\]$/g, '').replace(/","/g, ', ') || '-';
+    };
+
+    const currentId = window.adminApp.currentEditingProjectId;
+    const project = (currentProjects || []).find(p => p.id === currentId) || {};
+    const ioNumber = v('cr-io-number') || document.getElementById('detail-project-id')?.textContent || project.projectId || '-';
+    const matchingOrder = (currentOrders || []).find(o => !o.isTrash && String(o.internalOrderNo || '').trim() === String(ioNumber).trim()) || {};
+
+    const customerName = (project.customerName || matchingOrder.customer || '-').toUpperCase();
+    const itemDesc = (project.name || project.projectDescription || matchingOrder.description || document.getElementById('detail-project-name')?.textContent || '-').toUpperCase();
+    const orderQty = matchingOrder.qty ? `${matchingOrder.qty} ${matchingOrder.unit || 'Nos'}` : (project.orderQty ? `${project.orderQty} Nos` : '-');
+    const inwardDc = matchingOrder.customerDcNo || project.customerDcNo || '-';
+
+    const ioNo = v('cr-review-no') || `CR - ${ioNumber}`;
+    const poNo = v('cr-po-no') || '-';
+    const drgNo = v('cr-drawing-no') || '-';
+    const crDate = formatDate(v('cr-date'));
+    const delDate = formatDate(v('cr-delivery-date'));
+    const contactPerson = v('cr-contact-person') || '-';
+    const phone = v('cr-phone') || '-';
+    const intDate = formatDate(v('cr-internal-date'));
+    const team = selText('cr-team').replace('Select Team', '') || '-';
+    const accountability = tagText('cr-search-accountability');
+    const teamLeader = tagText('cr-search-team-leader');
+    const members = tagText('cr-search-members');
+    const instructions = v('cr-important-instructions') || '';
+    const printDate = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+
+    const cmt = (f) => document.querySelector(`[data-field="cmt-${f}"]`)?.value || '-';
+    const sixM = [
+        ['MATL', cmt('matl')],
+        ['MACHINE', cmt('machine')],
+        ['MAN', cmt('man')],
+        ['METHOD', cmt('method')],
+        ['MEASURE', cmt('measure')],
+        ['TOOLS', cmt('tools')]
+    ];
+
+    const decCapRaw = document.querySelector('[data-field="cr-decision-cap"]')?.value || '';
+    const decOARaw = document.querySelector('[data-field="cr-decision-oa"]')?.value || '';
+    const preparedBy = tagText('cr-search-prepared');
+    const reviewedBy = tagText('cr-search-reviewed');
+    const approvedBy = tagText('cr-search-approved');
+
+    const checklistRows = [];
+    document.querySelectorAll('#cr-excel-checklist .cr-item-row').forEach((row, i) => {
+        const label = row.querySelector('.cr-custom-label')?.value || row.querySelector('span')?.textContent?.trim() || '';
+        const req = row.dataset.reqVal || '';
+        const out = row.dataset.outVal || '';
+        const more = row.dataset.moreVal || 'false';
+        const remarks = row.querySelector('.cr-remarks-input')?.value || '';
+        checklistRows.push({ num: i + 1, label, req, out, more, remarks });
+    });
+
+    const tick = '✓';
+    const circle = '·';
+    const checklistHTML = checklistRows.map(r => `
+        <tr>
+            <td style="text-align:center;color:#475569;font-weight:700;">${r.num}</td>
+            <td style="font-weight:700;color:#0f172a;">${r.label}</td>
+            <td class="chk ${r.req === 'yes' ? 'yes' : ''}">${r.req === 'yes' ? tick : circle}</td>
+            <td class="chk ${r.req === 'no' ? 'no' : ''}">${r.req === 'no' ? tick : circle}</td>
+            <td class="chk ${r.out === 'ok' ? 'ok' : ''}">${r.out === 'ok' ? tick : circle}</td>
+            <td class="chk ${r.out === 'nok' ? 'nok' : ''}">${r.out === 'nok' ? tick : circle}</td>
+            <td class="chk ${r.out === 'na' ? 'na' : ''}">${r.out === 'na' ? tick : circle}</td>
+            <td class="chk ${r.more === 'true' ? 'more' : ''}">${r.more === 'true' ? tick : circle}</td>
+            <td style="color:#1e293b;font-weight:600;">${r.remarks || ''}</td>
+        </tr>
+    `).join('');
+
+    pw.document.write(`<!DOCTYPE html><html><head>
+    <title>Contract Review - ${ioNumber}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        @page { size: A4 portrait; margin: 8mm 10mm; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 8.5pt;
+            color: #0f172a;
+            line-height: 1.35;
+            background: #ffffff;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+        .doc-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #0f172a;
+            color: #ffffff;
+            padding: 10px 14px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+        .doc-company { font-size: 14pt; font-weight: 800; letter-spacing: 0.02em; }
+        .doc-sub { font-size: 7.5pt; color: #94a3b8; letter-spacing: 0.08em; margin-top: 2px; text-transform: uppercase; }
+        .doc-meta { text-align: right; }
+        .doc-title { font-size: 12pt; font-weight: 800; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.05em; }
+        .doc-ref { font-size: 9pt; font-weight: 700; color: #ffffff; margin-top: 2px; }
+        .doc-date { font-size: 7.5pt; color: #cbd5e1; }
+
+        .summary-strip {
+            display: grid;
+            grid-template-columns: 2fr 2.2fr 1fr 1fr;
+            border: 1.5px solid #0f172a;
+            border-radius: 5px;
+            overflow: hidden;
+            margin-bottom: 8px;
+            background: #f8fafc;
+        }
+        .summary-cell {
+            padding: 5px 9px;
+            border-right: 1px solid #cbd5e1;
+        }
+        .summary-cell:last-child { border-right: none; }
+        .summary-lbl { font-size: 6.5pt; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; }
+        .summary-val { font-size: 9pt; font-weight: 800; color: #0f172a; margin-top: 1px; }
+
+        table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+        td, th { border: 1px solid #94a3b8; padding: 4px 7px; font-size: 8pt; vertical-align: middle; }
+
+        .sec-hdr-indigo { background: #1e3a8a; color: #ffffff; font-weight: 800; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.06em; padding: 5px 8px; }
+        .sec-hdr-teal { background: #0f766e; color: #ffffff; font-weight: 800; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.06em; padding: 5px 8px; }
+        .sec-hdr-slate { background: #1e293b; color: #ffffff; font-weight: 800; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.06em; padding: 5px 8px; }
+
+        .lbl { background: #f1f5f9; font-weight: 800; font-size: 7.5pt; color: #334155; text-transform: uppercase; }
+        .val { font-weight: 700; color: #0f172a; }
+
+        .chk-table { table-layout: fixed; }
+        .sub-hdr th, .sub-hdr td {
+            background: #334155;
+            color: #ffffff;
+            font-weight: 800;
+            font-size: 7.2pt;
+            text-align: center;
+            text-transform: uppercase;
+            padding: 4px 3px;
+        }
+        .chk { text-align: center; font-size: 9.5pt; color: #cbd5e1; font-weight: 700; }
+        .chk.yes, .chk.ok { background: #dcfce7; color: #15803d; font-weight: 900; }
+        .chk.no, .chk.nok { background: #ffe4e6; color: #be123c; font-weight: 900; }
+        .chk.na { background: #f1f5f9; color: #475569; font-weight: 800; }
+        .chk.more { background: #fef3c7; color: #b45309; font-weight: 900; }
+
+        .instr-box { min-height: 75px; padding: 6px 8px; white-space: pre-wrap; font-size: 8pt; font-weight: 600; color: #0f172a; vertical-align: top; }
+
+        .dec-ok { background: #dcfce7; color: #15803d; font-weight: 900; text-align: center; }
+        .dec-nok { background: #ffe4e6; color: #be123c; font-weight: 900; text-align: center; }
+        .notes { font-size: 7.2pt; color: #475569; padding: 5px 8px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; }
+    </style></head><body>
+
+    <div class="doc-header">
+        <div>
+            <div class="doc-company">INNOVATIVE ENGINEERING SOLUTIONS</div>
+            <div class="doc-sub">Precision • Quality • On-Time Delivery</div>
+        </div>
+        <div class="doc-meta">
+            <div class="doc-title">Contract Review Form</div>
+            <div class="doc-ref">${ioNo}</div>
+            <div class="doc-date">Printed: ${printDate}</div>
+        </div>
+    </div>
+
+    <div class="summary-strip">
+        <div class="summary-cell">
+            <div class="summary-lbl">Customer Name</div>
+            <div class="summary-val">${customerName}</div>
+        </div>
+        <div class="summary-cell">
+            <div class="summary-lbl">Item / Project Description</div>
+            <div class="summary-val">${itemDesc}</div>
+        </div>
+        <div class="summary-cell">
+            <div class="summary-lbl">Order Qty</div>
+            <div class="summary-val">${orderQty}</div>
+        </div>
+        <div class="summary-cell">
+            <div class="summary-lbl">Inward DC</div>
+            <div class="summary-val">${inwardDc}</div>
+        </div>
+    </div>
+
+    <table>
+        <colgroup>
+            <col style="width:12%"><col style="width:21%">
+            <col style="width:12%"><col style="width:21%">
+            <col style="width:14%"><col style="width:20%">
+        </colgroup>
+        <tr>
+            <td colspan="2" class="sec-hdr-indigo">Customer Data</td>
+            <td colspan="4" class="sec-hdr-teal">Internal Order &amp; Project Assignment</td>
+        </tr>
+        <tr>
+            <td class="lbl">PO No</td><td class="val">${poNo}</td>
+            <td class="lbl">IO Number</td><td class="val" style="color:#0f766e;font-weight:900;">${ioNumber}</td>
+            <td class="lbl">WO Date</td><td class="val">${intDate}</td>
+        </tr>
+        <tr>
+            <td class="lbl">Drawing No</td><td class="val">${drgNo}</td>
+            <td class="lbl">Dept / Team</td><td class="val">${team}</td>
+            <td class="lbl">CR Date</td><td class="val">${crDate}</td>
+        </tr>
+        <tr>
+            <td class="lbl">Delivery Date</td><td class="val">${delDate}</td>
+            <td class="lbl">Accountability / PL</td><td class="val">${accountability}</td>
+            <td class="lbl">Team Leader</td><td class="val">${teamLeader}</td>
+        </tr>
+        <tr>
+            <td class="lbl">Contact / Ph</td><td class="val">${contactPerson} ${phone !== '-' ? '• ' + phone : ''}</td>
+            <td class="lbl">Team Members</td><td colspan="3" class="val">${members}</td>
+        </tr>
+    </table>
+
+    <table class="chk-table">
+        <colgroup>
+            <col style="width:5%"><col style="width:29%">
+            <col style="width:6%"><col style="width:6%">
+            <col style="width:6%"><col style="width:6%"><col style="width:6%"><col style="width:7%">
+            <col style="width:29%">
+        </colgroup>
+        <tr class="sub-hdr">
+            <th rowspan="2">S.No</th>
+            <th rowspan="2" style="text-align:left;padding-left:8px;">Checklist Items</th>
+            <th colspan="2" style="background:#1e3a8a;">Requirement</th>
+            <th colspan="4" style="background:#0f766e;">Review Outcome</th>
+            <th rowspan="2">Remarks</th>
+        </tr>
+        <tr class="sub-hdr">
+            <th>YES</th><th>NO</th>
+            <th>OK</th><th>NOK</th><th>N.A</th><th>CLARITY</th>
+        </tr>
+        ${checklistHTML}
+    </table>
+
+    <table>
+        <colgroup>
+            <col style="width:52%"><col style="width:14%"><col style="width:34%">
+        </colgroup>
+        <tr>
+            <td class="sec-hdr-slate">Important Instructions &amp; Special Notes</td>
+            <td class="sec-hdr-slate" style="text-align:center;">6M Point</td>
+            <td class="sec-hdr-slate">Resource / Production Plan</td>
+        </tr>
+        <tr>
+            <td rowspan="6" class="instr-box">${instructions.replace(/\n/g, '<br>')}</td>
+            <td class="lbl">${sixM[0][0]}</td><td class="val">${sixM[0][1]}</td>
+        </tr>
+        <tr><td class="lbl">${sixM[1][0]}</td><td class="val">${sixM[1][1]}</td></tr>
+        <tr><td class="lbl">${sixM[2][0]}</td><td class="val">${sixM[2][1]}</td></tr>
+        <tr><td class="lbl">${sixM[3][0]}</td><td class="val">${sixM[3][1]}</td></tr>
+        <tr><td class="lbl">${sixM[4][0]}</td><td class="val">${sixM[4][1]}</td></tr>
+        <tr><td class="lbl">${sixM[5][0]}</td><td class="val">${sixM[5][1]}</td></tr>
+    </table>
+
+    <table>
+        <colgroup>
+            <col style="width:22%"><col style="width:12%">
+            <col style="width:22%"><col style="width:22%"><col style="width:22%">
+        </colgroup>
+        <tr>
+            <td colspan="5" class="sec-hdr-teal">Final Verification &amp; Order Acceptance</td>
+        </tr>
+        <tr class="sub-hdr">
+            <td style="text-align:left;padding-left:8px;">Decision Parameter</td>
+            <td>Status</td>
+            <td>Prepared By</td>
+            <td>Reviewed By</td>
+            <td>Approved By</td>
+        </tr>
+        <tr>
+            <td class="lbl">Capability</td>
+            <td class="${decCapRaw === 'ok' ? 'dec-ok' : (decCapRaw === 'nok' ? 'dec-nok' : '')}" style="text-align:center;font-weight:800;">${decCapRaw ? decCapRaw.toUpperCase() : '-'}</td>
+            <td rowspan="2" class="val" style="text-align:center;height:38px;">${preparedBy}</td>
+            <td rowspan="2" class="val" style="text-align:center;">${reviewedBy}</td>
+            <td rowspan="2" class="val" style="text-align:center;">${approvedBy}</td>
+        </tr>
+        <tr>
+            <td class="lbl">Order Acceptance</td>
+            <td class="${decOARaw === 'ok' ? 'dec-ok' : (decOARaw === 'nok' ? 'dec-nok' : '')}" style="text-align:center;font-weight:800;">${decOARaw ? decOARaw.toUpperCase() : '-'}</td>
+        </tr>
+    </table>
+
+    <div class="notes">
+        <strong>Execution Guidelines:</strong>
+        1. PL to prepare Job Card and plan for resources from Day 1 itself for smooth completion. &nbsp;|&nbsp;
+        2. TL owns full responsibility for Job Quality and On-Time Delivery.
+    </div>
+
+    <script>window.onload = () => setTimeout(() => window.print(), 350);</script>
+    </body></html>`);
+    pw.document.close();
+};
+
+
+// ==========================================
+// ENHANCED ACTIVE MEMBER DROPDOWN & IO SPEC SYNC IN CONTRACT REVIEW
+// ==========================================
+window.adminApp.setupEnhancedMemberDropdown = (containerId, hiddenInputId, initialValue = '') => {
+    const rawContainer = document.getElementById(containerId);
+    if (!rawContainer) return;
+
+    // Clone container to strip any competing legacy setupMemberSearch event listeners
+    const container = rawContainer.cloneNode(true);
+    rawContainer.parentNode.replaceChild(container, rawContainer);
+
+    const hiddenInput = container.querySelector(`#${hiddenInputId}`) || document.getElementById(hiddenInputId);
+    const tagsContainer = container.querySelector('.search-tags-container') || container;
+    const searchInput = container.querySelector('.search-input-inline');
+    const dropdown = container.querySelector('.search-suggestions-dropdown');
+    if (!searchInput || !dropdown || !hiddenInput) return;
+
+    if (!searchInput.dataset.origPlaceholder) {
+        searchInput.dataset.origPlaceholder = searchInput.getAttribute('placeholder') || 'Select...';
+    }
+
+    let selectedMembers = [];
+    const seedVal = initialValue || hiddenInput.value || '';
+    if (seedVal) {
+        try {
+            const parsed = JSON.parse(seedVal);
+            selectedMembers = Array.isArray(parsed)
+                ? parsed.map(s => String(s).trim()).filter(Boolean)
+                : [String(parsed).trim()].filter(Boolean);
+        } catch (e) {
+            selectedMembers = String(seedVal).split(',').map(s => s.trim()).filter(Boolean);
+        }
+    }
+
+    const updateHiddenInput = () => {
+        hiddenInput.value = JSON.stringify(selectedMembers);
+        hiddenInput.dispatchEvent(new Event('change'));
+    };
+
+    const renderTags = () => {
+        tagsContainer.querySelectorAll('.member-tag').forEach(t => t.remove());
+
+        selectedMembers.forEach((name, idx) => {
+            const tag = document.createElement('span');
+            tag.className = 'member-tag';
+            tag.innerHTML = `
+                <span class="member-tag-text">${name}</span>
+                <span class="remove-tag" data-idx="${idx}" title="Remove ${name}">&times;</span>
+            `;
+            tagsContainer.insertBefore(tag, searchInput);
+        });
+
+        // Hide placeholder once at least one member is selected so tags have full space
+        searchInput.placeholder = selectedMembers.length > 0 ? '' : (searchInput.dataset.origPlaceholder || 'Select...');
+        searchInput.style.minWidth = selectedMembers.length > 0 ? '36px' : '80px';
+
+        tagsContainer.querySelectorAll('.remove-tag').forEach(btn => {
+            btn.onmousedown = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            };
+            btn.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const idx = parseInt(btn.dataset.idx, 10);
+                if (!isNaN(idx)) {
+                    selectedMembers.splice(idx, 1);
+                    renderTags();
+                    updateHiddenInput();
+                }
+            };
+        });
+    };
+
+    const showSuggestions = (term = '') => {
+        const cleanTerm = (term || '').toLowerCase().trim();
+        const activeList = (currentMembers || []).filter(m =>
+            !m.isDeleted &&
+            (m.status || 'Active').toLowerCase() !== 'inactive' &&
+            m.name
+        );
+
+        const filtered = activeList.filter(m =>
+            (!cleanTerm ||
+             m.name.toLowerCase().includes(cleanTerm) ||
+             (m.role || '').toLowerCase().includes(cleanTerm) ||
+             (m.department || '').toLowerCase().includes(cleanTerm)) &&
+            !selectedMembers.includes(m.name)
+        );
+
+        // Close other open member dropdowns first
+        document.querySelectorAll('.search-suggestions-dropdown').forEach(d => {
+            if (d !== dropdown) d.classList.add('hidden');
+        });
+
+        if (filtered.length === 0) {
+            dropdown.innerHTML = `<div class="suggestion-empty">${selectedMembers.length > 0 ? 'All matching members selected' : 'No matching active members'}</div>`;
+            dropdown.classList.remove('hidden');
+            return;
+        }
+
+        dropdown.innerHTML = `
+            <div class="suggestion-header">
+                <span>ACTIVE TEAM MEMBERS (${filtered.length})</span>
+                <span>CLICK TO ADD</span>
+            </div>
+            ${filtered.map(m => {
+                const badge = m.department || m.role || 'Active';
+                const safeName = m.name.replace(/"/g, '&quot;');
+                return `
+                    <div class="suggestion-item" data-name="${safeName}">
+                        <div class="suggestion-name-wrap">
+                            <span class="suggestion-avatar">${m.name.charAt(0).toUpperCase()}</span>
+                            <span class="name">${m.name}</span>
+                        </div>
+                        <span class="role">${badge}</span>
+                    </div>
+                `;
+            }).join('')}
+        `;
+
+        dropdown.classList.remove('hidden');
+
+        dropdown.querySelectorAll('.suggestion-item').forEach(item => {
+            item.onmousedown = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const name = item.dataset.name;
+                if (name && !selectedMembers.includes(name)) {
+                    selectedMembers.push(name);
+                    searchInput.value = '';
+                    renderTags();
+                    updateHiddenInput();
+                    showSuggestions('');
+                }
+            };
+        });
+    };
+
+    searchInput.onfocus = () => showSuggestions(searchInput.value);
+    searchInput.onclick = (e) => {
+        e.stopPropagation();
+        showSuggestions(searchInput.value);
+    };
+    searchInput.oninput = (e) => showSuggestions(e.target.value);
+    searchInput.onkeydown = (e) => {
+        if (e.key === 'Backspace' && searchInput.value === '' && selectedMembers.length > 0) {
+            selectedMembers.pop();
+            renderTags();
+            updateHiddenInput();
+            showSuggestions('');
+        } else if (e.key === 'Escape') {
+            dropdown.classList.add('hidden');
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            const firstItem = dropdown.querySelector('.suggestion-item');
+            if (firstItem) {
+                firstItem.dispatchEvent(new MouseEvent('mousedown'));
+            }
+        }
+    };
+
+    container.onclick = (e) => {
+        if (e.target.closest('.remove-tag') || e.target.closest('.suggestion-item')) return;
+        e.stopPropagation();
+        searchInput.focus();
+        showSuggestions(searchInput.value);
+    };
+
+    renderTags();
+    updateHiddenInput();
+};
+
+if (!window._crOutsideClickBound) {
+    window._crOutsideClickBound = true;
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.member-search-container')) {
+            document.querySelectorAll('.search-suggestions-dropdown').forEach(d => d.classList.add('hidden'));
+        }
+    });
+}
+
+window.adminApp.findMatchingInternalOrder = (project) => {
+    if (!project) return null;
+    const ioNumber = String(project.projectId || document.getElementById('cr-io-number')?.value || '').trim().toUpperCase();
+    if (!ioNumber) return null;
+    return (currentOrders || []).find(o =>
+        !o.isTrash &&
+        !o.deleted &&
+        o.entryType !== 'delivery_report' &&
+        String(o.internalOrderNo || '').trim().toUpperCase() === ioNumber
+    ) || null;
+};
+
+window.adminApp.isAvailYes = (rawVal) => {
+    if (rawVal === true) return true;
+    const s = String(rawVal || '').trim().toUpperCase();
+    return s === 'Y' || s === 'YES' || s === 'TRUE' || s === '1';
+};
+
+window.adminApp.populateCrOrderSpec = (projectId) => {
+    const project = (currentProjects || []).find(p => p.id === projectId);
+    if (!project) return;
+
+    const matchingOrder = window.adminApp.findMatchingInternalOrder(project);
+
+    const setVal = (id, val) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA') {
+            el.value = val ?? '';
+        } else {
+            el.textContent = val ?? '';
+        }
+    };
+
+    const desc = matchingOrder?.description || project.projectDescription || project.name || '';
+    const inwardDc = matchingOrder?.customerDcNo || project.customerDcNo || '';
+    const qty = matchingOrder?.qty ?? project.orderQty ?? '';
+    const unit = matchingOrder?.qtyUnit || matchingOrder?.unit || project.qtyUnit || 'Nos';
+    const unitVal = parseFloat(matchingOrder?.saleValueEa ?? matchingOrder?.value ?? project.saleValueEa ?? 0) || 0;
+    const totalSale = parseFloat(matchingOrder?.total ?? matchingOrder?.totalValue ?? ((Number(qty) || 0) * unitVal)) || 0;
+
+    setVal('cr-spec-description', desc);
+    setVal('cr-spec-inward-dc', inwardDc);
+    setVal('cr-spec-qty', qty);
+    setVal('cr-spec-unit', unit);
+    setVal('cr-spec-unit-val', `₹${unitVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+    setVal('cr-spec-total-val', `₹${totalSale.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+
+    const renderPill = (btnId, rawVal) => {
+        const btn = document.getElementById(btnId);
+        if (!btn) return;
+        const isYes = window.adminApp.isAvailYes(rawVal);
+        const stateSpan = btn.querySelector('.cr-avail-state, .avail-state');
+        if (stateSpan) stateSpan.textContent = isYes ? 'YES' : 'NO';
+        btn.classList.toggle('is-yes', isYes);
+        btn.classList.toggle('is-no', !isYes);
+    };
+
+    const getAvail = (field, altField) => {
+        if (matchingOrder && matchingOrder[field] !== undefined) return matchingOrder[field];
+        if (matchingOrder && altField && matchingOrder[altField] !== undefined) return matchingOrder[altField];
+        if (project[field] !== undefined) return project[field];
+        if (altField && project[altField] !== undefined) return project[altField];
+        return 'n';
+    };
+
+    renderPill('cr-pill-drg', getAvail('drgAvail'));
+    renderPill('cr-pill-raw', getAvail('rawAvail', 'rawMatAvail'));
+    renderPill('cr-pill-labor', getAvail('isLaborJob'));
+    renderPill('cr-pill-fin', getAvail('finishAvail', 'finPartAvail'));
+};
+
+window.adminApp.syncCrOrderField = async (field, value) => {
+    const currentId = window.adminApp.currentEditingProjectId;
+    const project = (currentProjects || []).find(p => p.id === currentId);
+    if (!project) return;
+
+    const matchingOrder = window.adminApp.findMatchingInternalOrder(project);
+
+    const qtyVal = parseFloat(document.getElementById('cr-spec-qty')?.value ?? matchingOrder?.qty ?? 0) || 0;
+    const unitRate = parseFloat(matchingOrder?.saleValueEa ?? matchingOrder?.value ?? 0) || 0;
+    const computedTotal = qtyVal * unitRate;
+
+    const totalEl = document.getElementById('cr-spec-total-val');
+    if (totalEl) {
+        const formatted = `₹${computedTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        if (totalEl.tagName === 'INPUT') totalEl.value = formatted;
+        else totalEl.textContent = formatted;
+    }
+
+    if (matchingOrder && matchingOrder.id) {
+        const updates = { [field]: value };
+        if (field === 'qty') {
+            updates.total = computedTotal.toFixed(2);
+            matchingOrder.total = updates.total;
+        }
+        matchingOrder[field] = value;
+        await DB.updateOrder(matchingOrder.id, updates);
+    }
+
+    // Mirror onto project as well
+    project[field] = value;
+    if (field === 'description') project.name = value;
+    if (field === 'qty') project.orderQty = value;
+
+    // Update top-right header pills immediately
+    const headerStats = document.getElementById('dd-header-stats');
+    if (headerStats && window.adminApp.viewProjectDetails) {
+        const cust = (project.customerName || matchingOrder?.customer || '-').toUpperCase();
+        const drg = (project.drawingNo || matchingOrder?.drawingNo || '-').toUpperCase();
+        const po = project.poNo || matchingOrder?.poNo || '-';
+        const inDc = matchingOrder?.customerDcNo || project.customerDcNo || '-';
+        const q = matchingOrder?.qty || project.orderQty || '-';
+        headerStats.innerHTML = `
+            <div class="pm-meta-chip"><span class="pm-meta-lbl">CUSTOMER</span><span class="pm-meta-val">${cust}</span></div>
+            <div class="pm-meta-chip"><span class="pm-meta-lbl">DRG NO</span><span class="pm-meta-val">${drg}</span></div>
+            <div class="pm-meta-chip"><span class="pm-meta-lbl">PO NO</span><span class="pm-meta-val">${po}</span></div>
+            <div class="pm-meta-chip"><span class="pm-meta-lbl">INWARD DC</span><span class="pm-meta-val">${inDc}</span></div>
+            <div class="pm-meta-chip"><span class="pm-meta-lbl">QTY</span><span class="pm-meta-val">${q}</span></div>
+        `;
+    }
+    const nameHeader = document.getElementById('detail-project-name');
+    if (field === 'description' && nameHeader && value) {
+        nameHeader.textContent = String(value).toUpperCase();
+    }
+};
+
+window.adminApp.toggleCrOrderAvail = async (field) => {
+    const currentId = window.adminApp.currentEditingProjectId;
+    const project = (currentProjects || []).find(p => p.id === currentId);
+    if (!project) return;
+
+    const matchingOrder = window.adminApp.findMatchingInternalOrder(project);
+    const currentRaw = matchingOrder ? matchingOrder[field] : project[field];
+    const isCurrentlyYes = window.adminApp.isAvailYes(currentRaw);
+
+    // Internal Orders use 'y' / 'n' in monitoring.js
+    const nextVal = isCurrentlyYes ? 'n' : 'y';
+
+    // Update in-memory objects immediately so UI toggles instantly
+    project[field] = nextVal;
+    if (matchingOrder) {
+        matchingOrder[field] = nextVal;
+    }
+
+    // Re-render pills immediately
+    window.adminApp.populateCrOrderSpec(currentId);
+
+    // Persist to Firestore
+    if (matchingOrder && matchingOrder.id) {
+        await DB.updateOrder(matchingOrder.id, { [field]: nextVal });
+    } else if (project.id) {
+        await DB.updateProject(project.id, { [field]: nextVal });
+    }
+};
+
+const _origLoadContractReview = window.adminApp.loadContractReview;
+window.adminApp.loadContractReview = async (projectId) => {
+    await _origLoadContractReview(projectId);
+
+    // Re-bind all 6 member fields with enhanced click-to-open dropdowns
+    const val = (id) => document.getElementById(id)?.value || '';
+    window.adminApp.setupEnhancedMemberDropdown('cr-search-accountability', 'cr-accountability', val('cr-accountability'));
+    window.adminApp.setupEnhancedMemberDropdown('cr-search-team-leader', 'cr-team-leader', val('cr-team-leader'));
+    window.adminApp.setupEnhancedMemberDropdown('cr-search-members', 'cr-members', val('cr-members'));
+    window.adminApp.setupEnhancedMemberDropdown('cr-search-prepared', 'cr-prepared-by', val('cr-prepared-by'));
+    window.adminApp.setupEnhancedMemberDropdown('cr-search-reviewed', 'cr-reviewed-by', val('cr-reviewed-by'));
+    window.adminApp.setupEnhancedMemberDropdown('cr-search-approved', 'cr-approved-by', val('cr-approved-by'));
+
+    // Populate the Order Specification & Material Availability card
+    window.adminApp.populateCrOrderSpec(projectId);
+};
