@@ -5832,6 +5832,7 @@ window.adminApp.buildUnifiedProjectRows = () => {
             customer: order.customer || (proj ? proj.customerName : '') || '-',
             poNo: order.poNo || (proj ? (proj.poNo || proj.poNumber) : '') || '-',
             inwardDc: order.customerDcNo || (proj ? proj.customerDcNo : '') || '-',
+            inwardDcDate: order.customerDcDate || (proj ? (proj.customerDcDate || proj.inwardDcDate) : '') || '-',
             drawingNo: order.drawingNo || (proj ? proj.drawingNo : '') || '-',
             itemCode: order.itemCode || (proj ? proj.itemCode : '') || '-',
             description: order.description || (proj ? (proj.projectDescription || proj.name || proj.projectName) : '') || '-',
@@ -5893,6 +5894,7 @@ window.adminApp.buildUnifiedProjectRows = () => {
             customer: proj.customerName || '-',
             poNo: proj.poNo || proj.poNumber || '-',
             inwardDc: proj.customerDcNo || '-',
+            inwardDcDate: proj.customerDcDate || proj.inwardDcDate || '-',
             drawingNo: proj.drawingNo || '-',
             itemCode: proj.itemCode || '-',
             description: proj.projectDescription || proj.name || proj.projectName || '-',
@@ -6022,7 +6024,7 @@ window.adminApp.renderProjectOverview = () => {
     }
 
     if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="24" style="text-align: center; padding: 3rem; color: #94a3b8; font-weight: 500;">No matching projects or internal orders found for the selected filters.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="25" style="text-align: center; padding: 3rem; color: #94a3b8; font-weight: 500;">No matching projects or internal orders found for the selected filters.</td></tr>`;
         return;
     }
 
@@ -6091,6 +6093,7 @@ window.adminApp.renderProjectOverview = () => {
                 <!-- Col 5: PO No -->
                 <td style="font-size: 0.78rem; color: #334155; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.poNo}">${r.poNo}</td>
                 <td style="font-size: 0.78rem; color: #334155; white-space: nowrap;">${r.inwardDc}</td>
+                <td style="font-size: 0.78rem; color: #475569; text-align: center; white-space: nowrap;">${formatDateShort(r.inwardDcDate)}</td>
                 <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.76rem; color: #334155; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.drawingNo}">${r.drawingNo}</td>
                 <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.76rem; color: #334155; min-width: 120px; white-space: nowrap; text-align: center;" title="${r.itemCode || '-'}">${r.itemCode || '-'}</td>
                 <td style="max-width: 210px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #1e293b; font-weight: 500;" class="section-end" title="${r.description}">${r.description}</td>
@@ -6176,7 +6179,7 @@ window.adminApp.exportProjectOverviewCSV = () => {
     }
 
     const headers = [
-        'S.No', 'IO No', 'WO Date', 'Customer', 'PO No', 'Inward DC', 'Drawing No', 'Item Code', 'Description', 'Order Qty',
+        'S.No', 'IO No', 'WO Date', 'Customer', 'PO No', 'Inward DC', 'Inward DC Date', 'Drawing No', 'Item Code', 'Description', 'Order Qty',
         'Workflow Status', 'CR Filed', 'Dept / Team', 'PL / Accountability', 'Team Leader', 'Target Delivery', 'Order Acceptance',
         'Sale Value', 'Total Expenses', 'Profit / Loss', 'Margin %',
         'Delivered Qty', 'Pending Qty', 'Delivery Status'
@@ -6193,6 +6196,7 @@ window.adminApp.exportProjectOverviewCSV = () => {
             r.customer,
             r.poNo,
             r.inwardDc,
+            formatDateShort(r.inwardDcDate),
             r.drawingNo,
             r.itemCode || '-',
             r.description,

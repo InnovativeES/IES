@@ -104,7 +104,7 @@ export const renderTable = (orders) => {
 
         let matchesSearch = true;
         if (searchTerm) {
-            const searchStr = `${order.internalOrderNo} ${order.customer} ${order.description} ${order.poNo} ${order.customerDcNo || ''} ${order.drawingNo || ''} ${order.itemCode || ''}`.toLowerCase();
+            const searchStr = `${order.internalOrderNo} ${order.customer} ${order.description} ${order.poNo} ${order.customerDcNo || ''} ${order.customerDcDate || ''} ${order.drawingNo || ''} ${order.itemCode || ''}`.toLowerCase();
             matchesSearch = searchStr.includes(searchTerm);
         }
 
@@ -156,7 +156,7 @@ export const renderTable = (orders) => {
     const paginatedOrders = processedOrders.slice(startIdx, endIdx);
 
     if (totalItems === 0) {
-        tbody.innerHTML = '<tr><td colspan="25" style="padding: 3rem; text-align: center; color: #64748b;">No orders found matching filters.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="26" style="padding: 3rem; text-align: center; color: #64748b;">No orders found matching filters.</td></tr>';
         if (paginationInfo) paginationInfo.textContent = 'Showing 0 to 0 of 0 entries';
         if (paginationControls) paginationControls.innerHTML = '';
         return;
@@ -298,6 +298,7 @@ export const renderTable = (orders) => {
             <td>${t(order.poNo)}</td>
             <td>${formatDate(order.poDate)}</td>
             <td>${t(order.customerDcNo)}</td>
+            <td class="text-center text-slate-600">${formatDate(order.customerDcDate)}</td>
             <td class="text-center">${avail(order.drgAvail)}</td>
             <td class="text-center">${avail(order.rawAvail)}</td>
             <td class="text-center">${avail(order.finishAvail)}</td>
@@ -449,6 +450,7 @@ export const handleAddOrder = async () => {
                         poNo: data.poNo || '',
                         poDate: data.poDate || '',
                         customerDcNo: data.customerDcNo || '',
+                        customerDcDate: data.customerDcDate || '',
                         expectedCompletion: data.deliveryDateActual || null,
                         internalNotes: `Auto-created from Internal Order ${data.internalOrderNo || ''}`,
                         internalOrderNo: data.internalOrderNo || ''
@@ -684,7 +686,7 @@ export const exportToCSV = () => {
         }
         let matchesSearch = true;
         if (searchTerm) {
-            const searchStr = `${order.internalOrderNo} ${order.customer} ${order.description} ${order.poNo} ${order.customerDcNo || ''} ${order.drawingNo || ''} ${order.itemCode || ''}`.toLowerCase();
+            const searchStr = `${order.internalOrderNo} ${order.customer} ${order.description} ${order.poNo} ${order.customerDcNo || ''} ${order.customerDcDate || ''} ${order.drawingNo || ''} ${order.itemCode || ''}`.toLowerCase();
             matchesSearch = searchStr.includes(searchTerm);
         }
         return matchesMonth && matchesSearch && order.entryType !== 'delivery_report';
@@ -721,7 +723,7 @@ export const exportToCSV = () => {
         const headers = [
             'S.No', 'Internal Order No', 'Date', 'Drg No', 'Item Code', 'Description', 'Qty', 'Unit',
             'Sale Value Ea', /* 'In-House Value', 'Outsource Value', */ 'Labor', 'Total Value',
-            'Customer', 'PO No', 'PO Date', 'Inward DC', 'Drg Available', 'Raw Available', 'Finish Available',
+            'Customer', 'PO No', 'PO Date', 'Inward DC', 'Inward DC Date', 'Drg Available', 'Raw Available', 'Finish Available',
             'Del Date Actual', 'DC No', 'Del Qty', 'Pending Qty', 'Bill No', 'Status'
         ];
 
@@ -804,6 +806,7 @@ export const exportToCSV = () => {
                 escapeCSV(o.poNo || '-'),
                 escapeCSV(formatDate(o.poDate)),
                 escapeCSV(o.customerDcNo || '-'),
+                escapeCSV(formatDate(o.customerDcDate)),
                 escapeCSV(o.drgAvail === 'y' ? 'Y' : 'N'),
                 escapeCSV(o.rawAvail === 'y' ? 'Y' : 'N'),
                 escapeCSV(o.finishAvail === 'y' ? 'Y' : 'N'),
