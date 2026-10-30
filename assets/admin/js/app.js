@@ -21,6 +21,7 @@ let projectUnsubscribe = null;
 let isTrashView = false;
 let isProjectTrashView = false;
 let projectViewMode = 'list';
+let isProjectsInitialLoading = true;
 let currentCustomers = [];
 let customerUnsubscribe = null;
 let currentInventory = [];
@@ -358,6 +359,7 @@ function updateUnitUI() {
 }
 
 function stopUnitSubscriptions() {
+    isProjectsInitialLoading = true;
     if (memberUnsubscribe) { memberUnsubscribe(); memberUnsubscribe = null; }
     if (window.unsubscribeMembers) { window.unsubscribeMembers(); window.unsubscribeMembers = null; }
     if (projectUnsubscribe) { projectUnsubscribe(); projectUnsubscribe = null; }
@@ -384,7 +386,9 @@ function startUnitSubscriptions() {
 
     // 2. Projects
     if (projectUnsubscribe) projectUnsubscribe();
+    isProjectsInitialLoading = true;
     projectUnsubscribe = DB.subscribeToProjects((projects) => {
+        isProjectsInitialLoading = false;
         currentProjects = projects || [];
         const customerFilter = document.getElementById('project-customer-filter');
         if (customerFilter) {
@@ -519,7 +523,22 @@ function switchActiveUnit(unitId) {
 }
 
 // Global App Object
+let _pmFilterTimeout = null;
+let _poRenderTimeout = null;
+
 window.adminApp = {
+    debouncedFilterProjects: () => {
+        if (_pmFilterTimeout) clearTimeout(_pmFilterTimeout);
+        _pmFilterTimeout = setTimeout(() => {
+            window.adminApp.filterProjects();
+        }, 150);
+    },
+    debouncedRenderProjectOverview: () => {
+        if (_poRenderTimeout) clearTimeout(_poRenderTimeout);
+        _poRenderTimeout = setTimeout(() => {
+            window.adminApp.renderProjectOverview();
+        }, 150);
+    },
     toggleSidebar: () => {
         const container = document.getElementById('dashboard-container');
         if (!container) return;
@@ -1263,19 +1282,82 @@ window.adminApp = {
         const tbody = document.getElementById('project-list-body');
         if (!tbody) return;
 
-        if (projects.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="12" class="text-center py-12 text-slate-400">No projects found.</td></tr>';
+        // 1. Initial Loading State Indicator (Prevents false 'No projects found' on load / slow connection)
+        if (isProjectsInitialLoading && (!projects || projects.length === 0)) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="12" style="text-align: center; padding: 3.5rem 1rem; color: #64748b;">
+                        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.75rem;">
+                            <svg class="animate-spin" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#0d9488" stroke-width="2.5">
+                                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-opacity="0.25"></circle>
+                                <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span style="font-weight: 600; font-size: 0.85rem; color: #475569;">Loading projects from database...</span>
+                        </div>
+                    </td>
+                </tr>
+            `;
             return;
         }
 
+        // 2. Smart Empty State (Distinguishes between active filter mismatch vs genuine empty database)
+        if (!projects || projects.length === 0) {
+            const searchTerm = document.getElementById('project-search')?.value.trim() || '';
+            const statusFilter = document.getElementById('project-status-filter')?.value || 'all';
+            const typeFilter = document.getElementById('project-type-filter')?.value || 'all';
+            const customerFilter = document.getElementById('project-customer-filter')?.value || 'all';
+            const hasActiveFilter = !!searchTerm || statusFilter !== 'all' || typeFilter !== 'all' || customerFilter !== 'all';
+
+            if (hasActiveFilter) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="12" style="text-align: center; padding: 3rem 1rem; color: #64748b;">
+                            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem;">
+                                <p style="font-size: 0.9rem; font-weight: 600; color: #334155;">No projects match your active filters.</p>
+                                <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('project-search').value=''; document.getElementById('project-status-filter').value='all'; document.getElementById('project-customer-filter').value='all'; document.getElementById('project-type-filter').value='all'; window.adminApp.filterProjects();" style="display: inline-flex; align-items: center; gap: 4px; font-weight: 600;">
+                                    ↻ Reset All Filters
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            } else {
+                tbody.innerHTML = '<tr><td colspan="12" style="text-align: center; padding: 3rem 1rem; color: #94a3b8; font-weight: 500;">No projects found in this facility. Click <strong>"+ New Project"</strong> above to create one.</td></tr>';
+            }
+            return;
+        }
+
+        // 3. High-Performance Pre-indexing in O(1) Hash Maps
         const allOrders = window.adminApp.getCurrentOrders ? window.adminApp.getCurrentOrders() : [];
-        const allExpenses = Costing.getAllExpenses ? Costing.getAllExpenses() : [];
+        const allExpenses = (Costing && Costing.getAllExpenses) ? Costing.getAllExpenses() : [];
+
+        const ordersByIoKey = new Map();
+        for (let i = 0; i < allOrders.length; i++) {
+            const o = allOrders[i];
+            if (o.entryType === 'delivery_report') continue;
+            const k = String(o.internalOrderNo || '').trim().toUpperCase();
+            if (k && !ordersByIoKey.has(k)) ordersByIoKey.set(k, o);
+        }
+
+        const expensesByIoKey = new Map();
+        const expensesByOrderId = new Map();
+        for (let i = 0; i < allExpenses.length; i++) {
+            const e = allExpenses[i];
+            const ioK = String(e.internalOrderNo || '').trim().toUpperCase();
+            const amt = parseFloat(e.amount) || ((parseFloat(e.qty) || 0) * (parseFloat(e.rate) || 0));
+            if (ioK) {
+                expensesByIoKey.set(ioK, (expensesByIoKey.get(ioK) || 0) + amt);
+            }
+            if (e.orderId) {
+                expensesByOrderId.set(e.orderId, (expensesByOrderId.get(e.orderId) || 0) + amt);
+            }
+        }
 
         tbody.innerHTML = projects.map((p, idx) => {
             const statusClass = (p.status || 'draft').toLowerCase().replace(/\s+/g, '-');
             const isTrashed = !!p.isDeleted;
             const ioKey = String(p.projectId || '').trim().toUpperCase();
-            const matchingOrder = allOrders.find(o => String(o.internalOrderNo || '').trim().toUpperCase() === ioKey && o.entryType !== 'delivery_report');
+            const matchingOrder = ioKey ? ordersByIoKey.get(ioKey) : null;
 
             const drgNo = p.drawingNo || (matchingOrder ? matchingOrder.drawingNo : '') || '-';
             const itemCode = p.itemCode || (matchingOrder ? matchingOrder.itemCode : '') || '-';
@@ -1288,14 +1370,10 @@ window.adminApp = {
                 ? `<button class="pm-badge-filed" onclick="event.stopPropagation(); window.adminApp.viewProjectDetails('${p.id}', 'review')" title="Contract Review Filed (Click to View/Edit)">✓ Filled</button>`
                 : `<button class="pm-badge-pending" onclick="event.stopPropagation(); window.adminApp.viewProjectDetails('${p.id}', 'review')" title="Contract Review Pending (Click to Fill)">Pending</button>`;
 
-            const orderExpenses = allExpenses.filter(e =>
-                (matchingOrder && e.orderId === matchingOrder.id) ||
-                String(e.internalOrderNo || '').trim().toUpperCase() === ioKey
-            );
-            const totalExp = orderExpenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
-            const hasCosting = orderExpenses.length > 0 || (p.costingItems && p.costingItems.length > 0) || (p.expenses && p.expenses.length > 0) || (parseFloat(p.totalCost) > 0);
+            const totalExp = (ioKey && expensesByIoKey.get(ioKey)) || (matchingOrder && expensesByOrderId.get(matchingOrder.id)) || 0;
+            const hasCosting = totalExp > 0 || (p.costingItems && p.costingItems.length > 0) || (p.expenses && p.expenses.length > 0) || (parseFloat(p.totalCost) > 0);
             const costingBadge = hasCosting
-                ? `<button class="pm-badge-filed" onclick="event.stopPropagation(); window.adminApp.viewProjectDetails('${p.id}', 'costing')" title="Costing Filled: ₹${totalExp.toLocaleString('en-IN')} (Click to View Sheet)">✓ Filled</button>`
+                ? `<button class="pm-badge-filed" onclick="event.stopPropagation(); window.adminApp.viewProjectDetails('${p.id}', 'costing')" title="Costing Filled: ₹${Math.round(totalExp).toLocaleString('en-IN')} (Click to View Sheet)">✓ Filled</button>`
                 : `<button class="pm-badge-pending" onclick="event.stopPropagation(); window.adminApp.viewProjectDetails('${p.id}', 'costing')" title="Costing Pending (Click to Open Sheet)">Pending</button>`;
 
             // Dynamic Project Status Dropdown (syncs across PM, Master Order Tracker & Dashboard)
@@ -5572,58 +5650,9 @@ window.adminApp.invalidateProjectCrCache = (projectId) => {
 };
 
 window.adminApp.enrichProjectsWithContractReviews = async () => {
-    if (_crEnrichInProgress || !currentProjects || currentProjects.length === 0) return;
-    const toEnrich = currentProjects.filter(p => p.id && !_crEnrichedCache.has(p.id));
-    if (toEnrich.length === 0) return;
-
-    _crEnrichInProgress = true;
-    let updatedAny = false;
-    try {
-        const batch = toEnrich.slice(0, 30);
-        await Promise.all(batch.map(async (p) => {
-            _crEnrichedCache.add(p.id);
-            try {
-                const res = await DB.getContractReview(p.id);
-                const review = (res && res.data) ? res.data : null;
-                if (review && Object.keys(review).length > 0) {
-                    const isFinalized = Boolean(p.contractFiled || review.status === 'Finalized');
-                    p.crStatus = isFinalized ? 'Finalized' : 'Draft';
-                    p.crTeam = review.team || p.crTeam || p.jobType || '';
-                    p.crAccountability = formatCrMemberDisplay(review.accountability || p.crAccountability);
-                    p.crTeamLeader = formatCrMemberDisplay(review.teamLeader || p.crTeamLeader);
-                    p.crDeliveryDate = review.deliveryDate || p.crDeliveryDate || p.expectedCompletion || '';
-                    p.crDecisionOa = review.decisionOa || p.crDecisionOa || '';
-                    p.crDecisionCap = review.decisionCap || p.crDecisionCap || '';
-                    updatedAny = true;
-                } else if (!p.crStatus) {
-                    p.crStatus = p.contractFiled ? 'Finalized' : 'Pending';
-                    updatedAny = true;
-                }
-            } catch (err) {
-                console.warn('Could not enrich CR for project:', p.id, err);
-            }
-        }));
-    } finally {
-        _crEnrichInProgress = false;
-    }
-
-    if (updatedAny) {
-        const poView = document.getElementById('view-project_overview');
-        if (poView && !poView.classList.contains('hidden')) {
-            window.adminApp.renderProjectOverview();
-        }
-        const pmView = document.getElementById('view-project_management');
-        if (pmView && !pmView.classList.contains('hidden')) {
-            window.adminApp.filterProjects();
-        }
-        window.adminApp.updateProjectStats();
-        refreshDashboard();
-    }
-
-    // Continue enriching remaining projects if more exist
-    if (currentProjects.some(p => p.id && !_crEnrichedCache.has(p.id))) {
-        setTimeout(() => window.adminApp.enrichProjectsWithContractReviews(), 100);
-    }
+    // Contract reviews are fetched on-demand when opening that specific project.
+    // Heavy background looping across all 540+ subcollections is deactivated to guarantee instant, stutter-free performance.
+    return;
 };
 
 // Project workflow stages shown & editable in the Master Order Tracker
@@ -5793,17 +5822,11 @@ window.adminApp.buildUnifiedProjectRows = () => {
             totalSale = parseMoney(order.total ?? order.totalValue) || (qty * unitSale);
         }
 
-        // Expenses: match by order.id or ioNo without double counting
-        const matchingExpenses = allExpenses.filter(e =>
-            (order.id && e.orderId === order.id) ||
-            (ioKey && String(e.internalOrderNo || '').trim().toUpperCase() === ioKey) ||
-            (ioKey && String(e.orderId || '').trim().toUpperCase() === ioKey) ||
-            (proj && proj.id && e.orderId === proj.id)
-        );
-        const totalExp = matchingExpenses.reduce((sum, e) => {
-            const amt = parseFloat(e.amount) || ((parseFloat(e.qty) || 0) * (parseFloat(e.rate) || 0));
-            return sum + amt;
-        }, 0);
+        // Expenses: fast O(1) hash map lookup
+        const expByOrd = (order.id && expenseByOrderId[order.id]) || 0;
+        const expByIo = (ioKey && expenseByIoNo[ioKey]) || 0;
+        const expByProj = (proj && proj.id && expenseByOrderId[proj.id]) || 0;
+        const totalExp = Math.max(expByOrd, expByIo, expByProj);
 
         const profit = totalSale - totalExp;
         const marginPct = totalSale > 0 ? ((profit / totalSale) * 100) : 0;

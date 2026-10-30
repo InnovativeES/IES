@@ -67,6 +67,19 @@ export const switchView = (viewName) => {
         updateActiveLink(viewName);
 
         // Trigger View Renders
+        if (viewName === 'project_management') {
+            if (window.adminApp?.filterProjects) {
+                window.adminApp.filterProjects();
+            }
+            if (window.adminApp?.updateProjectStats) {
+                window.adminApp.updateProjectStats();
+            }
+        }
+        if (viewName === 'project_overview') {
+            if (window.adminApp?.renderProjectOverview) {
+                window.adminApp.renderProjectOverview();
+            }
+        }
         if (viewName === 'customers') {
             if (window.adminApp?.renderCustomerTable) {
                 window.adminApp.renderCustomerTable();

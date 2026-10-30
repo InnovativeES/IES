@@ -291,11 +291,23 @@ const normalizeProjectRecord = (data) => {
     return copy;
 };
 
-export const subscribeToProjects = (callback) => {
-    const q = query(collection(db, getProjectsCol()), orderBy("createdAt", "desc"));
-    return onSnapshot(q, (snapshot) => {
+export const subscribeToProjects = (callback, errorCallback) => {
+    const colRef = collection(db, getProjectsCol());
+    return onSnapshot(colRef, (snapshot) => {
         const projects = snapshot.docs.map(doc => normalizeProjectRecord({ id: doc.id, ...doc.data() }));
+        // Safe in-memory sorting: newest timestamp or highest projectId first.
+        // Prevents Firestore from silently dropping projects that do not have a createdAt field.
+        projects.sort((a, b) => {
+            const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : (new Date(a.createdAt || a.startDate || 0).getTime() || 0));
+            const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : (new Date(b.createdAt || b.startDate || 0).getTime() || 0));
+            if (timeB !== timeA) return timeB - timeA;
+            return String(b.projectId || '').localeCompare(String(a.projectId || ''), undefined, { numeric: true });
+        });
         callback(projects);
+    }, (error) => {
+        console.error("Error subscribing to projects:", error);
+        if (errorCallback) errorCallback(error);
+        else callback([]);
     });
 };
 
