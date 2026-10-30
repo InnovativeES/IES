@@ -2813,7 +2813,7 @@
                             <div class="relative" style="width: 100% !important;">
                                 <input type="text" id="po-overview-search" class="filter-input w-full pl-8 pr-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none" style="width: 100% !important; display: block !important;"
                                     placeholder="Search IO No, Customer, PO, Drawing, PL/TL..."
-                                    oninput="window.adminApp.debouncedRenderProjectOverview()">
+                                    oninput="window.adminApp.renderProjectOverview()">
                                 <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                             </div>
                         </div>
@@ -3022,7 +3022,7 @@
                         <div class="filter-group filter-group-search">
                             <label class="filter-label">Search Project / Order</label>
                             <input type="text" id="project-search" class="filter-input"
-                                placeholder="Search IO No, Project Name, Customer, or Drawing No..." oninput="window.adminApp.debouncedFilterProjects()">
+                                placeholder="Search IO No, Project Name, Customer, or Drawing No..." oninput="window.adminApp.filterProjects()">
                         </div>
                         <div class="filter-group">
                             <label class="filter-label">Status</label>

@@ -8798,15 +8798,3 @@ body:has(#view-project_management:not(.hidden)) #main-content,
     background: #bfdbfe;
     color: #1e3a8a;
 }
-
-/* ==========================================================================
-   PERFORMANCE VIRTUALIZATION FOR LARGE DATASET TABLES (500+ ROWS)
-   Skips rendering and painting offscreen rows to ensure 60fps scrolling
-   ========================================================================== */
-#pm-modern-table tbody tr,
-#project-overview-table tbody tr,
-#monitoring-table tbody tr,
-#customer-directory-table tbody tr {
-    content-visibility: auto;
-    contain-intrinsic-size: 0 42px;
-}
