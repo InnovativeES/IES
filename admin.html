@@ -793,6 +793,47 @@
             border-color: #64748b;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
+
+        /* === INLINE LOADING SPINNER & STATUS PILL === */
+        @keyframes ies-spin {
+            to { transform: rotate(360deg); }
+        }
+        .ies-inline-spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255, 255, 255, 0.35);
+            border-top-color: currentColor;
+            border-radius: 50%;
+            animation: ies-spin 0.65s linear infinite;
+            vertical-align: middle;
+            flex-shrink: 0;
+        }
+        .ies-global-loader {
+            position: fixed;
+            top: 14px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-8px);
+            z-index: 9999;
+            background: rgba(15, 23, 42, 0.92);
+            color: #f8fafc;
+            padding: 8px 16px;
+            border-radius: 9999px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+        .ies-global-loader.visible {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
     </style>
 </head>
 
@@ -5823,9 +5864,15 @@
     <!-- Hidden Print View Container (Rendered during Print & PDF Download) -->
     <div id="payslip-print-view" class="hidden"></div>
 
+    <!-- Global Non-Blocking Loading / Status Pill -->
+    <div id="ies-global-loader" class="ies-global-loader" aria-live="polite">
+        <span id="ies-global-loader-icon" class="ies-inline-spinner" style="color: #34d399;"></span>
+        <span id="ies-global-loader-text">Loading data...</span>
+    </div>
+
     <!-- Application Script -->
 
-    <script type="module" src="assets/admin/js/app.js?v=51"></script>
+    <script type="module" src="assets/admin/js/app.js?v=52"></script>
 
     <!-- Mobile Sidebar Toggle Script -->
     <script>

@@ -421,11 +421,22 @@ export const handleAddOrder = async () => {
 
     const isNewOrder = !orderId;
     const createProject = isNewOrder && document.getElementById('io-create-project')?.checked;
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalBtnHtml = submitBtn ? submitBtn.innerHTML : 'Save Order';
+
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = `<span class="ies-inline-spinner" style="margin-right: 6px;"></span>${isNewOrder ? 'Saving & Opening Contract Review...' : 'Saving Order...'}`;
+    }
+    if (window.adminApp?.showGlobalLoader) {
+        window.adminApp.showGlobalLoader(isNewOrder ? 'Saving Internal Order & preparing Contract Review...' : 'Saving Internal Order...');
+    }
 
     try {
         const res = orderId ? await DB.updateOrder(orderId, data) : await DB.addOrder(data);
 
         if (res.error) {
+            if (window.adminApp?.hideGlobalLoader) window.adminApp.hideGlobalLoader();
             alert("Error: " + res.error);
             return;
         }
@@ -471,22 +482,34 @@ export const handleAddOrder = async () => {
                 if (hiddenId) hiddenId.value = '';
 
                 if (createdProjectDocId && window.adminApp.openProjectContractReview) {
-                    setTimeout(() => {
-                        window.adminApp.openProjectContractReview(createdProjectDocId, data);
-                    }, 120);
+                    if (window.adminApp?.showGlobalLoader) {
+                        window.adminApp.showGlobalLoader('Opening Contract Review...');
+                    }
+                    await window.adminApp.openProjectContractReview(createdProjectDocId, data);
+                    if (window.adminApp?.hideGlobalLoader) window.adminApp.hideGlobalLoader();
+                } else {
+                    if (window.adminApp?.hideGlobalLoader) window.adminApp.hideGlobalLoader();
                 }
                 return;
             } catch (projErr) {
                 console.error('Error auto-creating/redirecting project:', projErr);
+                if (window.adminApp?.hideGlobalLoader) window.adminApp.hideGlobalLoader();
             }
         }
 
+        if (window.adminApp?.hideGlobalLoader) window.adminApp.hideGlobalLoader();
         window.adminApp.closeModal('add-order-modal');
         form.reset();
         const hiddenId = document.getElementById('orderId-input');
         if (hiddenId) hiddenId.value = '';
     } catch (err) {
+        if (window.adminApp?.hideGlobalLoader) window.adminApp.hideGlobalLoader();
         alert("Error: " + err.message);
+    } finally {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalBtnHtml;
+        }
     }
 };
 

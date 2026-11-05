@@ -2,7 +2,7 @@ import * as Auth from './auth.js';
 import * as UI from './ui.js';
 import * as DB from './db.js';
 import * as Charts from './charts.js';
-import * as Monitoring from './monitoring.js?v=9';
+import * as Monitoring from './monitoring.js?v=10';
 import * as DCRegister from './dc_register.js?v=9';
 import * as Inventory from './inventory.js';
 import * as Workflow from './workflow.js';
@@ -273,11 +273,6 @@ function refreshDashboard() {
     const selectedMonth = monthFilter ? monthFilter.value : 'all';
     const selectedDept = deptFilter ? deptFilter.value : 'all';
 
-    // Ensure Contract Review subcollection statuses are enriched in background
-    if (window.adminApp && window.adminApp.enrichProjectsWithContractReviews) {
-        window.adminApp.enrichProjectsWithContractReviews();
-    }
-
     const stats = calculateDashboardStats(currentOrders, selectedMonth, selectedDept);
     UI.updateStats(stats);
     UI.renderDashboardPendingOrders(stats.filteredOrders);
@@ -369,7 +364,47 @@ function stopUnitSubscriptions() {
     if (window.unsubscribeCustomers) { window.unsubscribeCustomers(); window.unsubscribeCustomers = null; }
 }
 
+let _initialProjectsLoaded = false;
+let _initialOrdersLoaded = false;
+
+function showGlobalLoader(msg = 'Loading data...', isSuccess = false, autoHideMs = 0) {
+    const el = document.getElementById('ies-global-loader');
+    const txt = document.getElementById('ies-global-loader-text');
+    const icon = document.getElementById('ies-global-loader-icon');
+    if (!el) return;
+    if (txt) txt.textContent = msg;
+    if (icon) {
+        if (isSuccess) {
+            icon.className = '';
+            icon.textContent = '✓';
+            icon.style.color = '#34d399';
+            icon.style.fontWeight = '800';
+        } else {
+            icon.className = 'ies-inline-spinner';
+            icon.textContent = '';
+            icon.style.color = '#34d399';
+        }
+    }
+    el.classList.add('visible');
+    if (window._iesLoaderTimer) clearTimeout(window._iesLoaderTimer);
+    if (autoHideMs > 0) {
+        window._iesLoaderTimer = setTimeout(() => {
+            el.classList.remove('visible');
+        }, autoHideMs);
+    }
+}
+
+function hideGlobalLoader() {
+    const el = document.getElementById('ies-global-loader');
+    if (el) el.classList.remove('visible');
+    if (window._iesLoaderTimer) clearTimeout(window._iesLoaderTimer);
+}
+
 function startUnitSubscriptions() {
+    _initialProjectsLoaded = false;
+    _initialOrdersLoaded = false;
+    showGlobalLoader('Loading facility records...');
+
     // 1. Members
     if (memberUnsubscribe) memberUnsubscribe();
     memberUnsubscribe = DB.subscribeToMembers((members) => {
@@ -386,6 +421,8 @@ function startUnitSubscriptions() {
     if (projectUnsubscribe) projectUnsubscribe();
     projectUnsubscribe = DB.subscribeToProjects((projects) => {
         currentProjects = projects || [];
+        _initialProjectsLoaded = true;
+        if (_initialProjectsLoaded && _initialOrdersLoaded) hideGlobalLoader();
         const customerFilter = document.getElementById('project-customer-filter');
         if (customerFilter) {
             const customers = [...new Set(currentProjects.map(p => p.customerName ? String(p.customerName).trim().toUpperCase() : '').filter(Boolean))].sort();
@@ -408,6 +445,8 @@ function startUnitSubscriptions() {
     if (window.unsubscribeOrders) window.unsubscribeOrders();
     window.unsubscribeOrders = DB.subscribeToOrders((orders) => {
         currentOrders = orders || [];
+        _initialOrdersLoaded = true;
+        if (_initialProjectsLoaded && _initialOrdersLoaded) hideGlobalLoader();
 
         currentOrders.forEach(o => {
             if (o.status === 'In Progress' && o.id) {
@@ -547,6 +586,10 @@ window.adminApp = {
     switchActiveUnit: (unitId) => switchActiveUnit(unitId),
     getActiveUnit: () => Units.getActiveUnit(),
     getActiveUnitConfig: () => Units.getActiveUnitConfig(),
+    showGlobalLoader: (msg, isSuccess, autoHideMs) => showGlobalLoader(msg, isSuccess, autoHideMs),
+    hideGlobalLoader: () => hideGlobalLoader(),
+    renderMonitoring: () => Monitoring.renderTable(currentOrders),
+    renderDCRegister: () => DCRegister.renderDCTable(currentOrders),
     currentEditingProjectId: null,
     switchView: (viewName) => {
         // Payroll Security Gate: Intercept BEFORE switching view
@@ -5447,12 +5490,32 @@ window.adminApp.saveContractReview = async (action) => {
         reviewData.checklistDynamic[id] = itemData; // Backward compatibility
     });
 
+    const isFiled = action === 'finalize';
     const statusSpan = document.getElementById('cr-save-status');
-    if (statusSpan) statusSpan.textContent = 'Saving...';
+    if (statusSpan) statusSpan.textContent = isFiled ? 'Finalizing...' : 'Saving...';
+
+    const finalizeBtns = document.querySelectorAll('.cr-btn-finalize');
+    const draftBtns = document.querySelectorAll('.cr-btn-draft');
+    finalizeBtns.forEach(btn => {
+        btn.disabled = true;
+        if (isFiled) {
+            btn.dataset.origHtml = btn.innerHTML;
+            btn.innerHTML = `<span class="ies-inline-spinner" style="margin-right: 5px;"></span>Finalizing...`;
+        }
+    });
+    draftBtns.forEach(btn => {
+        btn.disabled = true;
+        if (!isFiled) {
+            btn.dataset.origHtml = btn.innerHTML;
+            btn.innerHTML = `<span class="ies-inline-spinner" style="margin-right: 5px;"></span>Saving...`;
+        }
+    });
+
+    if (isFiled) {
+        showGlobalLoader('Finalizing Contract Review & approving project...');
+    }
 
     try {
-        const isFiled = action === 'finalize';
-
         // Save to the actual subcollection
         await DB.saveContractReview(projectDocId, reviewData);
 
@@ -5460,6 +5523,7 @@ window.adminApp.saveContractReview = async (action) => {
         const crUpdates = {
             contractFiled: isFiled,
             crStatus: isFiled ? 'Finalized' : 'Draft',
+            ...(isFiled ? { status: 'Approved', currentStage: 'Planning' } : {}),
             crTeam: reviewData.team || project.jobType || '',
             crAccountability: reviewData.accountability || '',
             crTeamLeader: reviewData.teamLeader || '',
@@ -5474,20 +5538,51 @@ window.adminApp.saveContractReview = async (action) => {
         if (window.adminApp.invalidateProjectCrCache) {
             window.adminApp.invalidateProjectCrCache(projectDocId);
         }
-        await DB.updateProject(projectDocId, crUpdates, 'Contract Review ' + (isFiled ? 'Finalized' : 'Draft Saved'));
+        await DB.updateProject(projectDocId, crUpdates, isFiled ? 'Contract Review Finalized & Status set to Approved' : 'Contract Review Draft Saved');
+
+        // Update status badge in Project Detail header if visible
+        if (isFiled) {
+            const statusDisplay = document.getElementById('detail-project-status');
+            if (statusDisplay) {
+                const textSpan = statusDisplay.querySelector('.dd-status-text') || statusDisplay.querySelector('span:last-of-type') || statusDisplay.querySelector('span');
+                if (textSpan) textSpan.textContent = 'Approved';
+                statusDisplay.className = 'status-badge approved flex items-center gap-1.5 group';
+            }
+        }
 
         if (statusSpan) {
             statusSpan.textContent = `Saved at ${new Date().toLocaleTimeString()} `;
-            setTimeout(() => statusSpan.textContent = '', 3000);
+            setTimeout(() => { if (statusSpan) statusSpan.textContent = ''; }, 3000);
         }
+
         if (isFiled) {
-            alert('Contract Review Finalized!');
-            window.adminApp.moveProject(projectDocId, 'Planning');
+            if (window.adminApp.filterProjects) window.adminApp.filterProjects();
+            if (window.adminApp.updateProjectStats) window.adminApp.updateProjectStats();
+            refreshDashboard();
+            showGlobalLoader('✓ Contract Review Finalized — Status Approved', true, 2400);
+            window.adminApp.switchView('monitoring');
+            Monitoring.renderTable(currentOrders);
         }
     } catch (e) {
         console.error(e);
+        hideGlobalLoader();
         if (statusSpan) statusSpan.textContent = 'Error saving!';
         alert('Failed to save review: ' + e.message);
+    } finally {
+        finalizeBtns.forEach(btn => {
+            btn.disabled = false;
+            if (btn.dataset.origHtml) {
+                btn.innerHTML = btn.dataset.origHtml;
+                delete btn.dataset.origHtml;
+            }
+        });
+        draftBtns.forEach(btn => {
+            btn.disabled = false;
+            if (btn.dataset.origHtml) {
+                btn.innerHTML = btn.dataset.origHtml;
+                delete btn.dataset.origHtml;
+            }
+        });
     }
 };
 
@@ -5573,6 +5668,17 @@ window.adminApp.invalidateProjectCrCache = (projectId) => {
 
 window.adminApp.enrichProjectsWithContractReviews = async () => {
     if (_crEnrichInProgress || !currentProjects || currentProjects.length === 0) return;
+
+    // Fast-path: mark projects that already have denormalized CR fields as cached
+    currentProjects.forEach(p => {
+        if (p.id && !_crEnrichedCache.has(p.id)) {
+            if (p.crStatus || p.contractFiled !== undefined) {
+                if (!p.crStatus) p.crStatus = p.contractFiled ? 'Finalized' : 'Pending';
+                _crEnrichedCache.add(p.id);
+            }
+        }
+    });
+
     const toEnrich = currentProjects.filter(p => p.id && !_crEnrichedCache.has(p.id));
     if (toEnrich.length === 0) return;
 
@@ -5597,7 +5703,6 @@ window.adminApp.enrichProjectsWithContractReviews = async () => {
                     updatedAny = true;
                 } else if (!p.crStatus) {
                     p.crStatus = p.contractFiled ? 'Finalized' : 'Pending';
-                    updatedAny = true;
                 }
             } catch (err) {
                 console.warn('Could not enrich CR for project:', p.id, err);
@@ -5605,6 +5710,12 @@ window.adminApp.enrichProjectsWithContractReviews = async () => {
         }));
     } finally {
         _crEnrichInProgress = false;
+    }
+
+    const hasMore = currentProjects.some(p => p.id && !_crEnrichedCache.has(p.id));
+    if (hasMore) {
+        setTimeout(() => window.adminApp.enrichProjectsWithContractReviews(), 120);
+        return;
     }
 
     if (updatedAny) {
@@ -5618,11 +5729,6 @@ window.adminApp.enrichProjectsWithContractReviews = async () => {
         }
         window.adminApp.updateProjectStats();
         refreshDashboard();
-    }
-
-    // Continue enriching remaining projects if more exist
-    if (currentProjects.some(p => p.id && !_crEnrichedCache.has(p.id))) {
-        setTimeout(() => window.adminApp.enrichProjectsWithContractReviews(), 100);
     }
 };
 
