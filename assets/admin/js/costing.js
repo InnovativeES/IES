@@ -1,4 +1,4 @@
-import * as DB from './db.js';
+import * as DB from './db.js?v=54';
 
 // State
 let allExpenses = [];
@@ -105,6 +105,23 @@ export function getOrderSaleValue(order) {
  */
 export function getAllExpenses() {
     return allExpenses;
+}
+
+export function resetCostingSubscriptions() {
+    if (allExpensesUnsubscribe) {
+        allExpensesUnsubscribe();
+        allExpensesUnsubscribe = null;
+    }
+    if (expensesUnsubscribe) {
+        expensesUnsubscribe();
+        expensesUnsubscribe = null;
+    }
+    allExpenses = [];
+    currentExpenses = [];
+    currentOrderId = null;
+    currentOrder = null;
+    defaultMonthApplied = false;
+    monthFilter = '';
 }
 
 export function initCosting() {

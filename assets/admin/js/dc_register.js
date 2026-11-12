@@ -1,5 +1,5 @@
 // DC Register Module - Focused Delivery Challan Tracking & Missing DC Gap Detection
-import * as DB from './db.js';
+import * as DB from './db.js?v=54';
 
 let filterMonthFrom = '';
 let filterMonthTo = '';

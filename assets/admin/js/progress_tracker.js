@@ -1,4 +1,4 @@
-import * as DB from './db.js';
+import * as DB from './db.js?v=54';
 
 let currentFilterCustomer = '';
 let sortConfig = { key: 'internalOrderNo', direction: 'desc' };

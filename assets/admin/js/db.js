@@ -14,7 +14,8 @@ import {
     where,
     deleteDoc,
     doc,
-    updateDoc
+    updateDoc,
+    writeBatch
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const getMembersCol = () => getCollectionName("employees");
@@ -1178,5 +1179,401 @@ export const subscribeToCustomers = (callback) => {
         callback([]);
     });
 };
+
+/* ==========================================================================
+   UNIT-SPECIFIC IO NUMBER FORMATTER & ZERO-DATA-LOSS MIGRATION
+   ========================================================================== */
+
+/**
+ * Formats an IO number for FY 2026-27+ with the unit code and 4-digit serial:
+ * e.g. "202627-0001" + "U1" -> "202627-U10001"
+ *      "202627-0215" + "U1" -> "202627-U10215"
+ *      "202627-0001" + "U2" -> "202627-U20001"
+ * Historical FYs (e.g. "202526-995") are left untouched.
+ */
+export const formatUnitIoNumber = (rawIo, unitCode = "U1") => {
+    if (!rawIo || typeof rawIo !== "string") return rawIo;
+    const trimmed = rawIo.trim();
+    const uCode = (unitCode || "U1").toUpperCase();
+
+    const normalizeSerial = (numPart) => {
+        let parsed = parseInt(numPart, 10);
+        if (isNaN(parsed)) return numPart.padStart(4, "0");
+        // Normalize 6-digit "200xxx" series (e.g. 200215 -> 0215) to clean 4-digit serials
+        if (parsed > 200000 && parsed < 210000) {
+            parsed = parsed - 200000;
+        }
+        return String(parsed).padStart(4, "0");
+    };
+
+    // Match un-prefixed 2026-27+ IO numbers: "202627-0001", "202627-200215", etc.
+    const legacyMatch = trimmed.match(/^(202[6-9]\d{2})-(\d+)(.*)$/);
+    if (legacyMatch) {
+        const fyPrefix = legacyMatch[1];
+        const numPart = legacyMatch[2];
+        const tail = legacyMatch[3] || "";
+        const padded = normalizeSerial(numPart);
+        return `${fyPrefix}-${uCode}${padded}${tail}`;
+    }
+
+    // Normalize existing U1/U2 IO numbers to 4-digit padding: "202627-U1001" / "202627-U1200215" -> "202627-U10215"
+    const unitMatch = trimmed.match(/^(202[6-9]\d{2})-(U[12])-?(\d+)(.*)$/i);
+    if (unitMatch) {
+        const fyPrefix = unitMatch[1];
+        const existingUnit = unitMatch[2].toUpperCase();
+        const numPart = unitMatch[3];
+        const tail = unitMatch[4] || "";
+        const padded = normalizeSerial(numPart);
+        return `${fyPrefix}-${existingUnit}${padded}${tail}`;
+    }
+
+    return trimmed;
+};
+
+let _ioMigrationPromise = null;
+
+/**
+ * Safely migrates all 202627- records across Unit 1 (U1) and Unit 2 (U2)
+ * in internal_orders, projects (+ contractReview), costing_expenses,
+ * daily_workflows, and inventory/inventory_transactions with zero data loss.
+ */
+export const migrateAllUnitsIoNumbers = async (force = false) => {
+    if (_ioMigrationPromise && !force) return _ioMigrationPromise;
+
+    _ioMigrationPromise = (async () => {
+        const summary = {
+            unit1: { orders: 0, deliveryReports: 0, projects: 0, reviews: 0, expenses: 0, workflows: 0, inventory: 0 },
+            unit2: { orders: 0, deliveryReports: 0, projects: 0, reviews: 0, expenses: 0, workflows: 0, inventory: 0 },
+            totalUpdated: 0
+        };
+
+        try {
+            // Helper to commit queued batch updates in chunks of 400
+            const PendingOps = [];
+            const queueUpdate = (docRef, data) => {
+                PendingOps.push({ docRef, data });
+            };
+            const flushUpdates = async () => {
+                const CHUNK_SIZE = 400;
+                for (let i = 0; i < PendingOps.length; i += CHUNK_SIZE) {
+                    const chunk = PendingOps.slice(i, i + CHUNK_SIZE);
+                    const batch = writeBatch(db);
+                    chunk.forEach(op => batch.update(op.docRef, op.data));
+                    await batch.commit();
+                }
+                PendingOps.length = 0;
+            };
+
+            // 1. Pre-load orders from both units so we can intelligently resolve cross-unit delivery reports
+            const [u1OrdersSnap, u2OrdersSnap] = await Promise.all([
+                getDocs(collection(db, "internal_orders")),
+                getDocs(collection(db, "internal_orders_u2"))
+            ]);
+
+            const u1Docs = u1OrdersSnap.docs.map(d => ({ id: d.id, ref: d.ref, ...d.data() }));
+            const u2Docs = u2OrdersSnap.docs.map(d => ({ id: d.id, ref: d.ref, ...d.data() }));
+
+            const getCanonicalSerialKey = (io) => {
+                if (!io || typeof io !== "string") return "";
+                const m = io.trim().match(/^(202[6-9]\d{2})-(?:U[12]-?)?(\d+)/i);
+                if (!m) return "";
+                let parsed = parseInt(m[2], 10);
+                if (!isNaN(parsed) && parsed > 200000 && parsed < 210000) {
+                    parsed = parsed - 200000;
+                }
+                return `${m[1]}-${String(parsed).padStart(4, "0")}`;
+            };
+
+            const u1BaseBySerial = new Map();
+            u1Docs.forEach(d => {
+                if (d.entryType !== "delivery_report" && !d.isDeleted) {
+                    const key = getCanonicalSerialKey(d.internalOrderNo);
+                    if (key && !u1BaseBySerial.has(key)) u1BaseBySerial.set(key, d);
+                }
+            });
+
+            const u2BaseBySerial = new Map();
+            u2Docs.forEach(d => {
+                if (d.entryType !== "delivery_report" && !d.isDeleted) {
+                    const key = getCanonicalSerialKey(d.internalOrderNo);
+                    if (key && !u2BaseBySerial.has(key)) u2BaseBySerial.set(key, d);
+                }
+            });
+
+            const normStr = (s) => String(s || "").trim().toUpperCase();
+
+            // Helper to migrate a single unit's collections
+            const migrateUnit = async (unitKey, suffix, unitCode, orderDocs) => {
+                const stats = summary[unitKey];
+                const projectsColName = `projects${suffix}`;
+                const costingColName = `costing_expenses${suffix}`;
+                const rosterColName = `daily_workflows${suffix}`;
+                const invColName = `inventory${suffix}`;
+                const invTxColName = `inventory_transactions${suffix}`;
+
+                // Track genuine delivery reports per base order in this unit
+                const validDeliveriesBySerial = new Map();
+
+                // A. Process Delivery Reports first so we know which ones belong to this unit's base orders
+                for (const d of orderDocs) {
+                    if (d.entryType !== "delivery_report") continue;
+                    const oldIo = String(d.internalOrderNo || "").trim();
+                    if (!oldIo) continue;
+
+                    let targetUnitCode = unitCode;
+                    const serialKey = getCanonicalSerialKey(oldIo);
+
+                    // In Unit 2, check if a delivery_report was actually logged for a Unit 1 order
+                    if (unitCode === "U2" && serialKey) {
+                        const u2Bo = u2BaseBySerial.get(serialKey);
+                        const u1Bo = u1BaseBySerial.get(serialKey);
+                        const delCust = normStr(d.customer);
+                        const u2Cust = u2Bo ? normStr(u2Bo.customer) : "";
+                        const u1Cust = u1Bo ? normStr(u1Bo.customer) : "";
+                        const delDrg = normStr(d.drawingNo);
+                        const u2Drg = u2Bo ? normStr(u2Bo.drawingNo) : "";
+                        const u1Drg = u1Bo ? normStr(u1Bo.drawingNo) : "";
+
+                        const custMismatchU2 = Boolean(u2Bo && delCust && u2Cust && delCust !== u2Cust);
+                        const drgMismatchU2 = Boolean(u2Bo && delDrg && u2Drg && delDrg !== u2Drg);
+
+                        if (u2Bo && (custMismatchU2 || drgMismatchU2)) {
+                            // Customer or Drawing differs from Unit 2's base order -> belongs to Unit 1's series
+                            targetUnitCode = "U1";
+                        } else if (!u2Bo && u1Bo && (!delCust || !u1Cust || delCust === u1Cust || (delDrg && delDrg === u1Drg))) {
+                            // No Unit 2 base order for this serial, but exists in Unit 1
+                            targetUnitCode = "U1";
+                        }
+                    }
+
+                    const newIo = formatUnitIoNumber(oldIo, targetUnitCode);
+                    if (targetUnitCode === unitCode && serialKey && !d.isDeleted) {
+                        if (!validDeliveriesBySerial.has(serialKey)) validDeliveriesBySerial.set(serialKey, []);
+                        validDeliveriesBySerial.get(serialKey).push(d);
+                    }
+
+                    if (newIo && newIo !== oldIo) {
+                        const updates = { internalOrderNo: newIo };
+                        if (!d.previousInternalOrderNo) updates.previousInternalOrderNo = oldIo;
+                        queueUpdate(d.ref, updates);
+                        stats.deliveryReports++;
+                    }
+                }
+
+                // B. Process Base Internal Orders
+                for (const o of orderDocs) {
+                    if (o.entryType === "delivery_report") continue;
+                    const oldIo = String(o.internalOrderNo || "").trim();
+                    if (!oldIo) continue;
+
+                    const newIo = formatUnitIoNumber(oldIo, unitCode);
+                    const serialKey = getCanonicalSerialKey(oldIo);
+                    const updates = {};
+
+                    if (newIo && newIo !== oldIo) {
+                        updates.internalOrderNo = newIo;
+                        if (!o.previousInternalOrderNo) updates.previousInternalOrderNo = oldIo;
+                    }
+
+                    // If a Unit 2 base order had dcNo/deliveryQty falsely synced from a Unit 1 delivery report, clean it
+                    if (unitCode === "U2" && serialKey) {
+                        const validDels = validDeliveriesBySerial.get(serialKey) || [];
+                        const u1Bo = u1BaseBySerial.get(serialKey);
+                        if (validDels.length === 0 && o.dcNo && u1Bo && !o.forceClosed) {
+                            // Check if any delivery report in Unit 2 that got reassigned to U1 had this DC No
+                            const mismatchedDel = orderDocs.find(
+                                d => d.entryType === "delivery_report" &&
+                                     getCanonicalSerialKey(d.internalOrderNo) === serialKey &&
+                                     normStr(d.customer) !== normStr(o.customer) &&
+                                     d.dcNo && String(o.dcNo).includes(String(d.dcNo).trim())
+                            );
+                            if (mismatchedDel) {
+                                updates.dcNo = "";
+                                updates.billNo = "";
+                                updates.deliveryDateActual = "";
+                                updates.deliveryQty = 0;
+                                updates.status = "Pending";
+                            }
+                        }
+                    }
+
+                    if (Object.keys(updates).length > 0) {
+                        queueUpdate(o.ref, updates);
+                        stats.orders++;
+                    }
+                }
+
+                // C. Process Projects & Contract Reviews
+                const projectsSnap = await getDocs(collection(db, projectsColName));
+                const reviewCheckPromises = [];
+
+                for (const pDoc of projectsSnap.docs) {
+                    const p = pDoc.data();
+                    const oldProjId = String(p.projectId || "").trim();
+                    const oldIoNo = String(p.internalOrderNo || "").trim();
+                    const newProjId = oldProjId ? formatUnitIoNumber(oldProjId, unitCode) : "";
+                    const newIoNo = oldIoNo ? formatUnitIoNumber(oldIoNo, unitCode) : (newProjId || "");
+
+                    const pUpdates = {};
+                    if (newProjId && newProjId !== oldProjId) {
+                        pUpdates.projectId = newProjId;
+                        if (!p.previousProjectId) pUpdates.previousProjectId = oldProjId;
+                    }
+                    if (newIoNo && newIoNo !== oldIoNo) {
+                        pUpdates.internalOrderNo = newIoNo;
+                    }
+                    if (p.name && oldProjId && String(p.name).trim().toUpperCase() === oldProjId.toUpperCase() && newProjId) {
+                        pUpdates.name = newProjId;
+                    }
+                    if (p.internalNotes && oldProjId && newProjId && String(p.internalNotes).includes(oldProjId)) {
+                        pUpdates.internalNotes = String(p.internalNotes).replace(oldProjId, newProjId);
+                    }
+
+                    if (Object.keys(pUpdates).length > 0) {
+                        queueUpdate(pDoc.ref, pUpdates);
+                        stats.projects++;
+                    }
+
+                    // Check Contract Review subcollection if project matches 202627-
+                    const targetIo = newProjId || oldProjId;
+                    if (targetIo && /^202[6-9]\d{2}-/i.test(targetIo)) {
+                        reviewCheckPromises.push((async () => {
+                            try {
+                                const crRef = doc(db, projectsColName, pDoc.id, "contractReview", "review");
+                                const crSnap = await getDoc(crRef);
+                                if (crSnap.exists()) {
+                                    const cr = crSnap.data();
+                                    const crUpdates = {};
+                                    if (cr.reviewNo && typeof cr.reviewNo === "string") {
+                                        const m = cr.reviewNo.match(/^(CR\s*-\s*)(202[6-9]\d{2}-.+)$/i);
+                                        if (m) {
+                                            const formattedTarget = formatUnitIoNumber(m[2].trim(), unitCode);
+                                            const nextRevNo = `CR - ${formattedTarget}`;
+                                            if (nextRevNo !== cr.reviewNo.trim()) {
+                                                crUpdates.reviewNo = nextRevNo;
+                                            }
+                                        }
+                                    }
+                                    if (cr.ioNumber && typeof cr.ioNumber === "string") {
+                                        const nextCrIo = formatUnitIoNumber(cr.ioNumber, unitCode);
+                                        if (nextCrIo !== cr.ioNumber) crUpdates.ioNumber = nextCrIo;
+                                    }
+                                    if (Object.keys(crUpdates).length > 0) {
+                                        queueUpdate(crRef, crUpdates);
+                                        stats.reviews++;
+                                    }
+                                }
+                            } catch (e) {
+                                // Ignore individual CR subcollection read errors
+                            }
+                        })());
+                    }
+                }
+
+                // Process CR checks in manageable parallel batches
+                const CR_BATCH = 25;
+                for (let i = 0; i < reviewCheckPromises.length; i += CR_BATCH) {
+                    await Promise.all(reviewCheckPromises.slice(i, i + CR_BATCH));
+                }
+
+                // D. Process Job Costing Expenses
+                const costingSnap = await getDocs(collection(db, costingColName));
+                for (const cDoc of costingSnap.docs) {
+                    const c = cDoc.data();
+                    const cUpdates = {};
+                    if (c.internalOrderNo) {
+                        const nextIo = formatUnitIoNumber(String(c.internalOrderNo), unitCode);
+                        if (nextIo !== c.internalOrderNo) cUpdates.internalOrderNo = nextIo;
+                    }
+                    if (c.orderId && /^202[6-9]\d{2}-/i.test(String(c.orderId))) {
+                        const nextOrdId = formatUnitIoNumber(String(c.orderId), unitCode);
+                        if (nextOrdId !== c.orderId) cUpdates.orderId = nextOrdId;
+                    }
+                    if (Object.keys(cUpdates).length > 0) {
+                        queueUpdate(cDoc.ref, cUpdates);
+                        stats.expenses++;
+                    }
+                }
+
+                // E. Process Daily Workflows (Roster)
+                const rosterSnap = await getDocs(collection(db, rosterColName));
+                for (const rDoc of rosterSnap.docs) {
+                    const r = rDoc.data();
+                    let changed = false;
+                    let nextProjectIds = Array.isArray(r.projectIds) ? [...r.projectIds] : [];
+                    nextProjectIds = nextProjectIds.map(pid => {
+                        if (typeof pid === "string" && /^202[6-9]\d{2}-/i.test(pid)) {
+                            const formatted = formatUnitIoNumber(pid, unitCode);
+                            if (formatted !== pid) changed = true;
+                            return formatted;
+                        }
+                        return pid;
+                    });
+
+                    let nextAssignments = Array.isArray(r.assignments) ? r.assignments.map(a => {
+                        if (!Array.isArray(a.tasks)) return a;
+                        const nextTasks = a.tasks.map(t => {
+                            if (t && typeof t.orderNo === "string" && /^202[6-9]\d{2}-/i.test(t.orderNo)) {
+                                const formatted = formatUnitIoNumber(t.orderNo, unitCode);
+                                if (formatted !== t.orderNo) {
+                                    changed = true;
+                                    return { ...t, orderNo: formatted };
+                                }
+                            }
+                            return t;
+                        });
+                        return { ...a, tasks: nextTasks };
+                    }) : r.assignments;
+
+                    if (changed) {
+                        queueUpdate(rDoc.ref, {
+                            projectIds: [...new Set(nextProjectIds)],
+                            assignments: nextAssignments
+                        });
+                        stats.workflows++;
+                    }
+                }
+
+                // F. Process Inventory & Inventory Transactions
+                for (const colName of [invColName, invTxColName]) {
+                    try {
+                        const snap = await getDocs(collection(db, colName));
+                        for (const iDoc of snap.docs) {
+                            const item = iDoc.data();
+                            if (item.orderId && typeof item.orderId === "string" && /^202[6-9]\d{2}-/i.test(item.orderId)) {
+                                const nextOrdId = formatUnitIoNumber(item.orderId, unitCode);
+                                if (nextOrdId !== item.orderId) {
+                                    queueUpdate(iDoc.ref, { orderId: nextOrdId });
+                                    stats.inventory++;
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        // Collection might be empty/uninitialized
+                    }
+                }
+            };
+
+            await migrateUnit("unit1", "", "U1", u1Docs);
+            await migrateUnit("unit2", "_u2", "U2", u2Docs);
+
+            summary.totalUpdated = PendingOps.length;
+            if (PendingOps.length > 0) {
+                await flushUpdates();
+                console.log("[IO Migration] Completed successfully:", summary);
+            } else {
+                console.log("[IO Migration] All records already in U1/U2 4-digit format.");
+            }
+
+            return { success: true, summary };
+        } catch (error) {
+            console.error("[IO Migration] Error:", error);
+            return { success: false, error: error.message, summary };
+        }
+    })();
+
+    return _ioMigrationPromise;
+};
+
 
 

@@ -1,16 +1,16 @@
 import * as Auth from './auth.js';
 import * as UI from './ui.js';
-import * as DB from './db.js';
+import * as DB from './db.js?v=54';
 import * as Charts from './charts.js';
-import * as Monitoring from './monitoring.js?v=10';
-import * as DCRegister from './dc_register.js?v=9';
-import * as Inventory from './inventory.js';
-import * as Workflow from './workflow.js';
+import * as Monitoring from './monitoring.js?v=54';
+import * as DCRegister from './dc_register.js?v=54';
+import * as Inventory from './inventory.js?v=54';
+import * as Workflow from './workflow.js?v=54';
 import * as Reporting from './reporting.js';
-import * as Tracker from './progress_tracker.js';
-import * as Costing from './costing.js';
+import * as Tracker from './progress_tracker.js?v=54';
+import * as Costing from './costing.js?v=54';
 import * as Payslip from './payslip.js?v=30';
-import * as Units from './units.js';
+import * as Units from './units.js?v=54';
 
 // App State
 let currentMembers = [];
@@ -362,6 +362,8 @@ function stopUnitSubscriptions() {
     if (transactionUnsubscribe) { transactionUnsubscribe(); transactionUnsubscribe = null; }
     if (customerUnsubscribe) { customerUnsubscribe(); customerUnsubscribe = null; }
     if (window.unsubscribeCustomers) { window.unsubscribeCustomers(); window.unsubscribeCustomers = null; }
+    if (Costing && Costing.resetCostingSubscriptions) { Costing.resetCostingSubscriptions(); }
+    if (window.adminApp && window.adminApp.invalidateProjectCrCache) { window.adminApp.invalidateProjectCrCache(); }
 }
 
 let _initialProjectsLoaded = false;
@@ -438,6 +440,16 @@ function startUnitSubscriptions() {
         }
         window.adminApp.updateProjectStats();
         refreshDashboard();
+
+        // Refresh New Order modal Order No if open in "new order" mode
+        const addOrderModal = document.getElementById('add-order-modal');
+        const orderIdInp = document.getElementById('orderId-input');
+        if (addOrderModal && !addOrderModal.classList.contains('hidden') && (!orderIdInp || !orderIdInp.value)) {
+            const orderNoInp = document.querySelector('#add-order-form [name="internalOrderNo"]');
+            if (orderNoInp && window.adminApp.computeNextUnitOrderNo) {
+                orderNoInp.value = window.adminApp.computeNextUnitOrderNo();
+            }
+        }
     });
     window.unsubscribeProjects = projectUnsubscribe;
 
@@ -447,6 +459,16 @@ function startUnitSubscriptions() {
         currentOrders = orders || [];
         _initialOrdersLoaded = true;
         if (_initialProjectsLoaded && _initialOrdersLoaded) hideGlobalLoader();
+
+        // Refresh New Order modal Order No if open in "new order" mode
+        const addOrderModal = document.getElementById('add-order-modal');
+        const orderIdInp = document.getElementById('orderId-input');
+        if (addOrderModal && !addOrderModal.classList.contains('hidden') && (!orderIdInp || !orderIdInp.value)) {
+            const orderNoInp = document.querySelector('#add-order-form [name="internalOrderNo"]');
+            if (orderNoInp && window.adminApp.computeNextUnitOrderNo) {
+                orderNoInp.value = window.adminApp.computeNextUnitOrderNo();
+            }
+        }
 
         currentOrders.forEach(o => {
             if (o.status === 'In Progress' && o.id) {
@@ -478,8 +500,11 @@ function startUnitSubscriptions() {
         const deliveryView = document.getElementById('view-delivery_report');
         if (deliveryView && !deliveryView.classList.contains('hidden')) {
             const weekPicker = document.getElementById('delivery-week-picker');
+            const monthPicker = document.getElementById('delivery-month-picker');
             if (weekPicker && weekPicker.value) {
                 Monitoring.renderDeliveryReport(weekPicker.value);
+            } else if (monthPicker && monthPicker.value) {
+                Monitoring.renderDeliveryReport(undefined, monthPicker.value);
             }
         }
 
@@ -513,6 +538,11 @@ function startUnitSubscriptions() {
         if (window.adminApp.refreshContractReviewContacts) window.adminApp.refreshContractReviewContacts();
     });
     window.unsubscribeCustomers = customerUnsubscribe;
+
+    // 5. Costing Expenses Subscription (Unit-scoped)
+    if (Costing && Costing.initCosting) {
+        Costing.initCosting();
+    }
 }
 
 function switchActiveUnit(unitId) {
@@ -546,6 +576,28 @@ function switchActiveUnit(unitId) {
     } else if (activeView === 'project_management') {
         window.adminApp.filterProjects();
         window.adminApp.updateProjectStats();
+    } else if (activeView === 'project_overview') {
+        if (window.adminApp.renderProjectOverview) window.adminApp.renderProjectOverview();
+    } else if (activeView === 'delivery_report') {
+        const weekPicker = document.getElementById('delivery-week-picker');
+        const monthPicker = document.getElementById('delivery-month-picker');
+        if (weekPicker && weekPicker.value) {
+            Monitoring.renderDeliveryReport(weekPicker.value);
+        } else if (monthPicker && monthPicker.value) {
+            Monitoring.renderDeliveryReport(undefined, monthPicker.value);
+        }
+    } else if (activeView === 'costing_report') {
+        Costing.renderCostingOrderList();
+    } else if (activeView === 'costing_detail') {
+        UI.switchView('costing_report');
+        Costing.renderCostingOrderList();
+    } else if (activeView === 'progress_tracker') {
+        Tracker.renderTracker();
+    } else if (activeView === 'pending_assignment') {
+        window.adminApp.renderPendingAssignment();
+    } else if (activeView === 'customers') {
+        if (window.adminApp.renderCustomerTable) window.adminApp.renderCustomerTable();
+        if (window.adminApp.updateCustomerStats) window.adminApp.updateCustomerStats();
     } else if (activeView === 'team_org') {
         UI.renderMemberList(currentMembers);
     } else if (activeView === 'inventory_management') {
@@ -1273,7 +1325,7 @@ window.adminApp = {
             let itemCode = p.itemCode || '';
             if ((!drgNo || !itemCode) && window.adminApp.getCurrentOrders) {
                 const orders = window.adminApp.getCurrentOrders();
-                const matchingOrder = orders.find(o => o.internalOrderNo === p.projectId);
+                const matchingOrder = orders.find(o => o.entryType !== 'delivery_report' && o.internalOrderNo === p.projectId);
                 if (matchingOrder) {
                     if (!drgNo) drgNo = matchingOrder.drawingNo || '';
                     if (!itemCode) itemCode = matchingOrder.itemCode || '';
@@ -2847,6 +2899,57 @@ window.adminApp = {
         }
     },
 
+    computeNextUnitOrderNo: () => {
+        const now = new Date();
+        const yr = now.getFullYear();
+        const mo = now.getMonth(); // 0-indexed
+        const fyStart = mo >= 3 ? yr : yr - 1;
+        const fyEnd = fyStart + 1;
+        const fyCode = `${fyStart}${String(fyEnd).slice(-2)}`;
+        const unitConfig = Units.getActiveUnitConfig();
+        const unitCode = (unitConfig && unitConfig.code) ? unitConfig.code : 'U1';
+        const prefix = `${fyCode}-${unitCode}`;
+        const legacyPrefix = `${fyCode}-`;
+
+        let maxNum = 0;
+        const extractSerial = (rawIo) => {
+            const io = String(rawIo || '').trim().toUpperCase();
+            if (!io) return 0;
+            let rest = '';
+            if (io.startsWith(prefix)) {
+                rest = io.slice(prefix.length).replace(/^-/, '');
+            } else if (io.startsWith(legacyPrefix) && !/^20\d{4}-U[12]/i.test(io)) {
+                rest = io.slice(legacyPrefix.length);
+            } else {
+                return 0;
+            }
+            const match = rest.match(/^(\d+)/);
+            if (!match) return 0;
+            let num = parseInt(match[1], 10);
+            if (isNaN(num)) return 0;
+            // Normalize legacy 200xxx series (e.g. 200215 -> 215)
+            if (num > 200000 && num < 210000) num -= 200000;
+            return num;
+        };
+
+        (currentOrders || []).forEach(o => {
+            if (o.entryType === 'delivery_report' || o.isDeleted || o.deleted || o.isTrash) return;
+            const n = extractSerial(o.internalOrderNo);
+            if (n > maxNum) maxNum = n;
+        });
+
+        (currentProjects || []).forEach(p => {
+            if (p.isDeleted || p.deleted) return;
+            const n1 = extractSerial(p.projectId);
+            if (n1 > maxNum) maxNum = n1;
+            const n2 = extractSerial(p.internalOrderNo);
+            if (n2 > maxNum) maxNum = n2;
+        });
+
+        const nextNum = String(maxNum + 1).padStart(4, '0');
+        return `${prefix}${nextNum}`;
+    },
+
     prepareAddOrder: () => {
         const form = document.getElementById('add-order-form');
         if (form) form.reset();
@@ -2886,30 +2989,10 @@ window.adminApp = {
         const deptInput = form ? form.querySelector('[name="department"]') : null;
         if (deptInput) deptInput.value = 'Admin';
 
-        // Auto-generate next Order ID (YYYYYY-NNNN)
-        const now = new Date();
-        const yr = now.getFullYear();
-        const mo = now.getMonth(); // 0-indexed
-        // Financial year: April (month 3) to March
-        const fyStart = mo >= 3 ? yr : yr - 1;
-        const fyEnd = fyStart + 1;
-        // e.g. 2025-2026 → "202526-"
-        const prefix = `${fyStart}${String(fyEnd).slice(-2)}-`;
-        let maxNum = 0;
-        currentOrders.forEach(o => {
-            const io = o.internalOrderNo || '';
-            if (io.startsWith(prefix)) {
-                const num = parseInt(io.replace(prefix, ''), 10);
-                if (!isNaN(num) && num > maxNum) maxNum = num;
-            }
-        });
-        
-        // Use 4 digits padding from financial year 2026 onwards (i.e. prefix "202627-")
-        const padLength = fyStart >= 2026 ? 4 : 3;
-        const nextNum = String(maxNum + 1).padStart(padLength, '0');
-        
+        // Auto-generate next Order ID (YYYYYY-U1NNNN / YYYYYY-U2NNNN)
+        const nextOrderNo = window.adminApp.computeNextUnitOrderNo();
         const orderNoInput = form.querySelector('[name="internalOrderNo"]');
-        if (orderNoInput) orderNoInput.value = `${prefix}${nextNum}`;
+        if (orderNoInput) orderNoInput.value = nextOrderNo;
 
         // Setup auto-calculation for Total
         const qtyInput = document.getElementById('order-qty');
@@ -5094,6 +5177,15 @@ document.addEventListener('DOMContentLoaded', () => {
             // Ensure subscriptions are running for active unit
             startUnitSubscriptions();
 
+            // Automatically migrate any un-prefixed 202627- IO numbers to U1/U2 4-digit format across both units
+            if (DB.migrateAllUnitsIoNumbers) {
+                DB.migrateAllUnitsIoNumbers().then((res) => {
+                    if (res && res.summary && res.summary.totalUpdated > 0) {
+                        showGlobalLoader(`✓ Synchronized ${res.summary.totalUpdated} U1/U2 IO records`, true, 3000);
+                    }
+                }).catch((err) => console.warn('IO migration check warning:', err));
+            }
+
             // Ensure dashboard is ready immediately
             refreshDashboard();
 
@@ -5347,13 +5439,13 @@ window.adminApp.loadContractReview = async (projectId) => {
             if (el) el.value = val || '';
         };
 
-        // Auto-fill defaults
-        const reviewNo = reviewData.reviewNo || `CR - ${project.projectId || projectId} `;
+        // Auto-fill defaults (keep reviewNo synced with unit-prefixed projectId)
+        const reviewNo = project.projectId ? `CR - ${project.projectId}` : (reviewData.reviewNo || `CR - ${projectId}`);
         const today = new Date().toISOString().split('T')[0];
 
-        // Find matching internal order for auto-population
+        // Find matching internal order for auto-population (excluding delivery report entries)
         const allOrders = window.adminApp.getCurrentOrders ? window.adminApp.getCurrentOrders() : [];
-        const matchingOrder = allOrders.find(o => o.internalOrderNo === project.projectId);
+        const matchingOrder = allOrders.find(o => o.entryType !== 'delivery_report' && o.internalOrderNo === project.projectId);
 
         // Customer Data — pull from saved review, then matching internal order, then project
         setVal('cr-po-no', reviewData.poNo || (matchingOrder ? matchingOrder.poNo : '') || project.poNumber || '');
@@ -6236,7 +6328,7 @@ window.adminApp.renderProjectOverview = () => {
 
 window.adminApp.openOverviewWorkspace = async (ioNo, projectDocId, tab = 'review') => {
     const cleanIo = String(ioNo || '').trim();
-    const matchingOrder = (currentOrders || []).find(o => !o.isTrash && String(o.internalOrderNo || '').trim() === cleanIo) || null;
+    const matchingOrder = (currentOrders || []).find(o => !o.isTrash && o.entryType !== 'delivery_report' && String(o.internalOrderNo || '').trim() === cleanIo) || null;
 
     // 1. Check if project exists in memory by doc ID or IO number
     let proj = null;
@@ -6450,7 +6542,7 @@ window.adminApp.printContractReview = () => {
     const currentId = window.adminApp.currentEditingProjectId;
     const project = (currentProjects || []).find(p => p.id === currentId) || {};
     const ioNumber = v('cr-io-number') || document.getElementById('detail-project-id')?.textContent || project.projectId || '-';
-    const matchingOrder = (currentOrders || []).find(o => !o.isTrash && String(o.internalOrderNo || '').trim() === String(ioNumber).trim()) || {};
+    const matchingOrder = (currentOrders || []).find(o => !o.isTrash && o.entryType !== 'delivery_report' && String(o.internalOrderNo || '').trim() === String(ioNumber).trim()) || {};
 
     const customerName = (project.customerName || matchingOrder.customer || '-').toUpperCase();
     const itemDesc = (project.name || project.projectDescription || matchingOrder.description || document.getElementById('detail-project-name')?.textContent || '-').toUpperCase();
@@ -7539,10 +7631,12 @@ window.adminApp.exportCustomersCSV = () => {
 };
 
 // === CONTRACT REVIEW CONTACT PICKER INTEGRATION ===
+window.adminApp.migrateUnitIoNumbers = (force = true) => DB.migrateAllUnitsIoNumbers(force);
+
 window.adminApp.setupCrCustomerContacts = (projectId) => {
     const project = currentProjects.find(p => p.id === projectId || p.projectId === projectId);
     const allOrders = window.adminApp.getCurrentOrders ? window.adminApp.getCurrentOrders() : currentOrders;
-    const matchingOrder = allOrders.find(o => o.internalOrderNo === project?.projectId);
+    const matchingOrder = allOrders.find(o => o.entryType !== 'delivery_report' && o.internalOrderNo === project?.projectId);
     const customerName = (project?.customerName || matchingOrder?.customer || '').trim().toUpperCase();
     window.adminApp._activeCrCustomerName = customerName;
     window.adminApp.refreshContractReviewContacts();
