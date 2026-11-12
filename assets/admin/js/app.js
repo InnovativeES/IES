@@ -1,16 +1,16 @@
 import * as Auth from './auth.js';
 import * as UI from './ui.js';
-import * as DB from './db.js?v=54';
+import * as DB from './db.js?v=55';
 import * as Charts from './charts.js';
-import * as Monitoring from './monitoring.js?v=54';
-import * as DCRegister from './dc_register.js?v=54';
-import * as Inventory from './inventory.js?v=54';
-import * as Workflow from './workflow.js?v=54';
+import * as Monitoring from './monitoring.js?v=55';
+import * as DCRegister from './dc_register.js?v=55';
+import * as Inventory from './inventory.js?v=55';
+import * as Workflow from './workflow.js?v=55';
 import * as Reporting from './reporting.js';
-import * as Tracker from './progress_tracker.js?v=54';
-import * as Costing from './costing.js?v=54';
+import * as Tracker from './progress_tracker.js?v=55';
+import * as Costing from './costing.js?v=55';
 import * as Payslip from './payslip.js?v=30';
-import * as Units from './units.js?v=54';
+import * as Units from './units.js?v=55';
 
 // App State
 let currentMembers = [];
@@ -2973,11 +2973,15 @@ window.adminApp = {
             derivedStatusEl.className = 'status-badge status-pending';
         }
 
-        // Reset order status display and hidden field
+        // Reset order status display and all hidden delivery fields
         const statusDisplay = document.getElementById('order-status-display');
         const statusHidden = form ? form.querySelector('[name="status"]') : null;
         if (statusDisplay) statusDisplay.value = '🟡 Pending';
         if (statusHidden) statusHidden.value = 'Pending';
+        ['dcNo', 'billNo', 'deliveryDateActual', 'deliveryQty'].forEach(fname => {
+            const el = form ? form.querySelector(`[name="${fname}"]`) : null;
+            if (el) el.value = '';
+        });
 
         // Set default date to today
         const dateInput = form.querySelector('[name="date"]');

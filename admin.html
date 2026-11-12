@@ -5872,7 +5872,7 @@
 
     <!-- Application Script -->
 
-    <script type="module" src="assets/admin/js/app.js?v=54"></script>
+    <script type="module" src="assets/admin/js/app.js?v=55"></script>
 
     <!-- Mobile Sidebar Toggle Script -->
     <script>
@@ -5929,7 +5929,7 @@
         // Register Service Worker for PWA Installation
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {
-                navigator.serviceWorker.register('sw.js?v=3').then(function(registration) {
+                navigator.serviceWorker.register('sw.js?v=4').then(function(registration) {
                     registration.update();
                     console.log('ServiceWorker registration successful with scope: ', registration.scope);
                 }, function(err) {

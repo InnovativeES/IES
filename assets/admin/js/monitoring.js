@@ -1,4 +1,4 @@
-import * as DB from './db.js?v=54';
+import * as DB from './db.js?v=55';
 
 
 // Persistent Date Logic
@@ -401,20 +401,12 @@ export const handleAddOrder = async () => {
             }
         }
     } else {
-        // For entirely new orders created here, they won't have deliveries yet.
-        const dcNo = data.dcNo ? data.dcNo.trim() : '';
-        if (dcNo) {
-            const deliveredQty = parseFloat(data.deliveryQty) || 0;
-            if (deliveredQty >= orderedQty && orderedQty > 0) {
-                data.status = 'Delivered';
-            } else if (deliveredQty > 0) {
-                data.status = 'Partially Delivered';
-            } else {
-                data.status = 'Delivered';
-            }
-        } else {
-            data.status = 'Pending';
-        }
+        // For entirely new orders created here, they never have deliveries yet.
+        data.dcNo = '';
+        data.billNo = '';
+        data.deliveryDateActual = '';
+        data.deliveryQty = 0;
+        data.status = 'Pending';
     }
 
 

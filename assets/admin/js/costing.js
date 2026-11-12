@@ -1,4 +1,4 @@
-import * as DB from './db.js?v=54';
+import * as DB from './db.js?v=55';
 
 // State
 let allExpenses = [];

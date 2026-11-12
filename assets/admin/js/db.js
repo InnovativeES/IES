@@ -1216,15 +1216,15 @@ export const formatUnitIoNumber = (rawIo, unitCode = "U1") => {
         return `${fyPrefix}-${uCode}${padded}${tail}`;
     }
 
-    // Normalize existing U1/U2 IO numbers to 4-digit padding: "202627-U1001" / "202627-U1200215" -> "202627-U10215"
+    // Normalize existing U1/U2 IO numbers to 4-digit padding and apply target unitCode: "202627-U1001" / "202627-U1200215" -> "202627-U10215"
     const unitMatch = trimmed.match(/^(202[6-9]\d{2})-(U[12])-?(\d+)(.*)$/i);
     if (unitMatch) {
         const fyPrefix = unitMatch[1];
-        const existingUnit = unitMatch[2].toUpperCase();
+        const targetUnit = (unitCode || unitMatch[2]).toUpperCase();
         const numPart = unitMatch[3];
         const tail = unitMatch[4] || "";
         const padded = normalizeSerial(numPart);
-        return `${fyPrefix}-${existingUnit}${padded}${tail}`;
+        return `${fyPrefix}-${targetUnit}${padded}${tail}`;
     }
 
     return trimmed;
@@ -1333,15 +1333,33 @@ export const migrateAllUnitsIoNumbers = async (force = false) => {
                         const delDrg = normStr(d.drawingNo);
                         const u2Drg = u2Bo ? normStr(u2Bo.drawingNo) : "";
                         const u1Drg = u1Bo ? normStr(u1Bo.drawingNo) : "";
+                        const delCode = normStr(d.itemCode);
+                        const u2Code = u2Bo ? normStr(u2Bo.itemCode) : "";
+                        const u1Code = u1Bo ? normStr(u1Bo.itemCode) : "";
+                        const delDesc = normStr(d.description);
+                        const u2Desc = u2Bo ? normStr(u2Bo.description) : "";
+                        const u1Desc = u1Bo ? normStr(u1Bo.description) : "";
 
                         const custMismatchU2 = Boolean(u2Bo && delCust && u2Cust && delCust !== u2Cust);
                         const drgMismatchU2 = Boolean(u2Bo && delDrg && u2Drg && delDrg !== u2Drg);
+                        const codeMismatchU2 = Boolean(u2Bo && delCode && u2Code && delCode !== u2Code);
+                        const descMismatchU2 = Boolean(u2Bo && delDesc && u2Desc && delDesc !== u2Desc);
 
-                        if (u2Bo && (custMismatchU2 || drgMismatchU2)) {
-                            // Customer or Drawing differs from Unit 2's base order -> belongs to Unit 1's series
+                        // Also check if this delivery report matches a Unit 1 order (by customer, drawing, itemCode, or description)
+                        const matchesU1 = Boolean(u1Bo && (
+                            (delCust && u1Cust && delCust === u1Cust) ||
+                            (delDrg && u1Drg && delDrg === u1Drg) ||
+                            (delCode && u1Code && delCode === u1Code) ||
+                            (delDesc && u1Desc && delDesc === u1Desc)
+                        ));
+
+                        if (u2Bo && (custMismatchU2 || drgMismatchU2 || codeMismatchU2 || descMismatchU2)) {
+                            // Customer, Drawing, Item Code, or Description differs from Unit 2's base order -> belongs to Unit 1's series
                             targetUnitCode = "U1";
-                        } else if (!u2Bo && u1Bo && (!delCust || !u1Cust || delCust === u1Cust || (delDrg && delDrg === u1Drg))) {
-                            // No Unit 2 base order for this serial, but exists in Unit 1
+                        } else if (!u2Bo && u1Bo) {
+                            // No Unit 2 base order for this serial (or created before base order), but exists in Unit 1
+                            targetUnitCode = "U1";
+                        } else if (u2Bo && u1Bo && matchesU1 && !delCust && !delDrg && !delCode) {
                             targetUnitCode = "U1";
                         }
                     }
@@ -1375,25 +1393,15 @@ export const migrateAllUnitsIoNumbers = async (force = false) => {
                         if (!o.previousInternalOrderNo) updates.previousInternalOrderNo = oldIo;
                     }
 
-                    // If a Unit 2 base order had dcNo/deliveryQty falsely synced from a Unit 1 delivery report, clean it
+                    // If a Unit 2 base order had dcNo/deliveryQty falsely synced or persisted from a stale form or Unit 1 delivery report, clean it
                     if (unitCode === "U2" && serialKey) {
                         const validDels = validDeliveriesBySerial.get(serialKey) || [];
-                        const u1Bo = u1BaseBySerial.get(serialKey);
-                        if (validDels.length === 0 && o.dcNo && u1Bo && !o.forceClosed) {
-                            // Check if any delivery report in Unit 2 that got reassigned to U1 had this DC No
-                            const mismatchedDel = orderDocs.find(
-                                d => d.entryType === "delivery_report" &&
-                                     getCanonicalSerialKey(d.internalOrderNo) === serialKey &&
-                                     normStr(d.customer) !== normStr(o.customer) &&
-                                     d.dcNo && String(o.dcNo).includes(String(d.dcNo).trim())
-                            );
-                            if (mismatchedDel) {
-                                updates.dcNo = "";
-                                updates.billNo = "";
-                                updates.deliveryDateActual = "";
-                                updates.deliveryQty = 0;
-                                updates.status = "Pending";
-                            }
+                        if (validDels.length === 0 && (o.dcNo || (o.status === "Delivered" && (!o.deliveryQty || Number(o.deliveryQty) === 0))) && !o.forceClosed) {
+                            updates.dcNo = "";
+                            updates.billNo = "";
+                            updates.deliveryDateActual = "";
+                            updates.deliveryQty = 0;
+                            updates.status = "Pending";
                         }
                     }
 
