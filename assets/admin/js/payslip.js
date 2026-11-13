@@ -1,6 +1,6 @@
-import * as DB from './db.js';
+import * as DB from './db.js?v=56';
 import * as UI from './ui.js';
-import { getActiveUnitConfig } from './units.js';
+import { getActiveUnitConfig } from './units.js?v=56';
 
 /* ==========================================================================
    IES PAYSLIP GENERATOR MODULE

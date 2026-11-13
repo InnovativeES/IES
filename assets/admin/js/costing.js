@@ -1,4 +1,4 @@
-import * as DB from './db.js?v=55';
+import * as DB from './db.js?v=56';
 
 // State
 let allExpenses = [];
@@ -240,7 +240,7 @@ export function getSanitizedInternalOrders(allOrders) {
         deliveriesByIo.get(ioKey).push(d);
     });
 
-    // 3. Deduplicate base orders by internalOrderNo
+    // 3. Deduplicate base orders by internalOrderNo ONLY when they are genuinely the same order
     const uniqueOrdersMap = new Map();
 
     baseOrders.forEach(order => {
@@ -253,13 +253,22 @@ export function getSanitizedInternalOrders(allOrders) {
         if (!uniqueOrdersMap.has(ioKey)) {
             uniqueOrdersMap.set(ioKey, { ...order });
         } else {
-            // Merge duplicate base orders (pick the one with valid PO value or newer data)
             const existing = uniqueOrdersMap.get(ioKey);
-            const existingVal = getOrderSaleValue(existing);
-            const currentVal = getOrderSaleValue(order);
+            const sameCustomer = String(existing.customer || '').trim().toUpperCase() === String(order.customer || '').trim().toUpperCase();
+            const sameDesc = String(existing.description || '').trim().toUpperCase() === String(order.description || '').trim().toUpperCase();
+            const sameDate = String(existing.date || '').trim() === String(order.date || '').trim();
 
-            if (currentVal > existingVal || (!existing.poNo && order.poNo) || (!existing.drawingNo && order.drawingNo)) {
-                uniqueOrdersMap.set(ioKey, { ...existing, ...order });
+            if (sameCustomer && sameDesc && sameDate) {
+                // Merge genuine duplicate base orders (pick the one with valid PO value or newer data)
+                const existingVal = getOrderSaleValue(existing);
+                const currentVal = getOrderSaleValue(order);
+
+                if (currentVal > existingVal || (!existing.poNo && order.poNo) || (!existing.drawingNo && order.drawingNo)) {
+                    uniqueOrdersMap.set(ioKey, { ...existing, ...order });
+                }
+            } else {
+                // Distinct orders that happened to share an IO string: keep both so neither order is lost
+                uniqueOrdersMap.set(`${ioKey}__${order.id}`, { ...order });
             }
         }
     });
@@ -309,6 +318,14 @@ export function renderCostingOrderList() {
 
     // Get orders from app state and sanitize/deduplicate
     const allOrders = window.adminApp?.getCurrentOrders ? window.adminApp.getCurrentOrders() : [];
+    const knownOrderDocIds = new Set(allOrders.map(o => o.id).filter(Boolean));
+    const getExpensesForOrder = (o) => {
+        const ioKey = String(o.internalOrderNo || '').trim().toUpperCase();
+        return allExpenses.filter(e =>
+            e.orderId === o.id ||
+            (!knownOrderDocIds.has(e.orderId) && ioKey && String(e.internalOrderNo || '').trim().toUpperCase() === ioKey)
+        );
+    };
     const sanitized = getSanitizedInternalOrders(allOrders);
 
     // Apply default month filter to latest month on initial load to avoid rendering lag
@@ -336,12 +353,12 @@ export function renderCostingOrderList() {
     // Filter by status / filled status
     if (statusFilter === 'filled') {
         filtered = filtered.filter(o => {
-            const exp = allExpenses.filter(e => e.orderId === o.id || e.internalOrderNo === o.internalOrderNo);
+            const exp = getExpensesForOrder(o);
             return exp.length > 0;
         });
     } else if (statusFilter === 'empty') {
         filtered = filtered.filter(o => {
-            const exp = allExpenses.filter(e => e.orderId === o.id || e.internalOrderNo === o.internalOrderNo);
+            const exp = getExpensesForOrder(o);
             return exp.length === 0;
         });
     } else if (statusFilter !== 'all') {
@@ -384,7 +401,7 @@ export function renderCostingOrderList() {
         const poVal = getOrderSaleValue(order);
         
         // Sum expenses for this order
-        const expenses = allExpenses.filter(e => e.orderId === order.id || e.internalOrderNo === order.internalOrderNo);
+        const expenses = getExpensesForOrder(order);
         const isFilled = expenses.length > 0;
         if (isFilled) filledOrdersCount++;
 
@@ -521,7 +538,16 @@ export function openCostingDetail(orderId) {
     }
 
     expensesUnsubscribe = DB.subscribeToCostingExpenses(currentOrderId, (expenses) => {
-        currentExpenses = expenses;
+        const knownOrderDocIds = new Set(allOrders.map(o => o.id).filter(Boolean));
+        const ioKey = String(currentOrder.internalOrderNo || '').trim().toUpperCase();
+        const extraByIo = ioKey ? allExpenses.filter(e =>
+            e.orderId !== currentOrderId &&
+            !knownOrderDocIds.has(e.orderId) &&
+            String(e.internalOrderNo || '').trim().toUpperCase() === ioKey
+        ) : [];
+        const mergedMap = new Map();
+        [...expenses, ...extraByIo].forEach(e => mergedMap.set(e.id, e));
+        currentExpenses = Array.from(mergedMap.values());
         renderCostingDetailContent();
     });
 }
@@ -572,10 +598,12 @@ export function loadEmbeddedProjectCosting(orderNoOrId, fallbackProject = null) 
     }
 
     expensesUnsubscribe = DB.subscribeToCostingExpenses(currentOrderId, (expenses) => {
-        // Also include expenses matched by internalOrderNo in case orderId differed
+        // Also include expenses matched by internalOrderNo only if their orderId does not belong to another known order doc
+        const knownOrderDocIds = new Set(allOrders.map(o => o.id).filter(Boolean));
         const ioKey = String(currentOrder.internalOrderNo || '').trim().toUpperCase();
         const extraByIo = ioKey ? allExpenses.filter(e =>
             e.orderId !== currentOrderId &&
+            !knownOrderDocIds.has(e.orderId) &&
             String(e.internalOrderNo || '').trim().toUpperCase() === ioKey
         ) : [];
         const mergedMap = new Map();

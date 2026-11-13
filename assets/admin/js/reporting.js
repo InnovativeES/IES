@@ -1,4 +1,4 @@
-import * as DB from './db.js';
+import * as DB from './db.js?v=56';
 export const initDailySummaryReport = () => {
     console.log("Initializing Daily Summary Report...");
     const startDateInput = document.getElementById('summary-report-start-date');

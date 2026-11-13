@@ -1,16 +1,16 @@
 import * as Auth from './auth.js';
 import * as UI from './ui.js';
-import * as DB from './db.js?v=55';
+import * as DB from './db.js?v=56';
 import * as Charts from './charts.js';
-import * as Monitoring from './monitoring.js?v=55';
-import * as DCRegister from './dc_register.js?v=55';
-import * as Inventory from './inventory.js?v=55';
-import * as Workflow from './workflow.js?v=55';
-import * as Reporting from './reporting.js';
-import * as Tracker from './progress_tracker.js?v=55';
-import * as Costing from './costing.js?v=55';
-import * as Payslip from './payslip.js?v=30';
-import * as Units from './units.js?v=55';
+import * as Monitoring from './monitoring.js?v=56';
+import * as DCRegister from './dc_register.js?v=56';
+import * as Inventory from './inventory.js?v=56';
+import * as Workflow from './workflow.js?v=56';
+import * as Reporting from './reporting.js?v=56';
+import * as Tracker from './progress_tracker.js?v=56';
+import * as Costing from './costing.js?v=56';
+import * as Payslip from './payslip.js?v=56';
+import * as Units from './units.js?v=56';
 
 // App State
 let currentMembers = [];
@@ -1365,6 +1365,7 @@ window.adminApp = {
 
         const allOrders = window.adminApp.getCurrentOrders ? window.adminApp.getCurrentOrders() : [];
         const allExpenses = Costing.getAllExpenses ? Costing.getAllExpenses() : [];
+        const knownOrderDocIds = new Set(allOrders.map(o => o.id).filter(Boolean));
 
         tbody.innerHTML = projects.map((p, idx) => {
             const statusClass = (p.status || 'draft').toLowerCase().replace(/\s+/g, '-');
@@ -1385,7 +1386,8 @@ window.adminApp = {
 
             const orderExpenses = allExpenses.filter(e =>
                 (matchingOrder && e.orderId === matchingOrder.id) ||
-                String(e.internalOrderNo || '').trim().toUpperCase() === ioKey
+                (e.orderId === p.id) ||
+                (!knownOrderDocIds.has(e.orderId) && String(e.internalOrderNo || '').trim().toUpperCase() === ioKey)
             );
             const totalExp = orderExpenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
             const hasCosting = orderExpenses.length > 0 || (p.costingItems && p.costingItems.length > 0) || (p.expenses && p.expenses.length > 0) || (parseFloat(p.totalCost) > 0);
@@ -2907,47 +2909,79 @@ window.adminApp = {
         const fyEnd = fyStart + 1;
         const fyCode = `${fyStart}${String(fyEnd).slice(-2)}`;
         const unitConfig = Units.getActiveUnitConfig();
-        const unitCode = (unitConfig && unitConfig.code) ? unitConfig.code : 'U1';
-        const prefix = `${fyCode}-${unitCode}`;
-        const legacyPrefix = `${fyCode}-`;
+        const isUnit2 = unitConfig && unitConfig.id === 'unit2';
 
-        let maxNum = 0;
-        const extractSerial = (rawIo) => {
+        if (isUnit2) {
+            const prefix = `${fyCode}-U2`;
+            const legacyPrefix = `${fyCode}-`;
+            let maxNum = 0;
+            const extractU2Serial = (rawIo) => {
+                const io = String(rawIo || '').trim().toUpperCase();
+                if (!io) return 0;
+                let rest = '';
+                if (io.startsWith(prefix)) {
+                    rest = io.slice(prefix.length).replace(/^-/, '');
+                } else if (io.startsWith(legacyPrefix) && !/^20\d{4}-U1/i.test(io)) {
+                    rest = io.slice(legacyPrefix.length);
+                } else {
+                    return 0;
+                }
+                const match = rest.match(/^(\d+)/);
+                if (!match) return 0;
+                const num = parseInt(match[1], 10);
+                return isNaN(num) ? 0 : num;
+            };
+            (currentOrders || []).forEach(o => {
+                if (o.entryType === 'delivery_report' || o.isDeleted || o.deleted || o.isTrash) return;
+                const n = extractU2Serial(o.internalOrderNo);
+                if (n > maxNum) maxNum = n;
+            });
+            (currentProjects || []).forEach(p => {
+                if (p.isDeleted || p.deleted) return;
+                const n1 = extractU2Serial(p.projectId);
+                if (n1 > maxNum) maxNum = n1;
+                const n2 = extractU2Serial(p.internalOrderNo);
+                if (n2 > maxNum) maxNum = n2;
+            });
+            return `${prefix}${String(maxNum + 1).padStart(4, '0')}`;
+        }
+
+        // Unit 1: Preserve original Unit 1 series (e.g. 202627-200215 -> 202627-200216) without U1 prefix
+        const u1Prefix = `${fyCode}-`;
+        let maxU1Num = 0;
+        const extractU1Serial = (rawIo) => {
             const io = String(rawIo || '').trim().toUpperCase();
-            if (!io) return 0;
-            let rest = '';
-            if (io.startsWith(prefix)) {
-                rest = io.slice(prefix.length).replace(/^-/, '');
-            } else if (io.startsWith(legacyPrefix) && !/^20\d{4}-U[12]/i.test(io)) {
-                rest = io.slice(legacyPrefix.length);
-            } else {
-                return 0;
-            }
+            if (!io || !io.startsWith(u1Prefix) || io.startsWith(`${fyCode}-U2`)) return 0;
+            let rest = io.slice(u1Prefix.length);
+            const wasU1Prefixed = /^U1-?/i.test(rest);
+            rest = rest.replace(/^U1-?/i, '');
             const match = rest.match(/^(\d+)/);
             if (!match) return 0;
             let num = parseInt(match[1], 10);
             if (isNaN(num)) return 0;
-            // Normalize legacy 200xxx series (e.g. 200215 -> 215)
-            if (num > 200000 && num < 210000) num -= 200000;
+            // If an order is still temporarily in U10216 format before migration finishes, map >200 to 200xxx
+            if (wasU1Prefixed && num > 200 && num < 10000) num += 200000;
             return num;
         };
 
         (currentOrders || []).forEach(o => {
             if (o.entryType === 'delivery_report' || o.isDeleted || o.deleted || o.isTrash) return;
-            const n = extractSerial(o.internalOrderNo);
-            if (n > maxNum) maxNum = n;
+            const n = extractU1Serial(o.internalOrderNo);
+            if (n > maxU1Num) maxU1Num = n;
         });
 
         (currentProjects || []).forEach(p => {
             if (p.isDeleted || p.deleted) return;
-            const n1 = extractSerial(p.projectId);
-            if (n1 > maxNum) maxNum = n1;
-            const n2 = extractSerial(p.internalOrderNo);
-            if (n2 > maxNum) maxNum = n2;
+            const n1 = extractU1Serial(p.projectId);
+            if (n1 > maxU1Num) maxU1Num = n1;
+            const n2 = extractU1Serial(p.internalOrderNo);
+            if (n2 > maxU1Num) maxU1Num = n2;
         });
 
-        const nextNum = String(maxNum + 1).padStart(4, '0');
-        return `${prefix}${nextNum}`;
+        if (maxU1Num >= 10000) {
+            return `${u1Prefix}${maxU1Num + 1}`;
+        }
+        return `${u1Prefix}${String(maxU1Num + 1).padStart(4, '0')}`;
     },
 
     prepareAddOrder: () => {
@@ -5181,13 +5215,23 @@ document.addEventListener('DOMContentLoaded', () => {
             // Ensure subscriptions are running for active unit
             startUnitSubscriptions();
 
-            // Automatically migrate any un-prefixed 202627- IO numbers to U1/U2 4-digit format across both units
+            // Automatically restore Unit 1 pre-migration IOs and repair Unit 2 U2 IOs across all collections
             if (DB.migrateAllUnitsIoNumbers) {
                 DB.migrateAllUnitsIoNumbers().then((res) => {
                     if (res && res.summary && res.summary.totalUpdated > 0) {
-                        showGlobalLoader(`✓ Synchronized ${res.summary.totalUpdated} U1/U2 IO records`, true, 3000);
+                        if (window.adminApp && window.adminApp.invalidateProjectCrCache) {
+                            window.adminApp.invalidateProjectCrCache();
+                        }
+                        if (Monitoring && Monitoring.renderTable) Monitoring.renderTable(currentOrders);
+                        if (DCRegister && DCRegister.renderDCTable) DCRegister.renderDCTable(currentOrders);
+                        if (Costing && Costing.renderCostingOrderList) Costing.renderCostingOrderList();
+                        if (window.adminApp && window.adminApp.filterProjects) window.adminApp.filterProjects();
+                        if (window.adminApp && window.adminApp.updateProjectStats) window.adminApp.updateProjectStats();
+                        if (window.adminApp && window.adminApp.renderProjectOverview) window.adminApp.renderProjectOverview();
+                        refreshDashboard();
+                        showGlobalLoader(`✓ Restored & repaired ${res.summary.totalUpdated} order/project/costing records`, true, 3500);
                     }
-                }).catch((err) => console.warn('IO migration check warning:', err));
+                }).catch((err) => console.warn('IO restoration check warning:', err));
             }
 
             // Ensure dashboard is ready immediately
@@ -5960,6 +6004,7 @@ window.adminApp.buildUnifiedProjectRows = () => {
     const unifiedRows = [];
     const seenProjectIds = new Set();
     const seenIoKeys = new Set();
+    const knownOrderDocIds = new Set(activeOrders.map(o => o.id).filter(Boolean));
 
     sanitizedOrders.forEach(order => {
         const ioNo = String(order.internalOrderNo || '').trim();
@@ -5995,12 +6040,14 @@ window.adminApp.buildUnifiedProjectRows = () => {
             totalSale = parseMoney(order.total ?? order.totalValue) || (qty * unitSale);
         }
 
-        // Expenses: match by order.id or ioNo without double counting
+        // Expenses: match by order.id first so expenses linked to a specific order doc never bleed across orders
         const matchingExpenses = allExpenses.filter(e =>
             (order.id && e.orderId === order.id) ||
-            (ioKey && String(e.internalOrderNo || '').trim().toUpperCase() === ioKey) ||
-            (ioKey && String(e.orderId || '').trim().toUpperCase() === ioKey) ||
-            (proj && proj.id && e.orderId === proj.id)
+            (proj && proj.id && e.orderId === proj.id) ||
+            (!knownOrderDocIds.has(e.orderId) && (
+                (ioKey && String(e.internalOrderNo || '').trim().toUpperCase() === ioKey) ||
+                (ioKey && String(e.orderId || '').trim().toUpperCase() === ioKey)
+            ))
         );
         const totalExp = matchingExpenses.reduce((sum, e) => {
             const amt = parseFloat(e.amount) || ((parseFloat(e.qty) || 0) * (parseFloat(e.rate) || 0));
